@@ -9,7 +9,8 @@ import {
   LogOut,
   MessageSquare,
   BarChart3,
-  ShieldAlert
+  ShieldAlert,
+  Smartphone
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -24,6 +25,7 @@ export default function AdminLayout() {
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
     { name: "Messaging", path: "/admin/messaging", icon: MessageSquare },
     { name: "Payments", path: "/admin/payments", icon: CreditCard },
+    { name: "Simulator", path: "/admin/simulator", icon: Smartphone },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
 
