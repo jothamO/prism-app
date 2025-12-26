@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLayout from "./layouts/AdminLayout";
@@ -21,8 +22,21 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          {/* Public Routes */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/admin/login" element={<AdminLogin />} />
+          
+          {/* Protected Dashboard */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* Protected Admin Routes */}
           <Route
             path="/admin"
             element={
@@ -42,6 +56,7 @@ function App() {
             <Route path="simulator" element={<AdminSimulator />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
+          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />
