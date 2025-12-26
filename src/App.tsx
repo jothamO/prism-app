@@ -12,6 +12,7 @@ import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminMessaging from "./pages/admin/AdminMessaging";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminSimulator from "./pages/admin/AdminSimulator";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="messaging" element={<AdminMessaging />} />
           <Route path="payments" element={<AdminPayments />} />
+          <Route path="simulator" element={<AdminSimulator />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
