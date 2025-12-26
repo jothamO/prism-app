@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLayout from "./layouts/AdminLayout";
@@ -17,24 +19,33 @@ import AdminSimulator from "./pages/admin/AdminSimulator";
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="users" element={<AdminUsers />} />
-          <Route path="reviews" element={<AdminReviews />} />
-          <Route path="filings" element={<AdminFilings />} />
-          <Route path="invoices" element={<AdminInvoices />} />
-          <Route path="analytics" element={<AdminAnalytics />} />
-          <Route path="messaging" element={<AdminMessaging />} />
-          <Route path="payments" element={<AdminPayments />} />
-          <Route path="simulator" element={<AdminSimulator />} />
-          <Route path="settings" element={<AdminSettings />} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <Toaster />
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="reviews" element={<AdminReviews />} />
+            <Route path="filings" element={<AdminFilings />} />
+            <Route path="invoices" element={<AdminInvoices />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="messaging" element={<AdminMessaging />} />
+            <Route path="payments" element={<AdminPayments />} />
+            <Route path="simulator" element={<AdminSimulator />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        <Toaster />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
