@@ -1,5 +1,6 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +16,8 @@ import {
 
 export default function AdminLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const navItems = [
     { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
@@ -28,6 +31,13 @@ export default function AdminLayout() {
     { name: "Simulator", path: "/admin/simulator", icon: Smartphone },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/admin/login');
+  };
+
+  const userInitial = user?.email?.charAt(0).toUpperCase() || 'A';
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -60,7 +70,10 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-4 border-t border-border">
-          <button className="flex items-center gap-3 px-3 py-2 w-full text-muted-foreground hover:text-destructive transition-colors">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3 py-2 w-full text-muted-foreground hover:text-destructive transition-colors"
+          >
             <LogOut className="w-5 h-5" />
             <span>Logout</span>
           </button>
@@ -73,8 +86,9 @@ export default function AdminLayout() {
             {navItems.find(i => i.path === location.pathname)?.name || "Dashboard"}
           </h2>
           <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">{user?.email}</span>
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
-              A
+              {userInitial}
             </div>
           </div>
         </header>
