@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { MessageSquare, FileText, Calculator, Clock, Shield, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const features = [
   {
@@ -48,9 +49,12 @@ export default function LandingPage() {
               </div>
               <span className="text-xl font-bold text-foreground">PRISM</span>
             </div>
-            <Link to="/admin/login">
-              <Button variant="outline">Sign In</Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Link to="/admin/login">
+                <Button variant="secondary" className="font-medium">Sign In</Button>
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -74,7 +78,7 @@ export default function LandingPage() {
                   Get Started
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="w-full sm:w-auto text-lg px-8">
+              <Button size="lg" variant="secondary" className="w-full sm:w-auto text-lg px-8">
                 Learn More
               </Button>
             </div>
