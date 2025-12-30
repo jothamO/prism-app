@@ -5,6 +5,8 @@ import { supabase } from "../config/database";
 import { invoiceService } from "../services/invoice.service";
 import { vatCalculatorService } from "../services/vat-calculator.service";
 import { conversationService } from "../services/conversation.service";
+import { analyticsService } from "../services/analytics.service";
+import { websocketService } from "../services/websocket.service";
 
 export class WebhookController {
   async handleWhatsApp(req: Request, res: Response) {
@@ -210,7 +212,7 @@ export class WebhookController {
 
       const needsReview = (invoiceData.ocrConfidence || 1) < 0.8;
 
-      await invoiceService.create({
+      const invoice = await invoiceService.create({
         user_id: user.id,
         business_id: businessId,
         ...invoiceData,
@@ -221,6 +223,16 @@ export class WebhookController {
         needs_review: needsReview,
         review_reasons: needsReview ? ["Low OCR confidence"] : [],
       });
+
+      // Track analytics event
+      await analyticsService.trackEvent(user.id, "invoice_uploaded", {
+        amount: invoice.total,
+        source: "manual_upload",
+        confidence: invoiceData.ocrConfidence,
+      });
+
+      // Emit WebSocket event
+      websocketService.emitNewInvoice(invoice);
 
       const confirmationMessage = needsReview
         ? `⚠️ Invoice processed (low scan quality - please verify)!\n\nInvoice #: ${invoiceData.invoiceNumber}\nCustomer: ${invoiceData.customerName}\nAmount: ₦${invoiceData.subtotal.toLocaleString()}\nVAT: ₦${vat.toLocaleString()}\n\nPlease double-check the details are correct.`

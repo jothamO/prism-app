@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
+    "@sentry/node": "^10.32.1",
     "@supabase/supabase-js": "^2.43.0",
     "bullmq": "^5.7.0",
     "cors": "^2.8.5",
@@ -25,6 +26,7 @@
     "openai": "^6.9.1",
     "pdfkit": "^0.15.0",
     "pg": "^8.11.5",
+    "socket.io": "^4.8.3",
     "tesseract.js": "^5.1.0",
     "uuid": "^9.0.1"
   },
