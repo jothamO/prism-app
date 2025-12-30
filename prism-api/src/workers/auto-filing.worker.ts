@@ -9,6 +9,31 @@ import { redisConnection } from '../config/redis';
 export const filingQueue = new Queue('auto-filing', { connection: redisConnection });
 
 const worker = new Worker('auto-filing', async (job) => {
+    if (job.name === 'monthly-filing-check') {
+        // Scheduler job: spawn individual user jobs
+        console.log('📅 Running monthly filing check...');
+
+        const { data: users } = await supabase
+            .from('users')
+            .select('id')
+            .eq('subscription_status', 'active')
+            .eq('has_active_vat', true);
+
+        const today = new Date();
+        const period = new Date(today.getFullYear(), today.getMonth() - 1)
+            .toISOString().slice(0, 7);
+
+        for (const user of users || []) {
+            await filingQueue.add('file-vat', {
+                userId: user.id,
+                period
+            });
+        }
+
+        return { success: true, usersQueued: users?.length || 0 };
+    }
+
+    // Individual user filing job
     const { userId, period } = job.data;
 
     console.log(`📝 Auto-filing VAT for user ${userId}, period ${period}`);
@@ -117,22 +142,16 @@ Reply "PAID" after payment.
 }, { connection: redisConnection });
 
 export async function scheduleMonthlyFilings() {
-    const today = new Date();
-    if (today.getDate() !== 21) return;
-
-    const { data: users } = await supabase
-        .from('users')
-        .select('id')
-        .eq('subscription_status', 'active')
-        .eq('has_active_vat', true);
-
-    const period = new Date(today.getFullYear(), today.getMonth() - 1)
-        .toISOString().slice(0, 7);
-
-    for (const user of users || []) {
-        await filingQueue.add('file-vat', {
-            userId: user.id,
-            period
-        });
+    // Clean up old repeatable jobs
+    const repeatableJobs = await filingQueue.getRepeatableJobs();
+    for (const job of repeatableJobs) {
+        await filingQueue.removeRepeatableByKey(job.key);
     }
+
+    // Schedule monthly filing check for 21st of every month at 00:00
+    await filingQueue.add('monthly-filing-check', {}, {
+        repeat: { pattern: '0 0 21 * *' }
+    });
+
+    console.log('📅 Scheduled monthly VAT filings for 21st of each month');
 }
