@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_summary: {
+        Row: {
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          metric_name: string
+          metric_value: number
+          period: string
+          period_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          metric_name: string
+          metric_value: number
+          period: string
+          period_date: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          metric_name?: string
+          metric_value?: number
+          period?: string
+          period_date?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -520,6 +550,7 @@ export type Database = {
           invoice_id: string | null
           notes: string | null
           priority: string | null
+          priority_score: number | null
           reasons: string[]
           resolved_at: string | null
           status: string | null
@@ -532,6 +563,7 @@ export type Database = {
           invoice_id?: string | null
           notes?: string | null
           priority?: string | null
+          priority_score?: number | null
           reasons: string[]
           resolved_at?: string | null
           status?: string | null
@@ -544,6 +576,7 @@ export type Database = {
           invoice_id?: string | null
           notes?: string | null
           priority?: string | null
+          priority_score?: number | null
           reasons?: string[]
           resolved_at?: string | null
           status?: string | null
@@ -622,6 +655,38 @@ export type Database = {
           },
           {
             foreignKeyName: "user_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_events: {
+        Row: {
+          created_at: string | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
