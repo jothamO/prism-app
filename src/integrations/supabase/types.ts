@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      businesses: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean | null
+          name: string
+          tin: string | null
+          updated_at: string
+          user_id: string
+          vat_registered: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          tin?: string | null
+          updated_at?: string
+          user_id: string
+          vat_registered?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          tin?: string | null
+          updated_at?: string
+          user_id?: string
+          vat_registered?: boolean | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
