@@ -6,8 +6,9 @@
 // Since I don't have the type definition, I will use 'any' for now to avoid TS errors if the package is missing types.
 
 import { classifierService } from './classifier.service';
-import { invoiceService } from './invoice.service'; // We will create this
+import { invoiceService } from './invoice.service';
 import { whatsappService } from './whatsapp.service';
+import { supabase } from '../config/database';
 
 // Mocking Mono import for now as I can't verify the package
 const Mono = require('mono-node');
@@ -15,7 +16,7 @@ const Mono = require('mono-node');
 export class MonoService {
     private client = new Mono(process.env.MONO_SECRET_KEY!);
 
-    async getAuthUrl(userId: string): string {
+    async getAuthUrl(userId: string): Promise<string> {
         const data = await this.client.auth.getAuthUrl({
             scope: 'auth',
             customer: {
@@ -49,6 +50,15 @@ export class MonoService {
         const start = new Date();
         start.setDate(start.getDate() - 90);
 
+        // Fetch business_id for this account
+        const { data: userAccount } = await supabase
+            .from('user_accounts')
+            .select('business_id')
+            .eq('mono_account_id', accountId)
+            .single();
+
+        const businessId = userAccount?.business_id;
+
         const transactions = await this.getTransactions(accountId, {
             start,
             end: new Date()
@@ -56,7 +66,7 @@ export class MonoService {
 
         for (const txn of transactions) {
             if (txn.type === 'credit' && txn.amount > 1000) {
-                await this.processTransaction(userId, accountId, txn);
+                await this.processTransaction(userId, accountId, txn, businessId);
             }
         }
 
@@ -66,12 +76,13 @@ export class MonoService {
     private async processTransaction(
         userId: string,
         accountId: string,
-        txn: any
+        txn: any,
+        businessId?: string
     ) {
         const classification = await classifierService.classify(txn);
 
         if (classification.classification === 'sale' && classification.confidence > 0.80) {
-            await invoiceService.createFromTransaction(userId, accountId, txn);
+            await invoiceService.createFromTransaction(userId, accountId, txn, businessId);
         } else {
             await this.flagForConfirmation(userId, txn, classification);
         }
