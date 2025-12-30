@@ -4,6 +4,7 @@ import { ocrService } from '../services/ocr.service';
 import { supabase } from '../config/database';
 import { invoiceService } from '../services/invoice.service';
 import { vatCalculatorService } from '../services/vat-calculator.service';
+import { conversationService } from '../services/conversation.service';
 
 export class WebhookController {
     async handleWhatsApp(req: Request, res: Response) {
@@ -15,6 +16,40 @@ export class WebhookController {
         } catch (error) {
             console.error('Webhook error:', error);
             res.sendStatus(500);
+        }
+    }
+
+    async handleMonoWebhook(req: Request, res: Response) {
+        try {
+            const secret = req.headers['x-mono-webhook-secret'];
+            if (secret !== process.env.MONO_WEBHOOK_SECRET) {
+                return res.status(401).send('Unauthorized');
+            }
+
+            const event = req.body;
+            console.log('Mono Webhook Event:', event.event);
+
+            res.sendStatus(200);
+
+            if (event.event === 'reauthorization.required') {
+                console.log('Reauthorization required for account:', event.data.account._id);
+            } else if (event.event === 'mono.events.account_updated') {
+                const accountId = event.data.account._id;
+
+                const { data: accountData } = await supabase
+                    .from('user_accounts')
+                    .select('user_id')
+                    .eq('mono_account_id', accountId)
+                    .single();
+
+                if (accountData && event.data.meta && event.data.meta.data_status === 'AVAILABLE') {
+                    const { monoService } = await import('../services/mono.service');
+                    await monoService.syncAccount(accountData.user_id, accountId);
+                }
+            }
+        } catch (error) {
+            console.error('Mono Webhook error:', error);
+            if (!res.headersSent) res.sendStatus(500);
         }
     }
 
