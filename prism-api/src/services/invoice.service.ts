@@ -2,13 +2,12 @@ import { supabase } from '../config/database';
 import { vatCalculatorService } from './vat-calculator.service';
 
 export class InvoiceService {
-    async createFromTransaction(userId: string, accountId: string, txn: any, businessId?: string) {
+    async createFromTransaction(userId: string, accountId: string, txn: any) {
         const { subtotal, vatAmount, total } = vatCalculatorService.calculateVAT(txn.amount, true);
 
         const { data, error } = await supabase.from('invoices').insert({
             user_id: userId,
             account_id: accountId,
-            business_id: businessId,
             date: txn.date,
             customer_name: txn.narration, // Best guess from bank narration
             subtotal,

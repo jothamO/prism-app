@@ -3,7 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/api.routes';
 import { scheduleMonthlyFilings } from './workers/auto-filing.worker';
-import { scheduleNotifications } from './workers/notifications.worker';
 
 dotenv.config();
 
@@ -23,12 +22,9 @@ app.get('/', (req, res) => {
 });
 
 // Start the server
-app.listen(port, async () => {
+app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 
-    // Schedule monthly filings
-    await scheduleMonthlyFilings();
-
-    // Schedule notifications
-    await scheduleNotifications();
+    // Start cron jobs
+    setInterval(scheduleMonthlyFilings, 1000 * 60 * 60); // Check every hour
 });
