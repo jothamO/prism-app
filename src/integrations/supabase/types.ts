@@ -14,38 +14,429 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       businesses: {
         Row: {
           created_at: string
           id: string
           is_default: boolean | null
+          is_primary: boolean | null
           name: string
+          next_filing_date: string | null
           tin: string | null
           updated_at: string
           user_id: string
+          vat_enabled: boolean | null
           vat_registered: boolean | null
         }
         Insert: {
           created_at?: string
           id?: string
           is_default?: boolean | null
+          is_primary?: boolean | null
           name: string
+          next_filing_date?: string | null
           tin?: string | null
           updated_at?: string
           user_id: string
+          vat_enabled?: boolean | null
           vat_registered?: boolean | null
         }
         Update: {
           created_at?: string
           id?: string
           is_default?: boolean | null
+          is_primary?: boolean | null
           name?: string
+          next_filing_date?: string | null
           tin?: string | null
           updated_at?: string
           user_id?: string
+          vat_enabled?: boolean | null
           vat_registered?: boolean | null
         }
         Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          business_id: string | null
+          category: string | null
+          created_at: string | null
+          date: string
+          description: string
+          id: string
+          period: string
+          receipt_url: string | null
+          supplier_name: string | null
+          user_id: string | null
+          vat_amount: number | null
+          vat_rate: number | null
+        }
+        Insert: {
+          amount: number
+          business_id?: string | null
+          category?: string | null
+          created_at?: string | null
+          date: string
+          description: string
+          id?: string
+          period: string
+          receipt_url?: string | null
+          supplier_name?: string | null
+          user_id?: string | null
+          vat_amount?: number | null
+          vat_rate?: number | null
+        }
+        Update: {
+          amount?: number
+          business_id?: string | null
+          category?: string | null
+          created_at?: string | null
+          date?: string
+          description?: string
+          id?: string
+          period?: string
+          receipt_url?: string | null
+          supplier_name?: string | null
+          user_id?: string | null
+          vat_amount?: number | null
+          vat_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      filings: {
+        Row: {
+          auto_filed: boolean | null
+          business_id: string | null
+          created_at: string | null
+          expense_count: number | null
+          id: string
+          input_vat: number | null
+          invoice_count: number | null
+          net_amount: number
+          output_vat: number | null
+          paid_at: string | null
+          payment_status: string | null
+          pdf_url: string | null
+          period: string
+          remita_rrr: string | null
+          status: string | null
+          submission_method: string | null
+          submitted_at: string | null
+          tax_type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          auto_filed?: boolean | null
+          business_id?: string | null
+          created_at?: string | null
+          expense_count?: number | null
+          id?: string
+          input_vat?: number | null
+          invoice_count?: number | null
+          net_amount: number
+          output_vat?: number | null
+          paid_at?: string | null
+          payment_status?: string | null
+          pdf_url?: string | null
+          period: string
+          remita_rrr?: string | null
+          status?: string | null
+          submission_method?: string | null
+          submitted_at?: string | null
+          tax_type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          auto_filed?: boolean | null
+          business_id?: string | null
+          created_at?: string | null
+          expense_count?: number | null
+          id?: string
+          input_vat?: number | null
+          invoice_count?: number | null
+          net_amount?: number
+          output_vat?: number | null
+          paid_at?: string | null
+          payment_status?: string | null
+          pdf_url?: string | null
+          period?: string
+          remita_rrr?: string | null
+          status?: string | null
+          submission_method?: string | null
+          submitted_at?: string | null
+          tax_type?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "filings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          account_id: string | null
+          bank_reference: string | null
+          business_id: string | null
+          confidence_score: number | null
+          created_at: string | null
+          customer_name: string | null
+          customer_tin: string | null
+          date: string
+          id: string
+          image_url: string | null
+          invoice_number: string | null
+          items: Json
+          needs_review: boolean | null
+          period: string
+          review_reasons: string[] | null
+          source: string | null
+          status: string | null
+          subtotal: number
+          total: number
+          updated_at: string | null
+          user_confirmed: boolean | null
+          user_id: string | null
+          vat_amount: number
+        }
+        Insert: {
+          account_id?: string | null
+          bank_reference?: string | null
+          business_id?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          customer_name?: string | null
+          customer_tin?: string | null
+          date: string
+          id?: string
+          image_url?: string | null
+          invoice_number?: string | null
+          items: Json
+          needs_review?: boolean | null
+          period: string
+          review_reasons?: string[] | null
+          source?: string | null
+          status?: string | null
+          subtotal: number
+          total: number
+          updated_at?: string | null
+          user_confirmed?: boolean | null
+          user_id?: string | null
+          vat_amount: number
+        }
+        Update: {
+          account_id?: string | null
+          bank_reference?: string | null
+          business_id?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          customer_name?: string | null
+          customer_tin?: string | null
+          date?: string
+          id?: string
+          image_url?: string | null
+          invoice_number?: string | null
+          items?: Json
+          needs_review?: boolean | null
+          period?: string
+          review_reasons?: string[] | null
+          source?: string | null
+          status?: string | null
+          subtotal?: number
+          total?: number
+          updated_at?: string | null
+          user_confirmed?: boolean | null
+          user_id?: string | null
+          vat_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "user_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string | null
+          context: Json | null
+          created_at: string | null
+          direction: string
+          id: string
+          media_url: string | null
+          message_type: string | null
+          user_id: string | null
+          whatsapp_message_id: string | null
+          whatsapp_status: string | null
+        }
+        Insert: {
+          content?: string | null
+          context?: Json | null
+          created_at?: string | null
+          direction: string
+          id?: string
+          media_url?: string | null
+          message_type?: string | null
+          user_id?: string | null
+          whatsapp_message_id?: string | null
+          whatsapp_status?: string | null
+        }
+        Update: {
+          content?: string | null
+          context?: Json | null
+          created_at?: string | null
+          direction?: string
+          id?: string
+          media_url?: string | null
+          message_type?: string | null
+          user_id?: string | null
+          whatsapp_message_id?: string | null
+          whatsapp_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      non_revenue_transactions: {
+        Row: {
+          amount: number
+          bank_reference: string | null
+          created_at: string | null
+          date: string
+          excluded_from_vat: boolean | null
+          id: string
+          metadata: Json | null
+          source: string | null
+          transaction_type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          bank_reference?: string | null
+          created_at?: string | null
+          date: string
+          excluded_from_vat?: boolean | null
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+          transaction_type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          bank_reference?: string | null
+          created_at?: string | null
+          date?: string
+          excluded_from_vat?: boolean | null
+          id?: string
+          metadata?: Json | null
+          source?: string | null
+          transaction_type?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "non_revenue_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -74,6 +465,170 @@ export type Database = {
         }
         Relationships: []
       }
+      reminders: {
+        Row: {
+          created_at: string | null
+          due_date: string
+          id: string
+          message: string
+          reminder_type: string
+          send_at: string
+          sent: boolean | null
+          sent_at: string | null
+          tax_type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          due_date: string
+          id?: string
+          message: string
+          reminder_type: string
+          send_at: string
+          sent?: boolean | null
+          sent_at?: string | null
+          tax_type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          due_date?: string
+          id?: string
+          message?: string
+          reminder_type?: string
+          send_at?: string
+          sent?: boolean | null
+          sent_at?: string | null
+          tax_type?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_queue: {
+        Row: {
+          assigned_to: string | null
+          created_at: string | null
+          id: string
+          invoice_id: string | null
+          notes: string | null
+          priority: string | null
+          reasons: string[]
+          resolved_at: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          priority?: string | null
+          reasons: string[]
+          resolved_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string | null
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          priority?: string | null
+          reasons?: string[]
+          resolved_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_queue_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_accounts: {
+        Row: {
+          account_number: string | null
+          account_type: string | null
+          bank_name: string | null
+          business_id: string | null
+          created_at: string | null
+          id: string
+          last_synced_at: string | null
+          mono_account_id: string
+          purpose: string | null
+          sync_status: string | null
+          track_expenses: boolean | null
+          track_sales: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          account_number?: string | null
+          account_type?: string | null
+          bank_name?: string | null
+          business_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_synced_at?: string | null
+          mono_account_id: string
+          purpose?: string | null
+          sync_status?: string | null
+          track_expenses?: boolean | null
+          track_sales?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          account_number?: string | null
+          account_type?: string | null
+          bank_name?: string | null
+          business_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_synced_at?: string | null
+          mono_account_id?: string
+          purpose?: string | null
+          sync_status?: string | null
+          track_expenses?: boolean | null
+          track_sales?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_accounts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -89,6 +644,57 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          business_name: string
+          business_type: string | null
+          created_at: string | null
+          email: string | null
+          has_active_vat: boolean | null
+          id: string
+          onboarding_completed: boolean | null
+          onboarding_step: number | null
+          subscription_expires_at: string | null
+          subscription_status: string | null
+          subscription_tier: string | null
+          tin: string
+          updated_at: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          business_name: string
+          business_type?: string | null
+          created_at?: string | null
+          email?: string | null
+          has_active_vat?: boolean | null
+          id?: string
+          onboarding_completed?: boolean | null
+          onboarding_step?: number | null
+          subscription_expires_at?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          tin: string
+          updated_at?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          business_name?: string
+          business_type?: string | null
+          created_at?: string | null
+          email?: string | null
+          has_active_vat?: boolean | null
+          id?: string
+          onboarding_completed?: boolean | null
+          onboarding_step?: number | null
+          subscription_expires_at?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          tin?: string
+          updated_at?: string | null
+          whatsapp_number?: string
         }
         Relationships: []
       }
