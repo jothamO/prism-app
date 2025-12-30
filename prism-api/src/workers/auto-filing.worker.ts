@@ -9,89 +9,118 @@ import { redisConnection } from '../config/redis';
 export const filingQueue = new Queue('auto-filing', { connection: redisConnection });
 
 const worker = new Worker('auto-filing', async (job) => {
-    const { userId, period } = job.data;
+    if (job.name === 'monthly-filing-check') {
+        const today = new Date();
+        const period = new Date(today.getFullYear(), today.getMonth() - 1)
+            .toISOString().slice(0, 7);
 
-    console.log(`📝 Auto-filing VAT for user ${userId}, period ${period}`);
+        console.log(`📅 Processing monthly filing check for period: ${period}`);
 
-    try {
-        const { data: invoices } = await supabase
-            .from('invoices')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('period', period)
-            .eq('status', 'pending_remittance');
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('id')
+            .eq('subscription_status', 'active')
+            .eq('has_active_vat', true);
 
-        if (!invoices || invoices.length === 0) {
-            return { success: false, reason: 'No invoices to file' };
+        if (error) {
+            console.error('❌ Failed to fetch users for auto-filing:', error);
+            throw error;
         }
 
-        const { data: user } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .single();
+        console.log(`Found ${users?.length || 0} users to file for.`);
 
-        const { data: expenses } = await supabase
-            .from('expenses')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('period', period);
+        for (const user of users || []) {
+            await filingQueue.add('file-vat', {
+                userId: user.id,
+                period
+            });
+        }
+        return { success: true, count: users?.length || 0 };
+    }
 
-        const totalOutputVAT = invoices.reduce((sum, inv) => sum + inv.vat_amount, 0);
-        const totalInputVAT = expenses?.reduce((sum, exp) => sum + exp.vat_amount, 0) || 0;
-        const netVATPayable = totalOutputVAT - totalInputVAT;
+    if (job.name === 'file-vat') {
+        const { userId, period } = job.data;
+        console.log(`📝 Auto-filing VAT for user ${userId}, period ${period}`);
 
-        const pdfBuffer = await pdfGeneratorService.generateVATReturn({
-            tin: user.tin,
-            businessName: user.business_name,
-            period,
-            invoices,
-            expenses: expenses || [],
-            totalOutputVAT,
-            totalInputVAT,
-            netVATPayable
-        });
+        try {
+            const { data: invoices } = await supabase
+                .from('invoices')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('period', period)
+                .eq('status', 'pending_remittance');
 
-        await supabase.storage
-            .from('filings')
-            .upload(`${userId}/${period}/vat-return.pdf`, pdfBuffer);
+            if (!invoices || invoices.length === 0) {
+                return { success: false, reason: 'No invoices to file' };
+            }
 
-        await emailService.sendToFIRS({
-            tin: user.tin,
-            businessName: user.business_name,
-            taxType: 'VAT',
-            period,
-            amount: netVATPayable,
-            userEmail: user.email,
-            pdfBuffer
-        });
+            const { data: user } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
 
-        const remitaRRR = await remitaService.generateRRR({
-            tin: user.tin,
-            amount: netVATPayable,
-            taxType: 'VAT'
-        });
+            const { data: expenses } = await supabase
+                .from('expenses')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('period', period);
 
-        const { data: filing } = await supabase.from('filings').insert({
-            user_id: userId,
-            period,
-            output_vat: totalOutputVAT,
-            input_vat: totalInputVAT,
-            net_amount: netVATPayable,
-            status: 'submitted',
-            submitted_at: new Date(),
-            remita_rrr: remitaRRR,
-            invoice_count: invoices.length,
-            expense_count: expenses?.length || 0,
-            auto_filed: true
-        }).select().single();
+            const totalOutputVAT = invoices.reduce((sum, inv) => sum + inv.vat_amount, 0);
+            const totalInputVAT = expenses?.reduce((sum, exp) => sum + exp.vat_amount, 0) || 0;
+            const netVATPayable = totalOutputVAT - totalInputVAT;
 
-        await supabase.from('invoices').update({
-            status: 'remitted',
-            // remitted_at: new Date() // Assuming column exists or handled by trigger
-        }).in('id', invoices.map(i => i.id));
+            const pdfBuffer = await pdfGeneratorService.generateVATReturn({
+                tin: user.tin,
+                businessName: user.business_name,
+                period,
+                invoices,
+                expenses: expenses || [],
+                totalOutputVAT,
+                totalInputVAT,
+                netVATPayable
+            });
 
-        await whatsappService.sendMessage(user.whatsapp_number, `
+            await supabase.storage
+                .from('filings')
+                .upload(`${userId}/${period}/vat-return.pdf`, pdfBuffer);
+
+            await emailService.sendToFIRS({
+                tin: user.tin,
+                businessName: user.business_name,
+                taxType: 'VAT',
+                period,
+                amount: netVATPayable,
+                userEmail: user.email,
+                pdfBuffer
+            });
+
+            const remitaRRR = await remitaService.generateRRR({
+                tin: user.tin,
+                amount: netVATPayable,
+                taxType: 'VAT'
+            });
+
+            const { data: filing } = await supabase.from('filings').insert({
+                user_id: userId,
+                period,
+                output_vat: totalOutputVAT,
+                input_vat: totalInputVAT,
+                net_amount: netVATPayable,
+                status: 'submitted',
+                submitted_at: new Date(),
+                remita_rrr: remitaRRR,
+                invoice_count: invoices.length,
+                expense_count: expenses?.length || 0,
+                auto_filed: true
+            }).select().single();
+
+            await supabase.from('invoices').update({
+                status: 'remitted',
+                // remitted_at: new Date() // Assuming column exists or handled by trigger
+            }).in('id', invoices.map(i => i.id));
+
+            await whatsappService.sendMessage(user.whatsapp_number, `
 ✅ ${period.toUpperCase()} VAT FILED AUTOMATICALLY!
 
 Sales: ₦${(totalOutputVAT / 0.075 * 1.075).toLocaleString()}
@@ -106,33 +135,30 @@ NET PAYABLE: ₦${netVATPayable.toLocaleString()}
 Remita RRR: ${remitaRRR}
 
 Reply "PAID" after payment.
-    `);
+        `);
 
-        return { success: true, filingId: filing.id };
+            return { success: true, filingId: filing.id };
 
-    } catch (error: any) {
-        console.error(`❌ Auto-filing failed:`, error);
-        throw error;
+        } catch (error: any) {
+            console.error(`❌ Auto-filing failed for user ${userId}:`, error);
+            throw error;
+        }
     }
 }, { connection: redisConnection });
 
 export async function scheduleMonthlyFilings() {
-    const today = new Date();
-    if (today.getDate() !== 21) return;
-
-    const { data: users } = await supabase
-        .from('users')
-        .select('id')
-        .eq('subscription_status', 'active')
-        .eq('has_active_vat', true);
-
-    const period = new Date(today.getFullYear(), today.getMonth() - 1)
-        .toISOString().slice(0, 7);
-
-    for (const user of users || []) {
-        await filingQueue.add('file-vat', {
-            userId: user.id,
-            period
-        });
+    // Remove existing repeatable jobs to avoid duplicates (optional, good practice)
+    const repeatableJobs = await filingQueue.getRepeatableJobs();
+    for (const job of repeatableJobs) {
+        await filingQueue.removeRepeatableByKey(job.key);
     }
+
+    // Schedule: Runs at 00:00 on the 21st of every month
+    await filingQueue.add('monthly-filing-check', {}, {
+        repeat: {
+            pattern: '0 0 21 * *'
+        }
+    });
+
+    console.log('📅 Scheduled monthly filing check for 21st of every month');
 }
