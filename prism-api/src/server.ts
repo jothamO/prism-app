@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
 app.listen(port, async () => {
     console.log(`Server is running on port ${port}`);
 
-    // Initialize BullMQ schedulers
+    // Schedule background jobs
     await scheduleMonthlyFilings();
     await scheduleNotifications();
 });
