@@ -1,22 +1,25 @@
-import { createWorker } from 'tesseract.js';
-import Anthropic from '@anthropic-ai/sdk';
+import { createWorker } from "tesseract.js";
+import Anthropic from "@anthropic-ai/sdk";
 
 export class OCRService {
   private claude = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY! });
 
   async extractInvoice(imageBuffer: Buffer) {
-    const worker = await createWorker('eng');
-    const { data: { text, confidence } } = await worker.recognize(imageBuffer);
+    const worker = await createWorker("eng");
+    const {
+      data: { text, confidence },
+    } = await worker.recognize(imageBuffer);
     await worker.terminate();
 
     const ocrConfidence = confidence / 100; // Normalize to 0-1
 
     const response = await this.claude.messages.create({
-      model: 'claude-3-sonnet-20240229',
+      model: "claude-3-sonnet-20240229",
       max_tokens: 2000,
-      messages: [{
-        role: 'user',
-        content: `Extract invoice data from this text. Return ONLY valid JSON.
+      messages: [
+        {
+          role: "user",
+          content: `Extract invoice data from this text. Return ONLY valid JSON.
 
 Text:
 ${text}
@@ -38,34 +41,38 @@ Required JSON format:
   "vatAmount": 750,
   "total": 10750,
   "hasVAT": true
-}`
-      }]
+}`,
+        },
+      ],
     });
 
-    const jsonText = (response.content[0].type === 'text' ? response.content[0].text : '')
-      .replace(/```json|```/g, '')
+    const jsonText = (response.content[0].type === "text" ? response.content[0].text : "")
+      .replace(/```json|```/g, "")
       .trim();
 
     const data = JSON.parse(jsonText);
 
     if (!data.invoiceNumber || !data.date || !data.items || data.items.length === 0) {
-      throw new Error('Invalid invoice data extracted');
+      throw new Error("Invalid invoice data extracted");
     }
 
     return { ...data, ocrConfidence };
   }
 
   async extractExpense(imageBuffer: Buffer) {
-    const worker = await createWorker('eng');
-    const { data: { text } } = await worker.recognize(imageBuffer);
+    const worker = await createWorker("eng");
+    const {
+      data: { text },
+    } = await worker.recognize(imageBuffer);
     await worker.terminate();
 
     const response = await this.claude.messages.create({
-      model: 'claude-3-sonnet-20240229',
+      model: "claude-3-sonnet-20240229",
       max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: `Extract expense receipt data. Return ONLY JSON.
+      messages: [
+        {
+          role: "user",
+          content: `Extract expense receipt data. Return ONLY JSON.
 
 Text:
 ${text}
@@ -77,11 +84,14 @@ Format:
   "amount": 150000,
   "vatAmount": 10465,
   "date": "2025-08-20"
-}`
-      }]
+}`,
+        },
+      ],
     });
 
-    const jsonText = (response.content[0].type === 'text' ? response.content[0].text : '').replace(/```json|```/g, '').trim();
+    const jsonText = (response.content[0].type === "text" ? response.content[0].text : "")
+      .replace(/```json|```/g, "")
+      .trim();
     return JSON.parse(jsonText);
   }
 }
