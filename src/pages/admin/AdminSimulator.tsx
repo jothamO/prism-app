@@ -40,6 +40,7 @@ const HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
 Available commands:
 📝 *vat [amount] [description]* - Calculate VAT
 💼 *tax [amount]* - Calculate income tax
+🏛️ *pension [amount]* - Calculate tax for pensioners
 📊 *summary* - Get your VAT filing summary
 💰 *paid* - Confirm payment for a filing
 📤 *upload* - Upload an invoice for processing
@@ -49,6 +50,7 @@ Examples:
 • vat 50000 electronics
 • tax 10000000
 • monthly tax 500000
+• pension 2400000
 • summary`;
 
 const AdminSimulator = () => {
@@ -154,12 +156,17 @@ const AdminSimulator = () => {
   };
 
   // Call Income Tax Calculator API
-  const callIncomeTaxCalculator = async (grossIncome: number, period: 'annual' | 'monthly') => {
+  const callIncomeTaxCalculator = async (
+    grossIncome: number, 
+    period: 'annual' | 'monthly',
+    incomeType: 'employment' | 'pension' | 'business' | 'mixed' = 'employment',
+    pensionAmount: number = 0
+  ) => {
     try {
       const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grossIncome, period, includeDeductions: true })
+        body: JSON.stringify({ grossIncome, period, incomeType, pensionAmount, includeDeductions: true })
       });
       return await response.json();
     } catch (error) {
@@ -331,6 +338,82 @@ const AdminSimulator = () => {
         return;
       }
 
+      // Pension tax calculation: "pension 2400000" or "pensioner 1500000"
+      const pensionMatch = lowerMessage.match(/^(?:pension(?:er)?)\s+(?:tax\s+)?[₦n]?(\d[\d,]*)/i);
+      if (pensionMatch) {
+        const amount = parseInt(pensionMatch[1].replace(/,/g, ""));
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating pension tax...");
+        
+        const result = await callIncomeTaxCalculator(amount, 'annual', 'pension');
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          addBotMessage(
+            `🏛️ Pension Tax Calculation\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Annual Pension: ${formatCurrency(result.grossIncome)}\n\n` +
+            `✅ FULLY EXEMPT FROM INCOME TAX\n\n` +
+            `Under Section 163 of the Nigeria Tax Act 2025,\n` +
+            `pension, gratuity and retirement benefits received\n` +
+            `under the Pension Reform Act are exempt from\n` +
+            `personal income tax.\n\n` +
+            `📊 Summary:\n` +
+            `├─ Gross Pension: ${formatCurrency(result.grossIncome)}\n` +
+            `├─ Tax Payable: ₦0\n` +
+            `├─ Effective Rate: 0%\n` +
+            `└─ Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+            `Reference: ${result.actReference}`
+          );
+        } else {
+          addBotMessage("❌ Failed to calculate pension tax. Please try again.");
+        }
+        return;
+      }
+
+      // Mixed income: "mixed 4000000 pension 2000000"
+      const mixedMatch = lowerMessage.match(/^mixed\s+(?:tax\s+)?[₦n]?(\d[\d,]*)\s+pension\s+[₦n]?(\d[\d,]*)/i);
+      if (mixedMatch) {
+        const totalAmount = parseInt(mixedMatch[1].replace(/,/g, ""));
+        const pensionAmount = parseInt(mixedMatch[2].replace(/,/g, ""));
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating mixed income tax...");
+        
+        const result = await callIncomeTaxCalculator(totalAmount, 'annual', 'mixed', pensionAmount);
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          const breakdown = result.taxBreakdown
+            .filter((band: { taxInBand: number }) => band.taxInBand > 0)
+            .map((band: { band: string; rate: number; taxInBand: number }) => 
+              `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
+            )
+            .join('\n');
+          
+          addBotMessage(
+            `📊 Mixed Income Tax Calculation\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Total Income: ${formatCurrency(result.grossIncome)}\n` +
+            `├─ Pension (Exempt): ${formatCurrency(result.pensionExemption || 0)}\n` +
+            `└─ Taxable Income: ${formatCurrency(result.taxableIncome || 0)}\n\n` +
+            (breakdown ? `📋 Tax Breakdown (Section 58):\n${breakdown}\n` : '') +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💰 Total Tax: ${formatCurrency(result.totalTax)}\n` +
+            `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
+            `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
+            `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+            `References:\n` +
+            `- Section 163 (Pension Exemption)\n` +
+            `- Section 58 (Progressive Rates)`
+          );
+        } else {
+          addBotMessage("❌ Failed to calculate mixed income tax. Please try again.");
+        }
+        return;
+      }
+
       // Income tax calculation: "tax 10000000" or "monthly tax 500000"
       const taxMatch = lowerMessage.match(/^(?:calculate\s+)?(?:my\s+)?(?:(monthly)\s+)?tax(?:\s+on)?\s+[₦n]?(\d[\d,]*)/i);
       if (taxMatch) {
@@ -340,7 +423,7 @@ const AdminSimulator = () => {
         setIsTyping(true);
         addBotMessageImmediate("🔄 Calculating income tax...");
         
-        const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual');
+        const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual', 'employment');
         setIsTyping(false);
         
         if (result && !result.error) {
@@ -371,7 +454,7 @@ const AdminSimulator = () => {
               `${breakdown}\n` +
               `━━━━━━━━━━━━━━━━━━━━━━━\n` +
               `💰 Total Tax: ${formatCurrency(result.totalTax)}\n` +
-              `📊 Effective Rate: ${(result.effectiveRate * 100).toFixed(2)}%\n` +
+              `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
               `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
               `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}`
             );

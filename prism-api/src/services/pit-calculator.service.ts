@@ -203,11 +203,54 @@ export class PITCalculatorService {
 
     /**
      * Check if income qualifies for minimum wage exemption
-     * Section 163: National minimum wage earners exempt from income tax
+     * Section 58: National minimum wage earners exempt from income tax
      */
-    isMinimumWageExempt(annualIncome: number, minimumWage: number = 70_000): boolean {
-        const annualMinimumWage = minimumWage * 12; // ₦70,000/month = ₦840,000/year
+    isMinimumWageExempt(annualIncome: number, minimumWage: number = 35_000): boolean {
+        const annualMinimumWage = minimumWage * 12; // ₦35,000/month = ₦420,000/year
         return annualIncome <= annualMinimumWage;
+    }
+
+    /**
+     * Check if income is pension exempt (Section 163)
+     * Pension, gratuity and retirement benefits under Pension Reform Act are fully exempt
+     */
+    isPensionExempt(incomeType: 'employment' | 'pension' | 'business' | 'mixed'): boolean {
+        return incomeType === 'pension';
+    }
+
+    /**
+     * Calculate tax for pensioner (fully exempt under Section 163)
+     */
+    calculatePensionerTax(grossPension: number): PITCalculation {
+        return {
+            grossIncome: grossPension,
+            totalDeductions: 0,
+            chargeableIncome: 0,
+            totalTax: 0,
+            effectiveRate: 0,
+            marginalRate: 0,
+            breakdown: [{
+                bracket: 'Pension Exemption (Section 163)',
+                amount: grossPension,
+                rate: 0,
+                tax: 0
+            }]
+        };
+    }
+
+    /**
+     * Calculate tax for mixed income (pension + other)
+     * Only the non-pension portion is taxable
+     */
+    calculateMixedIncome(totalIncome: number, pensionAmount: number, deductions: PITDeductions = {}): PITCalculation & { pensionExemption: number } {
+        const taxableIncome = Math.max(0, totalIncome - pensionAmount);
+        const result = this.calculate(taxableIncome, deductions);
+        
+        return {
+            ...result,
+            grossIncome: totalIncome,
+            pensionExemption: pensionAmount
+        };
     }
 }
 
