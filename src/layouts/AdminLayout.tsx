@@ -11,7 +11,8 @@ import {
   MessageSquare,
   BarChart3,
   ShieldAlert,
-  Smartphone
+  Smartphone,
+  FlaskConical
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -29,6 +30,7 @@ export default function AdminLayout() {
     { name: "Messaging", path: "/admin/messaging", icon: MessageSquare },
     { name: "Payments", path: "/admin/payments", icon: CreditCard },
     { name: "Simulator", path: "/admin/simulator", icon: Smartphone },
+    { name: "VAT Testing", path: "/admin/vat-testing", icon: FlaskConical },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
 

@@ -1,1 +1,13 @@
 project_id = "rjajxabpndmpcgssymxw"
+
+[functions.vat-calculator]
+verify_jwt = false
+
+[functions.vat-reconciliation]
+verify_jwt = false
+
+[functions.invoice-processor]
+verify_jwt = false
+
+[functions.seed-test-data]
+verify_jwt = false
