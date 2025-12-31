@@ -528,6 +528,39 @@ export type Database = {
         }
         Relationships: []
       }
+      related_parties: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          party_name: string
+          party_tin: string | null
+          relationship_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          party_name: string
+          party_tin?: string | null
+          relationship_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          party_name?: string
+          party_tin?: string | null
+          relationship_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       reminders: {
         Row: {
           created_at: string | null
