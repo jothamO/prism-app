@@ -157,6 +157,11 @@ const INCOME_TAX_SCENARIOS = [
   { id: 'pensioner-basic', name: 'Pensioner (Basic)', income: 1200000, description: 'Section 163 exempt', incomeType: 'pension' as const },
   { id: 'pensioner-high', name: 'Pensioner (High)', income: 6000000, description: 'Retired executive, still exempt', incomeType: 'pension' as const },
   { id: 'pensioner-mixed', name: 'Pensioner + Business', income: 4000000, description: '₦2M pension + ₦2M business', incomeType: 'mixed' as const, pensionAmount: 2000000 },
+  // Freelancer/Self-employed scenarios - Section 20, 21, 28
+  { id: 'freelancer-low', name: 'Freelancer (Low)', income: 2400000, description: '₦200k/month, ₦50k expenses', incomeType: 'business' as const, businessExpenses: 600000 },
+  { id: 'freelancer-mid', name: 'Freelancer (Mid)', income: 7200000, description: '₦600k/month, ₦150k expenses', incomeType: 'business' as const, businessExpenses: 1800000 },
+  { id: 'freelancer-high', name: 'Freelancer (High)', income: 24000000, description: '₦2M/month, ₦500k expenses', incomeType: 'business' as const, businessExpenses: 6000000 },
+  { id: 'contractor-tech', name: 'Tech Contractor', income: 18000000, description: '₦1.5M/month + equipment', incomeType: 'business' as const, businessExpenses: 4500000, equipmentCosts: 500000 },
 ];
 
 
@@ -466,7 +471,13 @@ export default function AdminVATTesting() {
   };
 
   // Run income tax scenario
-  const handleRunIncomeTaxScenario = async (scenario: { income: number; incomeType?: string; pensionAmount?: number }) => {
+  const handleRunIncomeTaxScenario = async (scenario: { 
+    income: number; 
+    incomeType?: string; 
+    pensionAmount?: number;
+    businessExpenses?: number;
+    equipmentCosts?: number;
+  }) => {
     setIncomeTaxAmount(scenario.income.toString());
     setLoading('income-tax');
     try {
@@ -478,7 +489,11 @@ export default function AdminVATTesting() {
           period: 'annual',
           incomeType: scenario.incomeType || 'employment',
           pensionAmount: scenario.pensionAmount || 0,
-          includeDeductions: incomeTaxIncludeDeductions
+          includeDeductions: incomeTaxIncludeDeductions,
+          deductions: {
+            businessExpenses: scenario.businessExpenses || 0,
+            equipmentCosts: scenario.equipmentCosts || 0
+          }
         })
       });
       

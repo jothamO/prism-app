@@ -41,6 +41,7 @@ Available commands:
 📝 *vat [amount] [description]* - Calculate VAT
 💼 *tax [amount]* - Calculate income tax
 🏛️ *pension [amount]* - Calculate tax for pensioners
+💻 *freelance [income] expenses [amount]* - Freelancer tax
 📊 *summary* - Get your VAT filing summary
 💰 *paid* - Confirm payment for a filing
 📤 *upload* - Upload an invoice for processing
@@ -51,6 +52,8 @@ Examples:
 • tax 10000000
 • monthly tax 500000
 • pension 2400000
+• freelance 7200000 expenses 1800000
+• contractor 10000000
 • summary`;
 
 const AdminSimulator = () => {
@@ -160,13 +163,25 @@ const AdminSimulator = () => {
     grossIncome: number, 
     period: 'annual' | 'monthly',
     incomeType: 'employment' | 'pension' | 'business' | 'mixed' = 'employment',
-    pensionAmount: number = 0
+    pensionAmount: number = 0,
+    businessExpenses: number = 0,
+    equipmentCosts: number = 0
   ) => {
     try {
       const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grossIncome, period, incomeType, pensionAmount, includeDeductions: true })
+        body: JSON.stringify({ 
+          grossIncome, 
+          period, 
+          incomeType, 
+          pensionAmount, 
+          includeDeductions: true,
+          deductions: {
+            businessExpenses,
+            equipmentCosts
+          }
+        })
       });
       return await response.json();
     } catch (error) {
@@ -368,6 +383,51 @@ const AdminSimulator = () => {
           );
         } else {
           addBotMessage("❌ Failed to calculate pension tax. Please try again.");
+        }
+        return;
+      }
+
+      // Freelancer/Self-employed tax: "freelance 7200000 expenses 1800000" or "contractor 10000000"
+      const freelanceMatch = lowerMessage.match(/^(?:freelance(?:r)?|self.?employed|contractor)\s+[₦n]?(\d[\d,]*)\s*(?:expenses?\s+[₦n]?(\d[\d,]*))?/i);
+      if (freelanceMatch) {
+        const grossIncome = parseInt(freelanceMatch[1].replace(/,/g, ""));
+        const businessExpenses = freelanceMatch[2] ? parseInt(freelanceMatch[2].replace(/,/g, "")) : 0;
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating freelancer tax...");
+        
+        const result = await callIncomeTaxCalculator(grossIncome, 'annual', 'business', 0, businessExpenses, 0);
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          const breakdown = result.taxBreakdown
+            .filter((band: { taxInBand: number }) => band.taxInBand > 0)
+            .map((band: { band: string; rate: number; taxInBand: number }) => 
+              `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
+            )
+            .join('\n');
+          
+          const tips = result.freelancerTips?.map((tip: string) => `• ${tip}`).join('\n') || '';
+          
+          addBotMessage(
+            `💼 Freelancer Tax Calculation\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📊 Income Summary:\n` +
+            `├─ Gross Business Income: ${formatCurrency(result.grossIncome)}\n` +
+            `├─ Business Expenses (Section 20): ${formatCurrency(result.businessExpensesBreakdown?.total || businessExpenses)}\n` +
+            `├─ Net Business Income: ${formatCurrency(result.netBusinessIncome || result.grossIncome)}\n` +
+            `└─ Chargeable Income: ${formatCurrency(result.chargeableIncome)}\n\n` +
+            (breakdown ? `📋 Tax Breakdown (Section 58):\n${breakdown}\n` : '') +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `💰 Total Tax: ${formatCurrency(result.totalTax)}\n` +
+            `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
+            `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
+            `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+            (tips ? `💡 Tips:\n${tips}\n\n` : '') +
+            `Reference: ${result.actReference}`
+          );
+        } else {
+          addBotMessage("❌ Failed to calculate freelancer tax. Please try again.");
         }
         return;
       }
