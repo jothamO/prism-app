@@ -148,10 +148,11 @@ export async function scheduleMonthlyFilings() {
         await filingQueue.removeRepeatableByKey(job.key);
     }
 
-    // Schedule monthly filing check for 21st of every month at 00:00
+    // Schedule monthly filing check for 14th of every month at 00:00
+    // CRITICAL: Tax Act 2025 Section 155 requires VAT remittance by 14th (changed from 21st)
     await filingQueue.add('monthly-filing-check', {}, {
-        repeat: { pattern: '0 0 21 * *' }
+        repeat: { pattern: '0 0 14 * *' } // Changed from '0 0 21 * *' for compliance
     });
 
-    console.log('📅 Scheduled monthly VAT filings for 21st of each month');
+    console.log('📅 Scheduled monthly VAT filings for 14th of each month (Tax Act 2025 compliance)');
 }
