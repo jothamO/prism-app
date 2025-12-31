@@ -101,7 +101,7 @@ export type Database = {
           last_classified_at: string | null
           name: string
           next_filing_date: string | null
-          registration_number: string | null
+          registration_number: string
           registration_type: string | null
           tax_rate: number | null
           tin: string | null
@@ -123,7 +123,7 @@ export type Database = {
           last_classified_at?: string | null
           name: string
           next_filing_date?: string | null
-          registration_number?: string | null
+          registration_number: string
           registration_type?: string | null
           tax_rate?: number | null
           tin?: string | null
@@ -145,7 +145,7 @@ export type Database = {
           last_classified_at?: string | null
           name?: string
           next_filing_date?: string | null
-          registration_number?: string | null
+          registration_number?: string
           registration_type?: string | null
           tax_rate?: number | null
           tin?: string | null
