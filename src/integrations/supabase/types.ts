@@ -276,6 +276,36 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_state: {
+        Row: {
+          context: Json | null
+          created_at: string | null
+          expecting: string | null
+          id: string
+          telegram_id: string | null
+          updated_at: string | null
+          whatsapp_id: string | null
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string | null
+          expecting?: string | null
+          id?: string
+          telegram_id?: string | null
+          updated_at?: string | null
+          whatsapp_id?: string | null
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string | null
+          expecting?: string | null
+          id?: string
+          telegram_id?: string | null
+          updated_at?: string | null
+          whatsapp_id?: string | null
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
@@ -966,6 +996,56 @@ export type Database = {
           },
         ]
       }
+      receipts: {
+        Row: {
+          amount: number | null
+          category: string | null
+          confidence: number | null
+          confirmed: boolean | null
+          created_at: string | null
+          date: string | null
+          id: string
+          image_url: string | null
+          merchant: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          category?: string | null
+          confidence?: number | null
+          confirmed?: boolean | null
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          image_url?: string | null
+          merchant?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          category?: string | null
+          confidence?: number | null
+          confirmed?: boolean | null
+          created_at?: string | null
+          date?: string | null
+          id?: string
+          image_url?: string | null
+          merchant?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       related_parties: {
         Row: {
           created_at: string | null
@@ -1352,54 +1432,90 @@ export type Database = {
       users: {
         Row: {
           age: number | null
-          business_name: string
+          business_name: string | null
           business_type: string | null
+          cac_number: string | null
+          company_name: string | null
           created_at: string | null
           email: string | null
+          entity_type: string | null
+          first_name: string | null
+          full_name: string | null
           has_active_vat: boolean | null
           id: string
+          last_name: string | null
+          nin: string | null
           onboarding_completed: boolean | null
           onboarding_step: number | null
+          platform: string | null
           subscription_expires_at: string | null
           subscription_status: string | null
           subscription_tier: string | null
-          tin: string
+          tax_regime: string | null
+          telegram_id: string | null
+          telegram_username: string | null
+          tin: string | null
           updated_at: string | null
-          whatsapp_number: string
+          whatsapp_id: string | null
+          whatsapp_number: string | null
         }
         Insert: {
           age?: number | null
-          business_name: string
+          business_name?: string | null
           business_type?: string | null
+          cac_number?: string | null
+          company_name?: string | null
           created_at?: string | null
           email?: string | null
+          entity_type?: string | null
+          first_name?: string | null
+          full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          last_name?: string | null
+          nin?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          platform?: string | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
-          tin: string
+          tax_regime?: string | null
+          telegram_id?: string | null
+          telegram_username?: string | null
+          tin?: string | null
           updated_at?: string | null
-          whatsapp_number: string
+          whatsapp_id?: string | null
+          whatsapp_number?: string | null
         }
         Update: {
           age?: number | null
-          business_name?: string
+          business_name?: string | null
           business_type?: string | null
+          cac_number?: string | null
+          company_name?: string | null
           created_at?: string | null
           email?: string | null
+          entity_type?: string | null
+          first_name?: string | null
+          full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          last_name?: string | null
+          nin?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          platform?: string | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
-          tin?: string
+          tax_regime?: string | null
+          telegram_id?: string | null
+          telegram_username?: string | null
+          tin?: string | null
           updated_at?: string | null
-          whatsapp_number?: string
+          whatsapp_id?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
