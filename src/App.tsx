@@ -9,6 +9,7 @@ import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminProjects from "./pages/admin/AdminProjects";
 import AdminReviews from "./pages/admin/AdminReviews";
 import AdminFilings from "./pages/admin/AdminFilings";
 import AdminInvoices from "./pages/admin/AdminInvoices";
@@ -52,6 +53,7 @@ function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="projects" element={<AdminProjects />} />
               <Route path="reviews" element={<AdminReviews />} />
               <Route path="related-parties" element={<AdminRelatedParties />} />
               <Route path="feedback" element={<AdminFeedback />} />

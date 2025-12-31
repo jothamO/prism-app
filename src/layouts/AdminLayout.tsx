@@ -14,7 +14,8 @@ import {
   Smartphone,
   FlaskConical,
   Link2,
-  Brain
+  Brain,
+  FolderKanban
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -25,6 +26,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
     { name: "Users", path: "/admin/users", icon: Users },
+    { name: "Projects", path: "/admin/projects", icon: FolderKanban },
     { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
     { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
     { name: "AI Feedback", path: "/admin/feedback", icon: Brain },
