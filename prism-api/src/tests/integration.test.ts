@@ -25,6 +25,7 @@ describe('Phase 5 Integration Tests: Full Learning Pipeline', () => {
         const { data: user } = await supabase.from('users').insert({
             whatsapp_number: '+234INTEGRATION',
             business_name: 'Integration Test Business',
+            tin: 'TIN-INTEGRATION-001',
             age: 67
         }).select().single();
         testUserId = user.id;
@@ -32,6 +33,7 @@ describe('Phase 5 Integration Tests: Full Learning Pipeline', () => {
         const { data: business } = await supabase.from('businesses').insert({
             user_id: testUserId,
             name: 'Integration Test Business',
+            registration_number: 'BN-INTEGRATION-001',
             is_primary: true,
             annual_turnover: 45_000_000
         }).select().single();
@@ -55,7 +57,8 @@ describe('Phase 5 Integration Tests: Full Learning Pipeline', () => {
                 business_id: testBusinessId,
                 description: 'Monthly pension payment received',
                 amount: 200_000,
-                date: new Date().toISOString().substring(0, 10)
+                date: new Date().toISOString().substring(0, 10),
+                period: new Date().toISOString().substring(0, 7)
             });
 
             // Step 2: Profile detector identifies pensioner
@@ -190,6 +193,7 @@ describe('Phase 5 Integration Tests: Full Learning Pipeline', () => {
                     description: 'Office rent payment',
                     amount: 150_000,
                     date: new Date().toISOString().substring(0, 10),
+                    period: new Date().toISOString().substring(0, 7),
                     category: null // Not categorized
                 },
                 {
@@ -198,6 +202,7 @@ describe('Phase 5 Integration Tests: Full Learning Pipeline', () => {
                     description: 'Marketing expenses',
                     amount: 75_000,
                     date: new Date().toISOString().substring(0, 10),
+                    period: new Date().toISOString().substring(0, 7),
                     category: 'personal' // Wrongly categorized
                 }
             ]);
@@ -273,6 +278,7 @@ describe('Phase 5 Integration Tests: Full Learning Pipeline', () => {
                     description: 'Pension income',
                     amount: 200_000,
                     date: `${month}-05`,
+                    period: month,
                     category: 'income'
                 },
                 {
@@ -281,6 +287,7 @@ describe('Phase 5 Integration Tests: Full Learning Pipeline', () => {
                     description: 'Rent paid',
                     amount: 120_000,
                     date: `${month}-10`,
+                    period: month,
                     category: 'rent'
                 }
             ]);
