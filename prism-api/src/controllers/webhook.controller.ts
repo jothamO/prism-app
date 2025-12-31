@@ -7,6 +7,7 @@ import { vatCalculatorService } from "../services/vat-calculator.service";
 import { conversationService } from "../services/conversation.service";
 import { analyticsService } from "../services/analytics.service";
 import { websocketService } from "../services/websocket.service";
+import { antiAvoidanceService } from "../services/anti-avoidance.service";
 
 export class WebhookController {
   async handleWhatsApp(req: Request, res: Response) {
@@ -212,6 +213,19 @@ export class WebhookController {
 
       const needsReview = (invoiceData.ocrConfidence || 1) < 0.8;
 
+      // Run anti-avoidance checks
+      const avoidanceCheck = await antiAvoidanceService.checkTransaction({
+        amount: invoiceData.subtotal + vat,
+        description: invoiceData.customerName || invoiceData.invoiceNumber || '',
+        isConnectedPerson: false,
+        type: 'income'
+      });
+
+      const hasAvoidanceRisk = avoidanceCheck.riskLevel !== 'low';
+      const reviewReasons: string[] = [];
+      if (needsReview) reviewReasons.push("Low OCR confidence");
+      if (hasAvoidanceRisk) reviewReasons.push(...avoidanceCheck.warnings);
+
       const invoice = await invoiceService.create({
         user_id: user.id,
         business_id: businessId,
@@ -220,9 +234,21 @@ export class WebhookController {
         period: new Date().toISOString().slice(0, 7),
         source: "manual_upload",
         confidence_score: invoiceData.ocrConfidence,
-        needs_review: needsReview,
-        review_reasons: needsReview ? ["Low OCR confidence"] : [],
+        needs_review: needsReview || hasAvoidanceRisk,
+        review_reasons: reviewReasons,
       });
+
+      // Add to review queue if anti-avoidance flags are raised
+      if (hasAvoidanceRisk) {
+        await supabase.from("review_queue").insert({
+          invoice_id: invoice.id,
+          user_id: user.id,
+          reasons: avoidanceCheck.warnings,
+          priority: avoidanceCheck.riskLevel === 'high' ? 'high' : 'medium',
+          priority_score: avoidanceCheck.riskLevel === 'high' ? 0.9 : 0.6,
+          notes: avoidanceCheck.recommendation,
+        });
+      }
 
       // Track analytics event
       await analyticsService.trackEvent(user.id, "invoice_uploaded", {
