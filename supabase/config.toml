@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.business-classifier]
 verify_jwt = false
+
+[functions.anti-avoidance-check]
+verify_jwt = false
