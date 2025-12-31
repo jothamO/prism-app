@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.anti-avoidance-check]
 verify_jwt = false
+
+[functions.project-funds]
+verify_jwt = true
