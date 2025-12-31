@@ -37,6 +37,39 @@ interface E2EResult {
   reconciliationData: ReconciliationData;
 }
 
+interface TaxBandBreakdown {
+  band: string;
+  taxableInBand: number;
+  rate: number;
+  taxInBand: number;
+}
+
+interface IncomeTaxData {
+  grossIncome: number;
+  period: 'annual' | 'monthly';
+  deductions: {
+    pension: number;
+    nhf: number;
+    nhis: number;
+    rentRelief: number;
+    lifeInsurance: number;
+    housingLoanInterest: number;
+    total: number;
+  };
+  chargeableIncome: number;
+  taxBreakdown: TaxBandBreakdown[];
+  totalTax: number;
+  effectiveRate: number;
+  netIncome: number;
+  monthlyTax: number;
+  monthlyNetIncome: number;
+  isMinimumWageExempt: boolean;
+  actReference: string;
+  employeeName?: string;
+  employerName?: string;
+  tin?: string;
+}
+
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
 };
@@ -390,6 +423,200 @@ const generateE2EReportHTML = (result: E2EResult): string => {
   `;
 };
 
+const generateIncomeTaxReportHTML = (data: IncomeTaxData): string => {
+  const timestamp = new Date().toISOString();
+  
+  const deductionRows = [
+    { label: 'Pension Contribution', value: data.deductions.pension },
+    { label: 'National Housing Fund (NHF)', value: data.deductions.nhf },
+    { label: 'National Health Insurance (NHIS)', value: data.deductions.nhis },
+    { label: 'Rent Relief', value: data.deductions.rentRelief },
+    { label: 'Life Insurance Premium', value: data.deductions.lifeInsurance },
+    { label: 'Housing Loan Interest', value: data.deductions.housingLoanInterest },
+  ].filter(r => r.value > 0).map(r => `
+    <tr>
+      <td>${r.label}</td>
+      <td class="amount">${formatCurrency(r.value)}</td>
+    </tr>
+  `).join('');
+
+  const taxBandRows = data.taxBreakdown.map(band => `
+    <tr>
+      <td>${band.band}</td>
+      <td class="amount">${formatCurrency(band.taxableInBand)}</td>
+      <td class="rate">${(band.rate * 100).toFixed(0)}%</td>
+      <td class="amount">${formatCurrency(band.taxInBand)}</td>
+    </tr>
+  `).join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PRISM Income Tax Computation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .header { border-bottom: 3px solid #228B22; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; }
+    .header-left h1 { color: #228B22; font-size: 24px; }
+    .header-left p { color: #666; margin-top: 5px; }
+    .header-right { text-align: right; }
+    .header-right .period { font-size: 18px; font-weight: bold; color: #333; }
+    .taxpayer-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+    .taxpayer-info h3 { color: #333; margin-bottom: 10px; }
+    .taxpayer-info p { color: #666; }
+    .section { margin-bottom: 30px; }
+    .section h3 { color: #228B22; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th { background: #228B22; color: white; padding: 12px; text-align: left; }
+    td { padding: 12px; border-bottom: 1px solid #eee; }
+    .amount { text-align: right; font-family: monospace; }
+    .rate { text-align: center; }
+    .total-row { background: #f8f9fa; font-weight: bold; }
+    .total-row td { border-top: 2px solid #228B22; }
+    .summary-box { background: #228B22; color: white; padding: 25px; border-radius: 8px; margin-bottom: 30px; }
+    .summary-box h3 { color: white; margin-bottom: 20px; font-size: 18px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .summary-item { text-align: center; }
+    .summary-item .value { font-size: 24px; font-weight: bold; }
+    .summary-item .label { font-size: 12px; opacity: 0.8; margin-top: 5px; }
+    .exempt-badge { background: #17a2b8; color: white; padding: 10px 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
+    .footer { border-top: 1px solid #eee; padding-top: 20px; color: #666; font-size: 12px; }
+    @media print { body { background: white; padding: 0; } .container { box-shadow: none; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <h1>🇳🇬 INCOME TAX COMPUTATION</h1>
+        <p>Nigeria Tax Act 2025 - Section 58</p>
+        <p>Generated: ${new Date(timestamp).toLocaleString()}</p>
+      </div>
+      <div class="header-right">
+        <div class="period">Tax Year ${new Date().getFullYear()}</div>
+      </div>
+    </div>
+
+    ${data.employeeName || data.employerName ? `
+    <div class="taxpayer-info">
+      ${data.employeeName ? `<h3>${data.employeeName}</h3>` : ''}
+      ${data.employerName ? `<p>Employer: ${data.employerName}</p>` : ''}
+      ${data.tin ? `<p>TIN: ${data.tin}</p>` : ''}
+    </div>
+    ` : ''}
+
+    ${data.isMinimumWageExempt ? `
+    <div class="exempt-badge">
+      <strong>✓ MINIMUM WAGE EXEMPTION</strong><br>
+      <small>Income at or below ₦420,000/year is exempt from income tax per Section 58</small>
+    </div>
+    ` : ''}
+
+    <div class="section">
+      <h3>📊 Income Summary</h3>
+      <table>
+        <tr>
+          <td>Gross Annual Income</td>
+          <td class="amount"><strong>${formatCurrency(data.grossIncome)}</strong></td>
+        </tr>
+        <tr>
+          <td>Less: Total Deductions</td>
+          <td class="amount">(${formatCurrency(data.deductions.total)})</td>
+        </tr>
+        <tr class="total-row">
+          <td>Chargeable Income</td>
+          <td class="amount">${formatCurrency(data.chargeableIncome)}</td>
+        </tr>
+      </table>
+    </div>
+
+    ${data.deductions.total > 0 ? `
+    <div class="section">
+      <h3>📋 Deductions Applied</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Deduction Type</th>
+            <th style="text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${deductionRows}
+          <tr class="total-row">
+            <td>Total Deductions</td>
+            <td class="amount">${formatCurrency(data.deductions.total)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
+
+    <div class="section">
+      <h3>🧮 Progressive Tax Calculation</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Tax Band</th>
+            <th style="text-align: right;">Taxable Amount</th>
+            <th style="text-align: center;">Rate</th>
+            <th style="text-align: right;">Tax</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${taxBandRows}
+          <tr class="total-row">
+            <td colspan="3">Total Annual Tax</td>
+            <td class="amount">${formatCurrency(data.totalTax)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="summary-box">
+      <h3>💰 PAYE Summary</h3>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="value">${formatCurrency(data.totalTax)}</div>
+          <div class="label">Annual Tax</div>
+        </div>
+        <div class="summary-item">
+          <div class="value">${formatCurrency(data.monthlyTax)}</div>
+          <div class="label">Monthly PAYE</div>
+        </div>
+        <div class="summary-item">
+          <div class="value">${data.effectiveRate.toFixed(2)}%</div>
+          <div class="label">Effective Rate</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>📈 Net Income</h3>
+      <table>
+        <tr>
+          <td>Annual Net Income (After Tax & Deductions)</td>
+          <td class="amount"><strong>${formatCurrency(data.netIncome)}</strong></td>
+        </tr>
+        <tr>
+          <td>Monthly Net Income</td>
+          <td class="amount"><strong>${formatCurrency(data.monthlyNetIncome)}</strong></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="footer">
+      <p><strong>Act Reference:</strong> ${data.actReference}</p>
+      <p>PRISM - Nigeria Tax Automation Platform</p>
+      <p>This computation is for informational purposes. Please consult a tax professional for official filings.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -409,6 +636,9 @@ serve(async (req) => {
         break;
       case 'e2e':
         html = generateE2EReportHTML(data);
+        break;
+      case 'income-tax-computation':
+        html = generateIncomeTaxReportHTML(data);
         break;
       default:
         throw new Error(`Unknown report type: ${reportType}`);

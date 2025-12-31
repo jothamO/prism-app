@@ -90,45 +90,66 @@ export type Database = {
       }
       businesses: {
         Row: {
+          annual_turnover: number | null
+          classification: string | null
+          classification_year: number | null
           created_at: string
           id: string
           is_default: boolean | null
           is_primary: boolean | null
+          is_professional_services: boolean | null
+          last_classified_at: string | null
           name: string
           next_filing_date: string | null
           registration_number: string | null
           registration_type: string | null
+          tax_rate: number | null
           tin: string | null
+          total_fixed_assets: number | null
           updated_at: string
           user_id: string
           vat_enabled: boolean | null
           vat_registered: boolean | null
         }
         Insert: {
+          annual_turnover?: number | null
+          classification?: string | null
+          classification_year?: number | null
           created_at?: string
           id?: string
           is_default?: boolean | null
           is_primary?: boolean | null
+          is_professional_services?: boolean | null
+          last_classified_at?: string | null
           name: string
           next_filing_date?: string | null
           registration_number?: string | null
           registration_type?: string | null
+          tax_rate?: number | null
           tin?: string | null
+          total_fixed_assets?: number | null
           updated_at?: string
           user_id: string
           vat_enabled?: boolean | null
           vat_registered?: boolean | null
         }
         Update: {
+          annual_turnover?: number | null
+          classification?: string | null
+          classification_year?: number | null
           created_at?: string
           id?: string
           is_default?: boolean | null
           is_primary?: boolean | null
+          is_professional_services?: boolean | null
+          last_classified_at?: string | null
           name?: string
           next_filing_date?: string | null
           registration_number?: string | null
           registration_type?: string | null
+          tax_rate?: number | null
           tin?: string | null
+          total_fixed_assets?: number | null
           updated_at?: string
           user_id?: string
           vat_enabled?: boolean | null
