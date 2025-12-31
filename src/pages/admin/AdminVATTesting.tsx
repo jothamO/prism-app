@@ -64,6 +64,7 @@ interface SeedResult {
 interface IncomeTaxResult {
   grossIncome: number;
   period: 'annual' | 'monthly';
+  incomeType?: 'employment' | 'pension' | 'business' | 'mixed';
   deductions: {
     pension: number;
     nhf: number;
@@ -73,6 +74,8 @@ interface IncomeTaxResult {
     housingLoanInterest: number;
     total: number;
   };
+  pensionExemption?: number;
+  taxableIncome?: number;
   chargeableIncome: number;
   taxBreakdown: Array<{
     band: string;
@@ -86,6 +89,7 @@ interface IncomeTaxResult {
   monthlyTax: number;
   monthlyNetIncome: number;
   isMinimumWageExempt: boolean;
+  isPensionExempt?: boolean;
   actReference: string;
 }
 
@@ -144,11 +148,15 @@ const CLASSIFICATION_TEST_CASES = [
 ];
 
 const INCOME_TAX_SCENARIOS = [
-  { id: 'minimum-wage', name: 'Minimum Wage', income: 420000, description: 'Exempt from tax' },
-  { id: 'entry-level', name: 'Entry Level', income: 1440000, description: '₦120k/month' },
-  { id: 'mid-career', name: 'Mid-Career', income: 6000000, description: '₦500k/month' },
-  { id: 'senior-manager', name: 'Senior Manager', income: 15000000, description: '₦1.25M/month' },
-  { id: 'executive', name: 'Executive', income: 60000000, description: '₦5M/month' },
+  { id: 'minimum-wage', name: 'Minimum Wage', income: 420000, description: 'Exempt from tax', incomeType: 'employment' as const },
+  { id: 'entry-level', name: 'Entry Level', income: 1440000, description: '₦120k/month', incomeType: 'employment' as const },
+  { id: 'mid-career', name: 'Mid-Career', income: 6000000, description: '₦500k/month', incomeType: 'employment' as const },
+  { id: 'senior-manager', name: 'Senior Manager', income: 15000000, description: '₦1.25M/month', incomeType: 'employment' as const },
+  { id: 'executive', name: 'Executive', income: 60000000, description: '₦5M/month', incomeType: 'employment' as const },
+  // Pensioner scenarios - Section 163 exempt
+  { id: 'pensioner-basic', name: 'Pensioner (Basic)', income: 1200000, description: 'Section 163 exempt', incomeType: 'pension' as const },
+  { id: 'pensioner-high', name: 'Pensioner (High)', income: 6000000, description: 'Retired executive, still exempt', incomeType: 'pension' as const },
+  { id: 'pensioner-mixed', name: 'Pensioner + Business', income: 4000000, description: '₦2M pension + ₦2M business', incomeType: 'mixed' as const, pensionAmount: 2000000 },
 ];
 
 
@@ -458,16 +466,18 @@ export default function AdminVATTesting() {
   };
 
   // Run income tax scenario
-  const handleRunIncomeTaxScenario = async (income: number) => {
-    setIncomeTaxAmount(income.toString());
+  const handleRunIncomeTaxScenario = async (scenario: { income: number; incomeType?: string; pensionAmount?: number }) => {
+    setIncomeTaxAmount(scenario.income.toString());
     setLoading('income-tax');
     try {
       const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          grossIncome: income,
+          grossIncome: scenario.income,
           period: 'annual',
+          incomeType: scenario.incomeType || 'employment',
+          pensionAmount: scenario.pensionAmount || 0,
           includeDeductions: incomeTaxIncludeDeductions
         })
       });
@@ -1134,11 +1144,11 @@ export default function AdminVATTesting() {
                     key={scenario.id}
                     variant="outline"
                     size="sm"
-                    onClick={() => handleRunIncomeTaxScenario(scenario.income)}
+                    onClick={() => handleRunIncomeTaxScenario(scenario)}
                     disabled={loading !== null}
-                    className="text-xs"
+                    className={`text-xs ${scenario.incomeType === 'pension' ? 'border-green-500' : scenario.incomeType === 'mixed' ? 'border-yellow-500' : ''}`}
                   >
-                    {scenario.name} - {scenario.description}
+                    {scenario.incomeType === 'pension' ? '🏛️ ' : scenario.incomeType === 'mixed' ? '📊 ' : ''}{scenario.name}
                   </Button>
                 ))}
               </div>

@@ -21,6 +21,11 @@ const TAX_BANDS = [
 // National Minimum Wage exemption threshold (Section 58)
 const MINIMUM_WAGE_ANNUAL = 420000; // ₦35,000/month × 12
 
+/**
+ * Income types for Section 163 exemptions
+ */
+type IncomeType = 'employment' | 'pension' | 'business' | 'mixed';
+
 interface DeductionsInput {
   pension?: number; // Percentage or fixed amount
   nhf?: number; // National Housing Fund (2.5% of basic salary)
@@ -40,6 +45,7 @@ interface TaxBandBreakdown {
 interface IncomeTaxResult {
   grossIncome: number;
   period: 'annual' | 'monthly';
+  incomeType?: IncomeType;
   deductions: {
     pension: number;
     nhf: number;
@@ -49,6 +55,8 @@ interface IncomeTaxResult {
     housingLoanInterest: number;
     total: number;
   };
+  pensionExemption?: number;
+  taxableIncome?: number;
   chargeableIncome: number;
   taxBreakdown: TaxBandBreakdown[];
   totalTax: number;
@@ -57,6 +65,7 @@ interface IncomeTaxResult {
   monthlyTax: number;
   monthlyNetIncome: number;
   isMinimumWageExempt: boolean;
+  isPensionExempt?: boolean;
   actReference: string;
 }
 
@@ -126,20 +135,25 @@ serve(async (req) => {
     const {
       grossIncome: inputIncome,
       period = 'annual',
+      incomeType = 'employment',
+      pensionAmount = 0,
       deductions: inputDeductions = {},
       includeDeductions = true
     } = body;
 
-    console.log('Income Tax Calculator Request:', { inputIncome, period, inputDeductions, includeDeductions });
+    console.log('Income Tax Calculator Request:', { inputIncome, period, incomeType, pensionAmount, inputDeductions, includeDeductions });
 
     // Convert to annual if monthly
     const grossIncome = period === 'monthly' ? inputIncome * 12 : inputIncome;
+    const annualPensionAmount = period === 'monthly' ? pensionAmount * 12 : pensionAmount;
 
-    // Check minimum wage exemption
-    if (grossIncome <= MINIMUM_WAGE_ANNUAL) {
+    // Check for pension exemption (Section 163)
+    // "pension, gratuity or retirement benefits under Pension Reform Act are fully exempt"
+    if (incomeType === 'pension') {
       const result: IncomeTaxResult = {
         grossIncome,
         period,
+        incomeType,
         deductions: {
           pension: 0,
           nhf: 0,
@@ -149,9 +163,11 @@ serve(async (req) => {
           housingLoanInterest: 0,
           total: 0,
         },
-        chargeableIncome: grossIncome,
+        pensionExemption: grossIncome,
+        taxableIncome: 0,
+        chargeableIncome: 0,
         taxBreakdown: [{
-          band: 'Minimum Wage Exemption',
+          band: 'Pension Exemption (Section 163)',
           taxableInBand: grossIncome,
           rate: 0,
           taxInBand: 0,
@@ -161,8 +177,59 @@ serve(async (req) => {
         netIncome: grossIncome,
         monthlyTax: 0,
         monthlyNetIncome: grossIncome / 12,
+        isMinimumWageExempt: false,
+        isPensionExempt: true,
+        actReference: 'Section 163 - Pension under Pension Reform Act fully exempt from income tax',
+      };
+
+      console.log('Pension exempt result:', result);
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Handle mixed income (pension + other income)
+    let taxableIncome = grossIncome;
+    let pensionExemption = 0;
+    
+    if (incomeType === 'mixed' && annualPensionAmount > 0) {
+      pensionExemption = annualPensionAmount;
+      taxableIncome = Math.max(0, grossIncome - annualPensionAmount);
+    }
+
+    // Check minimum wage exemption
+    if (taxableIncome <= MINIMUM_WAGE_ANNUAL) {
+      const result: IncomeTaxResult = {
+        grossIncome,
+        period,
+        incomeType,
+        deductions: {
+          pension: 0,
+          nhf: 0,
+          nhis: 0,
+          rentRelief: 0,
+          lifeInsurance: 0,
+          housingLoanInterest: 0,
+          total: 0,
+        },
+        pensionExemption: pensionExemption > 0 ? pensionExemption : undefined,
+        taxableIncome: taxableIncome,
+        chargeableIncome: taxableIncome,
+        taxBreakdown: [{
+          band: pensionExemption > 0 ? 'Pension Exempt + Minimum Wage' : 'Minimum Wage Exemption',
+          taxableInBand: taxableIncome,
+          rate: 0,
+          taxInBand: 0,
+        }],
+        totalTax: 0,
+        effectiveRate: 0,
+        netIncome: grossIncome,
+        monthlyTax: 0,
+        monthlyNetIncome: grossIncome / 12,
         isMinimumWageExempt: true,
-        actReference: 'Section 58 - Minimum wage earners exempt from income tax',
+        actReference: pensionExemption > 0 
+          ? 'Section 163 (Pension Exempt) + Section 58 (Minimum Wage Exempt)' 
+          : 'Section 58 - Minimum wage earners exempt from income tax',
       };
 
       console.log('Minimum wage exempt:', result);
@@ -171,13 +238,13 @@ serve(async (req) => {
       });
     }
 
-    // Calculate deductions
+    // Calculate deductions based on taxable income (excluding pension)
     const deductions = includeDeductions
-      ? calculateDeductions(grossIncome, inputDeductions)
+      ? calculateDeductions(taxableIncome, inputDeductions)
       : { pension: 0, nhf: 0, nhis: 0, rentRelief: 0, lifeInsurance: 0, housingLoanInterest: 0, total: 0 };
 
     // Calculate chargeable income
-    const chargeableIncome = Math.max(0, grossIncome - deductions.total);
+    const chargeableIncome = Math.max(0, taxableIncome - deductions.total);
 
     // Calculate progressive tax
     const { breakdown, totalTax } = calculateProgressiveTax(chargeableIncome);
@@ -191,7 +258,10 @@ serve(async (req) => {
     const result: IncomeTaxResult = {
       grossIncome,
       period,
+      incomeType,
       deductions,
+      pensionExemption: pensionExemption > 0 ? pensionExemption : undefined,
+      taxableIncome: pensionExemption > 0 ? taxableIncome : undefined,
       chargeableIncome,
       taxBreakdown: breakdown,
       totalTax,
@@ -200,7 +270,9 @@ serve(async (req) => {
       monthlyTax,
       monthlyNetIncome,
       isMinimumWageExempt: false,
-      actReference: 'Section 58, Fourth Schedule - Personal Income Tax Rates',
+      actReference: pensionExemption > 0 
+        ? 'Section 163 (Pension Exempt) + Section 58 (Progressive Rates)'
+        : 'Section 58, Fourth Schedule - Personal Income Tax Rates',
     };
 
     console.log('Income Tax Calculation Result:', result);
