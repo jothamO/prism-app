@@ -286,7 +286,9 @@ export type Database = {
           date: string
           description: string
           id: string
+          is_project_expense: boolean | null
           period: string
+          project_id: string | null
           receipt_url: string | null
           supplier_name: string | null
           user_id: string | null
@@ -302,7 +304,9 @@ export type Database = {
           date: string
           description: string
           id?: string
+          is_project_expense?: boolean | null
           period: string
+          project_id?: string | null
           receipt_url?: string | null
           supplier_name?: string | null
           user_id?: string | null
@@ -318,7 +322,9 @@ export type Database = {
           date?: string
           description?: string
           id?: string
+          is_project_expense?: boolean | null
           period?: string
+          project_id?: string | null
           receipt_url?: string | null
           supplier_name?: string | null
           user_id?: string | null
@@ -331,6 +337,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -683,7 +696,9 @@ export type Database = {
           date: string
           excluded_from_vat: boolean | null
           id: string
+          is_project_fund: boolean | null
           metadata: Json | null
+          project_id: string | null
           source: string | null
           transaction_type: string | null
           user_id: string | null
@@ -695,7 +710,9 @@ export type Database = {
           date: string
           excluded_from_vat?: boolean | null
           id?: string
+          is_project_fund?: boolean | null
           metadata?: Json | null
+          project_id?: string | null
           source?: string | null
           transaction_type?: string | null
           user_id?: string | null
@@ -707,12 +724,21 @@ export type Database = {
           date?: string
           excluded_from_vat?: boolean | null
           id?: string
+          is_project_fund?: boolean | null
           metadata?: Json | null
+          project_id?: string | null
           source?: string | null
           transaction_type?: string | null
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "non_revenue_transactions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "non_revenue_transactions_user_id_fkey"
             columns: ["user_id"]
@@ -748,6 +774,153 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      project_receipts: {
+        Row: {
+          amount: number
+          bank_match_confidence: number | null
+          bank_reference: string | null
+          created_at: string | null
+          date: string
+          description: string | null
+          expense_id: string | null
+          id: string
+          is_verified: boolean | null
+          ocr_confidence: number | null
+          ocr_extracted_amount: number | null
+          ocr_extracted_vendor: string | null
+          project_id: string
+          receipt_url: string
+          vendor_name: string | null
+          verification_method: string | null
+        }
+        Insert: {
+          amount: number
+          bank_match_confidence?: number | null
+          bank_reference?: string | null
+          created_at?: string | null
+          date: string
+          description?: string | null
+          expense_id?: string | null
+          id?: string
+          is_verified?: boolean | null
+          ocr_confidence?: number | null
+          ocr_extracted_amount?: number | null
+          ocr_extracted_vendor?: string | null
+          project_id: string
+          receipt_url: string
+          vendor_name?: string | null
+          verification_method?: string | null
+        }
+        Update: {
+          amount?: number
+          bank_match_confidence?: number | null
+          bank_reference?: string | null
+          created_at?: string | null
+          date?: string
+          description?: string | null
+          expense_id?: string | null
+          id?: string
+          is_verified?: boolean | null
+          ocr_confidence?: number | null
+          ocr_extracted_amount?: number | null
+          ocr_extracted_vendor?: string | null
+          project_id?: string
+          receipt_url?: string
+          vendor_name?: string | null
+          verification_method?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_receipts_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_receipts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          budget: number
+          business_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          description: string | null
+          exclude_from_vat: boolean | null
+          id: string
+          is_agency_fund: boolean | null
+          name: string
+          notes: string | null
+          source_person: string
+          source_relationship: string
+          spent: number | null
+          status: string | null
+          tax_treatment: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          budget: number
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          exclude_from_vat?: boolean | null
+          id?: string
+          is_agency_fund?: boolean | null
+          name: string
+          notes?: string | null
+          source_person: string
+          source_relationship: string
+          spent?: number | null
+          status?: string | null
+          tax_treatment?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          budget?: number
+          business_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          exclude_from_vat?: boolean | null
+          id?: string
+          is_agency_fund?: boolean | null
+          name?: string
+          notes?: string | null
+          source_person?: string
+          source_relationship?: string
+          spent?: number | null
+          status?: string | null
+          tax_treatment?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       related_parties: {
         Row: {
