@@ -34,9 +34,7 @@ export class ModelTrainingWorker {
      * Main retraining workflow
      * Runs weekly to update classification model
      */
-    async retrain
-
-    Model() {
+    async retrainModel() {
         console.log('🧠 Starting model retraining workflow...');
 
         try {
@@ -252,7 +250,7 @@ export class ModelTrainingWorker {
      * Make prediction with model
      */
     private async predictWithModel(modelId: string, input: string): Promise<string> {
-        if (!this.openai || modelId.startswith('mock')) {
+        if (!this.openai || modelId.startsWith('mock')) {
             // Mock prediction for testing
             return 'mock_category';
         }
@@ -272,11 +270,11 @@ export class ModelTrainingWorker {
     /**
      * Deploy model to production
      */
-    private async deployModel(modelId: string, metrics: TrainingMetrics): Promise<void> {
+    private async deployModel(modelId: string, metrics: TrainingMetrics, trainingDataCount: number = 0): Promise<void> {
         const version = `v${Date.now()}`;
 
         // Save to ml_models table
-        await this.saveModelRecord(modelId, 'deployed', metrics, 0);
+        await this.saveModelRecord(modelId, 'deployed', metrics, trainingDataCount);
 
         // Update environment variable (in production, use config service)
         process.env.AI_MODEL_VERSION = version;
@@ -295,6 +293,7 @@ export class ModelTrainingWorker {
         trainingDataCount: number
     ): Promise<void> {
         await supabase.from('ml_models').insert({
+            model_name: 'prism-classifier',
             version: modelId,
             model_type: 'classification',
             training_data_count: trainingDataCount,
@@ -303,6 +302,8 @@ export class ModelTrainingWorker {
             recall_score: metrics.recall,
             f1_score: metrics.f1Score,
             status,
+            is_active: status === 'deployed',
+            trained_at: new Date().toISOString(),
             deployed_at: status === 'deployed' ? new Date().toISOString() : null
         });
     }

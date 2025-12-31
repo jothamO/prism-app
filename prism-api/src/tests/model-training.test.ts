@@ -17,13 +17,15 @@ describe('Phase 5 Week 2: Model Retraining Pipeline', () => {
         // Create test user and business
         const { data: user } = await supabase.from('users').insert({
             whatsapp_number: '+234TEST456',
-            business_name: 'Training Test Business'
+            business_name: 'Training Test Business',
+            tin: 'TEST456789'
         }).select().single();
         testUserId = user.id;
 
         const { data: business } = await supabase.from('businesses').insert({
             user_id: testUserId,
             name: 'Training Test Business',
+            registration_number: 'TRAIN-REG-456',
             is_primary: true
         }).select().single();
         testBusinessId = business.id;
@@ -140,6 +142,7 @@ describe('Phase 5 Week 2: Model Retraining Pipeline', () => {
             };
 
             await supabase.from('ml_models').insert({
+                model_name: 'prism-classifier',
                 version: mockModelId,
                 model_type: 'classification',
                 training_data_count: 100,
@@ -147,7 +150,9 @@ describe('Phase 5 Week 2: Model Retraining Pipeline', () => {
                 precision_score: mockMetrics.precision,
                 recall_score: mockMetrics.recall,
                 f1_score: mockMetrics.f1Score,
-                status: 'deployed'
+                status: 'deployed',
+                is_active: true,
+                deployed_at: new Date().toISOString()
             });
 
             const { data } = await supabase

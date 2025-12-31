@@ -633,8 +633,10 @@ export type Database = {
           id: string
           is_active: boolean | null
           model_name: string
+          model_type: string | null
           precision_score: number | null
           recall_score: number | null
+          status: string | null
           trained_at: string | null
           training_data_count: number | null
           version: string
@@ -647,8 +649,10 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           model_name: string
+          model_type?: string | null
           precision_score?: number | null
           recall_score?: number | null
+          status?: string | null
           trained_at?: string | null
           training_data_count?: number | null
           version: string
@@ -661,8 +665,10 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           model_name?: string
+          model_type?: string | null
           precision_score?: number | null
           recall_score?: number | null
+          status?: string | null
           trained_at?: string | null
           training_data_count?: number | null
           version?: string
