@@ -16,13 +16,15 @@ describe('Phase 5 Week 1: Feedback System', () => {
         // Create test user and business
         const { data: user } = await supabase.from('users').insert({
             whatsapp_number: '+234TEST123',
-            business_name: 'Test Business'
+            business_name: 'Test Business',
+            tin: 'TEST123456'
         }).select().single();
         testUserId = user.id;
 
         const { data: business } = await supabase.from('businesses').insert({
             user_id: testUserId,
             name: 'Test Business',
+            registration_number: 'TEST-REG-123',
             is_primary: true
         }).select().single();
         testBusinessId = business.id;
@@ -98,7 +100,7 @@ describe('Phase 5 Week 1: Feedback System', () => {
 
             expect(patterns).toHaveLength(1);
             expect(patterns[0].category).toBe('marketing');
-            expect(patterns[0].occurrences).toBe(1);
+            expect(patterns[0].occurrence_count).toBe(1);
         });
 
         test('should update pattern on repeated correction', async () => {
@@ -121,7 +123,7 @@ describe('Phase 5 Week 1: Feedback System', () => {
                 .eq('item_pattern', 'google ads');
 
             expect(patterns).toHaveLength(1);
-            expect(patterns[0].occurrences).toBe(2);
+            expect(patterns[0].occurrence_count).toBe(2);
             expect(patterns[0].confidence).toBeGreaterThan(0);
         });
     });
