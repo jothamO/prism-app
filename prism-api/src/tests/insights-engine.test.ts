@@ -18,13 +18,15 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
         // Create test user and business
         const { data: user } = await supabase.from('users').insert({
             whatsapp_number: '+234TEST789',
-            business_name: 'Insights Test Business'
+            business_name: 'Insights Test Business',
+            tin: 'INSIGHTTEST123'
         }).select().single();
         testUserId = user.id;
 
         const { data: business } = await supabase.from('businesses').insert({
             user_id: testUserId,
             name: 'Insights Test Business',
+            registration_number: 'TEST-INSIGHT-001',
             is_primary: true,
             annual_turnover: 45_000_000, // Close to ₦50M threshold
             total_fixed_assets: 20_000_000
@@ -43,6 +45,8 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
 
     describe('Unclaimed Deductions Detection', () => {
         test('should detect potential deductible expenses', async () => {
+            const currentMonth = new Date().toISOString().substring(0, 7);
+            
             // Create expenses that look deductible
             await supabase.from('expenses').insert([
                 {
@@ -51,6 +55,7 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
                     description: 'Office rent payment',
                     amount: 150000,
                     date: new Date().toISOString().substring(0, 10),
+                    period: currentMonth,
                     category: null // Not categorized
                 },
                 {
@@ -59,6 +64,7 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
                     description: 'Internet subscription',
                     amount: 15000,
                     date: new Date().toISOString().substring(0, 10),
+                    period: currentMonth,
                     category: 'personal' // Wrongly categorized
                 }
             ]);
@@ -76,6 +82,7 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
         test('should calculate correct tax savings (30% of unclaimed amount)', async () => {
             const unclaimedAmount = 100_000;
             const expectedSaving = unclaimedAmount * 0.30; // ₦30,000
+            const currentMonth = new Date().toISOString().substring(0, 7);
 
             await supabase.from('expenses').insert({
                 user_id: testUserId,
@@ -83,6 +90,7 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
                 description: 'Marketing expense',
                 amount: unclaimedAmount,
                 date: new Date().toISOString().substring(0, 10),
+                period: currentMonth,
                 category: null
             });
 
@@ -128,13 +136,13 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
                 months.push(date.toISOString().substring(0, 7));
             }
 
-            for (const month of months) {
+            for (const period of months) {
                 await supabase.from('vat_reconciliations').insert({
                     user_id: testUserId,
-                    month,
+                    period,
                     output_vat: 100_000,
                     input_vat: 700_000, // More input than output = credit
-                    net_vat_position: -600_000,
+                    net_vat: -600_000,
                     status: 'draft'
                 });
             }
@@ -197,7 +205,11 @@ describe('Phase 5 Week 3: Proactive Insights Engine', () => {
                     user_id: testUserId,
                     business_id: testBusinessId,
                     date: `${currentMonth}-15`,
+                    period: currentMonth,
                     total: 1_000_000,
+                    subtotal: 930_233,
+                    vat_amount: 69_767,
+                    items: [],
                     customer_name: 'Test Customer'
                 }
             ]);
