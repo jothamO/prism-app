@@ -13,7 +13,8 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
-  Download
+  Download,
+  Wallet
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -58,6 +59,34 @@ interface SeedResult {
   };
 }
 
+interface IncomeTaxResult {
+  grossIncome: number;
+  period: 'annual' | 'monthly';
+  deductions: {
+    pension: number;
+    nhf: number;
+    nhis: number;
+    rentRelief: number;
+    lifeInsurance: number;
+    housingLoanInterest: number;
+    total: number;
+  };
+  chargeableIncome: number;
+  taxBreakdown: Array<{
+    band: string;
+    taxableInBand: number;
+    rate: number;
+    taxInBand: number;
+  }>;
+  totalTax: number;
+  effectiveRate: number;
+  netIncome: number;
+  monthlyTax: number;
+  monthlyNetIncome: number;
+  isMinimumWageExempt: boolean;
+  actReference: string;
+}
+
 const TEST_SCENARIOS = [
   { id: 'standard-retail', name: 'Standard Retail Business', description: '5 invoices, 2 expenses' },
   { id: 'zero-rated-exports', name: 'Export Business', description: '3 zero-rated invoices, 2 expenses' },
@@ -74,6 +103,14 @@ const CLASSIFICATION_TEST_CASES = [
   { description: 'Consulting services', expected: 'standard', category: 'services' },
   { description: 'Textbooks for schools', expected: 'zero-rated', category: 'education' },
   { description: 'Bank charges', expected: 'exempt', category: 'financial' }
+];
+
+const INCOME_TAX_SCENARIOS = [
+  { id: 'minimum-wage', name: 'Minimum Wage', income: 420000, description: 'Exempt from tax' },
+  { id: 'entry-level', name: 'Entry Level', income: 1440000, description: '₦120k/month' },
+  { id: 'mid-career', name: 'Mid-Career', income: 6000000, description: '₦500k/month' },
+  { id: 'senior-manager', name: 'Senior Manager', income: 15000000, description: '₦1.25M/month' },
+  { id: 'executive', name: 'Executive', income: 60000000, description: '₦5M/month' },
 ];
 
 export default function AdminVATTesting() {
@@ -98,12 +135,19 @@ export default function AdminVATTesting() {
   const [reconUserId, setReconUserId] = useState("");
   const [reconResult, setReconResult] = useState<ReconciliationResult | null>(null);
   
+  // Income Tax state
+  const [incomeTaxAmount, setIncomeTaxAmount] = useState("1440000");
+  const [incomeTaxPeriod, setIncomeTaxPeriod] = useState<'annual' | 'monthly'>('annual');
+  const [incomeTaxIncludeDeductions, setIncomeTaxIncludeDeductions] = useState(true);
+  const [incomeTaxResult, setIncomeTaxResult] = useState<IncomeTaxResult | null>(null);
+  
   // Expanded sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     calculator: true,
     classification: true,
     seeder: true,
-    reconciliation: true
+    reconciliation: true,
+    incomeTax: true
   });
 
   const toggleSection = (section: string) => {
@@ -334,6 +378,100 @@ export default function AdminVATTesting() {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive" 
       });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Calculate Income Tax
+  const handleCalculateIncomeTax = async () => {
+    setLoading('income-tax');
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grossIncome: parseFloat(incomeTaxAmount),
+          period: incomeTaxPeriod,
+          includeDeductions: incomeTaxIncludeDeductions
+        })
+      });
+      
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      
+      setIncomeTaxResult(result);
+      toast({ title: "Income tax calculated successfully" });
+    } catch (error) {
+      toast({ 
+        title: "Calculation failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Run income tax scenario
+  const handleRunIncomeTaxScenario = async (income: number) => {
+    setIncomeTaxAmount(income.toString());
+    setLoading('income-tax');
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grossIncome: income,
+          period: 'annual',
+          includeDeductions: incomeTaxIncludeDeductions
+        })
+      });
+      
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      
+      setIncomeTaxResult(result);
+      toast({ title: "Scenario calculated" });
+    } catch (error) {
+      toast({ 
+        title: "Calculation failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Export Income Tax Report
+  const handleExportIncomeTaxReport = async () => {
+    if (!incomeTaxResult) {
+      toast({ title: "Calculate income tax first", variant: "destructive" });
+      return;
+    }
+    setLoading('export-income-tax');
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-pdf-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          reportType: 'income-tax-computation', 
+          data: incomeTaxResult 
+        })
+      });
+      
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(result.html);
+        printWindow.document.close();
+        toast({ title: "Report opened - use Ctrl+P to save as PDF" });
+      }
+    } catch (error) {
+      toast({ title: "Export failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     } finally {
       setLoading(null);
     }
@@ -794,6 +932,175 @@ export default function AdminVATTesting() {
                       {formatCurrency(reconResult.creditCarriedForward)}
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Income Tax Simulator Section */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer flex flex-row items-center justify-between"
+          onClick={() => toggleSection('incomeTax')}
+        >
+          <div className="flex items-center gap-3">
+            <Wallet className="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>Income Tax Simulator</CardTitle>
+              <CardDescription>Tax Act 2025 Section 58 - Personal Income Tax Calculator</CardDescription>
+            </div>
+          </div>
+          {expandedSections.incomeTax ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </CardHeader>
+        {expandedSections.incomeTax && (
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Income Amount (₦)</label>
+                <Input 
+                  type="number" 
+                  value={incomeTaxAmount} 
+                  onChange={(e) => setIncomeTaxAmount(e.target.value)}
+                  placeholder="1440000"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Period</label>
+                <select 
+                  value={incomeTaxPeriod}
+                  onChange={(e) => setIncomeTaxPeriod(e.target.value as 'annual' | 'monthly')}
+                  className="w-full mt-1 p-2 bg-background border border-input rounded-md h-10"
+                >
+                  <option value="annual">Annual</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={incomeTaxIncludeDeductions}
+                    onChange={(e) => setIncomeTaxIncludeDeductions(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">Include standard deductions</span>
+                </label>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                onClick={handleCalculateIncomeTax}
+                disabled={loading !== null}
+                className="gap-2"
+              >
+                {loading === 'income-tax' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
+                Calculate
+              </Button>
+              <Button 
+                onClick={handleExportIncomeTaxReport}
+                disabled={loading !== null || !incomeTaxResult}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export Report
+              </Button>
+            </div>
+
+            {/* Quick Scenarios */}
+            <div className="pt-4 border-t border-border">
+              <p className="text-sm font-medium text-muted-foreground mb-2">Test Scenarios</p>
+              <div className="flex flex-wrap gap-2">
+                {INCOME_TAX_SCENARIOS.map(scenario => (
+                  <Button
+                    key={scenario.id}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRunIncomeTaxScenario(scenario.income)}
+                    disabled={loading !== null}
+                    className="text-xs"
+                  >
+                    {scenario.name} - {scenario.description}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {incomeTaxResult && (
+              <div className="mt-4 p-4 bg-muted rounded-lg space-y-4">
+                {incomeTaxResult.isMinimumWageExempt && (
+                  <div className="bg-blue-500/20 text-blue-600 dark:text-blue-400 px-3 py-2 rounded-md text-sm">
+                    ✓ Minimum Wage Exempt - No income tax applicable
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Gross Income</p>
+                    <p className="font-bold">{formatCurrency(incomeTaxResult.grossIncome)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Deductions</p>
+                    <p className="font-bold">{formatCurrency(incomeTaxResult.deductions.total)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Chargeable Income</p>
+                    <p className="font-bold">{formatCurrency(incomeTaxResult.chargeableIncome)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Effective Rate</p>
+                    <p className="font-bold">{incomeTaxResult.effectiveRate.toFixed(2)}%</p>
+                  </div>
+                </div>
+
+                {/* Tax Breakdown Table */}
+                <div className="pt-3 border-t border-border">
+                  <p className="text-sm font-medium mb-2">Progressive Tax Breakdown</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left py-2 text-muted-foreground font-medium">Band</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Amount</th>
+                          <th className="text-center py-2 text-muted-foreground font-medium">Rate</th>
+                          <th className="text-right py-2 text-muted-foreground font-medium">Tax</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {incomeTaxResult.taxBreakdown.map((band, idx) => (
+                          <tr key={idx} className="border-b border-border/50">
+                            <td className="py-2">{band.band}</td>
+                            <td className="text-right py-2 font-mono">{formatCurrency(band.taxableInBand)}</td>
+                            <td className="text-center py-2">{(band.rate * 100).toFixed(0)}%</td>
+                            <td className="text-right py-2 font-mono">{formatCurrency(band.taxInBand)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="pt-3 border-t border-border grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-muted-foreground text-sm">Annual Tax</p>
+                    <p className="text-xl font-bold text-primary">{formatCurrency(incomeTaxResult.totalTax)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-sm">Monthly PAYE</p>
+                    <p className="text-xl font-bold">{formatCurrency(incomeTaxResult.monthlyTax)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-sm">Monthly Net Income</p>
+                    <p className="text-xl font-bold text-green-500">{formatCurrency(incomeTaxResult.monthlyNetIncome)}</p>
+                  </div>
+                </div>
+
+                <div className="pt-2 text-xs text-muted-foreground">
+                  {incomeTaxResult.actReference}
                 </div>
               </div>
             )}
