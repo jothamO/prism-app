@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,7 +11,17 @@ interface Transaction {
   description: string;
   isConnectedPerson?: boolean;
   counterpartyAmount?: number;
+  counterpartyName?: string;
+  counterpartyTin?: string;
   type?: 'income' | 'expense' | 'capital';
+  userId?: string;
+}
+
+interface ConnectedPartyMatch {
+  isConnected: boolean;
+  matchSource?: 'own_business' | 'related_party' | 'manual';
+  matchedName?: string;
+  relationshipType?: string;
 }
 
 interface AvoidanceCheck {
@@ -18,16 +29,134 @@ interface AvoidanceCheck {
   warnings: string[];
   recommendation: string;
   taxActReferences: string[];
+  connectedPartyDetection?: ConnectedPartyMatch;
 }
 
-function checkConnectedPerson(transaction: Transaction): Partial<AvoidanceCheck> {
-  if (!transaction.isConnectedPerson) {
+// Normalize business names for fuzzy matching
+function normalizeBusinessName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s+(ltd|limited|inc|incorporated|plc|llc|corp|corporation)\s*\.?$/i, '')
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Calculate similarity between two strings (Jaccard similarity)
+function calculateSimilarity(str1: string, str2: string): number {
+  const set1 = new Set(str1.split(' '));
+  const set2 = new Set(str2.split(' '));
+  const intersection = new Set([...set1].filter(x => set2.has(x)));
+  const union = new Set([...set1, ...set2]);
+  return intersection.size / union.size;
+}
+
+// Detect connected party by cross-referencing
+async function detectConnectedParty(
+  supabase: any,
+  userId: string,
+  counterpartyName?: string,
+  counterpartyTin?: string
+): Promise<ConnectedPartyMatch> {
+  if (!counterpartyName && !counterpartyTin) {
+    return { isConnected: false };
+  }
+
+  const normalizedCounterparty = counterpartyName ? normalizeBusinessName(counterpartyName) : '';
+
+  // Check against user's own businesses
+  const { data: userBusinesses } = await supabase
+    .from('businesses')
+    .select('name, tin, registration_number')
+    .eq('user_id', userId);
+
+  if (userBusinesses) {
+    for (const business of userBusinesses) {
+      // Check TIN match
+      if (counterpartyTin && business.tin && counterpartyTin === business.tin) {
+        return {
+          isConnected: true,
+          matchSource: 'own_business',
+          matchedName: business.name,
+          relationshipType: 'own_business',
+        };
+      }
+
+      // Check name similarity
+      if (counterpartyName) {
+        const normalizedBusiness = normalizeBusinessName(business.name);
+        const similarity = calculateSimilarity(normalizedCounterparty, normalizedBusiness);
+        
+        if (similarity > 0.7) {
+          return {
+            isConnected: true,
+            matchSource: 'own_business',
+            matchedName: business.name,
+            relationshipType: 'own_business',
+          };
+        }
+      }
+    }
+  }
+
+  // Check against declared related parties
+  const { data: relatedParties } = await supabase
+    .from('related_parties')
+    .select('party_name, party_tin, relationship_type')
+    .eq('user_id', userId);
+
+  if (relatedParties) {
+    for (const party of relatedParties) {
+      // Check TIN match
+      if (counterpartyTin && party.party_tin && counterpartyTin === party.party_tin) {
+        return {
+          isConnected: true,
+          matchSource: 'related_party',
+          matchedName: party.party_name,
+          relationshipType: party.relationship_type,
+        };
+      }
+
+      // Check name similarity
+      if (counterpartyName) {
+        const normalizedParty = normalizeBusinessName(party.party_name);
+        const similarity = calculateSimilarity(normalizedCounterparty, normalizedParty);
+        
+        if (similarity > 0.7) {
+          return {
+            isConnected: true,
+            matchSource: 'related_party',
+            matchedName: party.party_name,
+            relationshipType: party.relationship_type,
+          };
+        }
+      }
+    }
+  }
+
+  return { isConnected: false };
+}
+
+function checkConnectedPerson(transaction: Transaction, connectedPartyMatch?: ConnectedPartyMatch): Partial<AvoidanceCheck> {
+  const isConnected = transaction.isConnectedPerson || connectedPartyMatch?.isConnected;
+  
+  if (!isConnected) {
     return { riskLevel: 'low', warnings: [], taxActReferences: [] };
   }
 
   const warnings: string[] = [];
   const taxActReferences: string[] = [];
   let riskLevel: 'low' | 'medium' | 'high' = 'low';
+
+  // Add auto-detection warning if applicable
+  if (connectedPartyMatch?.isConnected && !transaction.isConnectedPerson) {
+    const source = connectedPartyMatch.matchSource === 'own_business' 
+      ? 'your own business' 
+      : `declared related party (${connectedPartyMatch.relationshipType})`;
+    warnings.push(`Auto-detected as connected person: "${connectedPartyMatch.matchedName}" matches ${source}`);
+    taxActReferences.push('Section 191 - Connected Persons');
+    riskLevel = 'high';
+  }
 
   // Check if transaction might not be at arm's length (Section 191)
   if (transaction.counterpartyAmount && transaction.counterpartyAmount !== transaction.amount) {
@@ -40,7 +169,7 @@ function checkConnectedPerson(transaction: Transaction): Partial<AvoidanceCheck>
   }
 
   // Flag all connected person transactions for review
-  if (transaction.isConnectedPerson) {
+  if (isConnected) {
     warnings.push('Transaction with connected person requires arm\'s length verification');
     taxActReferences.push('Section 191 - Connected Persons');
     if (riskLevel === 'low') riskLevel = 'medium';
@@ -95,14 +224,15 @@ function checkCapitalVsRevenue(transaction: Transaction): Partial<AvoidanceCheck
   return { riskLevel, warnings, taxActReferences };
 }
 
-function checkRoundNumbers(transaction: Transaction): Partial<AvoidanceCheck> {
+function checkRoundNumbers(transaction: Transaction, connectedPartyMatch?: ConnectedPartyMatch): Partial<AvoidanceCheck> {
   const warnings: string[] = [];
   const taxActReferences: string[] = [];
   let riskLevel: 'low' | 'medium' | 'high' = 'low';
 
+  const isConnected = transaction.isConnectedPerson || connectedPartyMatch?.isConnected;
   const isExactlyRound = transaction.amount % 100000 === 0 && transaction.amount >= 1000000;
   
-  if (isExactlyRound && transaction.isConnectedPerson) {
+  if (isExactlyRound && isConnected) {
     warnings.push('Suspiciously round amount in connected person transaction');
     taxActReferences.push('Section 191 - Connected Persons');
     riskLevel = 'medium';
@@ -116,12 +246,12 @@ function maxRiskLevel(a: 'low' | 'medium' | 'high', b: 'low' | 'medium' | 'high'
   return levels[a] >= levels[b] ? a : b;
 }
 
-function checkTransaction(transaction: Transaction): AvoidanceCheck {
+function checkTransaction(transaction: Transaction, connectedPartyMatch?: ConnectedPartyMatch): AvoidanceCheck {
   const checks = [
-    checkConnectedPerson(transaction),
+    checkConnectedPerson(transaction, connectedPartyMatch),
     checkGiftVsIncome(transaction),
     checkCapitalVsRevenue(transaction),
-    checkRoundNumbers(transaction),
+    checkRoundNumbers(transaction, connectedPartyMatch),
   ];
 
   let riskLevel: 'low' | 'medium' | 'high' = 'low';
@@ -146,6 +276,7 @@ function checkTransaction(transaction: Transaction): AvoidanceCheck {
     warnings: [...new Set(warnings)],
     recommendation,
     taxActReferences: [...new Set(taxActReferences)],
+    connectedPartyDetection: connectedPartyMatch,
   };
 }
 
@@ -155,21 +286,41 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     const body = await req.json();
     console.log('Anti-avoidance check request:', JSON.stringify(body));
 
     if (Array.isArray(body.transactions)) {
       // Batch check
-      const results = body.transactions.map((t: Transaction) => ({
-        transaction: t,
-        check: checkTransaction(t),
-      }));
+      const results = await Promise.all(
+        body.transactions.map(async (t: Transaction) => {
+          let connectedPartyMatch: ConnectedPartyMatch | undefined;
+          
+          if (t.userId && (t.counterpartyName || t.counterpartyTin)) {
+            connectedPartyMatch = await detectConnectedParty(
+              supabase,
+              t.userId,
+              t.counterpartyName,
+              t.counterpartyTin
+            );
+          }
+          
+          return {
+            transaction: t,
+            check: checkTransaction(t, connectedPartyMatch),
+          };
+        })
+      );
 
       const summary = {
         total: results.length,
         highRisk: results.filter((r: any) => r.check.riskLevel === 'high').length,
         mediumRisk: results.filter((r: any) => r.check.riskLevel === 'medium').length,
         lowRisk: results.filter((r: any) => r.check.riskLevel === 'low').length,
+        autoDetectedConnected: results.filter((r: any) => r.check.connectedPartyDetection?.isConnected).length,
       };
 
       console.log('Batch check summary:', summary);
@@ -180,7 +331,20 @@ serve(async (req) => {
       );
     } else {
       // Single transaction check
-      const result = checkTransaction(body as Transaction);
+      let connectedPartyMatch: ConnectedPartyMatch | undefined;
+      const transaction = body as Transaction;
+      
+      if (transaction.userId && (transaction.counterpartyName || transaction.counterpartyTin)) {
+        connectedPartyMatch = await detectConnectedParty(
+          supabase,
+          transaction.userId,
+          transaction.counterpartyName,
+          transaction.counterpartyTin
+        );
+        console.log('Connected party detection result:', connectedPartyMatch);
+      }
+      
+      const result = checkTransaction(transaction, connectedPartyMatch);
       console.log('Single check result:', result);
 
       return new Response(

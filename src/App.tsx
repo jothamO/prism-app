@@ -18,6 +18,7 @@ import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminSimulator from "./pages/admin/AdminSimulator";
 import AdminVATTesting from "./pages/admin/AdminVATTesting";
+import AdminRelatedParties from "./pages/admin/AdminRelatedParties";
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="reviews" element={<AdminReviews />} />
+              <Route path="related-parties" element={<AdminRelatedParties />} />
               <Route path="filings" element={<AdminFilings />} />
               <Route path="invoices" element={<AdminInvoices />} />
               <Route path="analytics" element={<AdminAnalytics />} />

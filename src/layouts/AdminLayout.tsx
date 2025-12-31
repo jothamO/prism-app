@@ -12,7 +12,8 @@ import {
   BarChart3,
   ShieldAlert,
   Smartphone,
-  FlaskConical
+  FlaskConical,
+  Link2
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -24,6 +25,7 @@ export default function AdminLayout() {
     { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
     { name: "Users", path: "/admin/users", icon: Users },
     { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
+    { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
     { name: "Filings", path: "/admin/filings", icon: FileText },
     { name: "Invoices", path: "/admin/invoices", icon: FileText },
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
