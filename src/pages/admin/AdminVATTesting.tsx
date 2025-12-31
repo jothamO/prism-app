@@ -14,7 +14,9 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  Wallet
+  Wallet,
+  Building2,
+  Bell
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -87,7 +89,67 @@ interface IncomeTaxResult {
   actReference: string;
 }
 
+interface ClassificationResult {
+  businessId: string;
+  businessName: string;
+  classification: 'small' | 'medium' | 'large';
+  taxRate: number;
+  reason: string;
+  thresholds: {
+    turnover: { value: number; limit: number; passes: boolean };
+    assets: { value: number; limit: number; passes: boolean };
+    professionalServices: { is: boolean; passes: boolean };
+  };
+  savingsVsStandardRate: number;
+  actReference: string;
+}
+
+interface ClassificationSeedResult {
+  success: boolean;
+  userId: string;
+  businesses: Array<{ id: string; name: string; expected: string }>;
+  testCases: Array<{
+    name: string;
+    turnover: number;
+    assets: number;
+    isProfessionalServices: boolean;
+    expectedClassification: string;
+  }>;
+}
+
+interface ClassificationJobResult {
+  success: boolean;
+  year: number;
+  summary: { total: number; small: number; medium: number; large: number };
+  results: ClassificationResult[];
+  notifications: Array<{ businessId: string; businessName: string; message: string }>;
+}
+
 const TEST_SCENARIOS = [
+  { id: 'standard-retail', name: 'Standard Retail Business', description: '5 invoices, 2 expenses' },
+  { id: 'zero-rated-exports', name: 'Export Business', description: '3 zero-rated invoices, 2 expenses' },
+  { id: 'mixed-classification', name: 'Mixed Classification', description: 'Standard + zero-rated + exempt' },
+  { id: 'high-volume', name: 'High Volume', description: '50 invoices, 25 expenses' }
+];
+
+const CLASSIFICATION_TEST_CASES = [
+  { description: 'Rice (50kg bag)', expected: 'zero-rated', category: 'food' },
+  { description: 'Laptop computer', expected: 'standard', category: 'electronics' },
+  { description: 'Medical equipment', expected: 'zero-rated', category: 'medical' },
+  { description: 'Office rent', expected: 'exempt', category: 'property' },
+  { description: 'Export goods to UK', expected: 'zero-rated', category: 'export' },
+  { description: 'Consulting services', expected: 'standard', category: 'services' },
+  { description: 'Textbooks for schools', expected: 'zero-rated', category: 'education' },
+  { description: 'Bank charges', expected: 'exempt', category: 'financial' }
+];
+
+const INCOME_TAX_SCENARIOS = [
+  { id: 'minimum-wage', name: 'Minimum Wage', income: 420000, description: 'Exempt from tax' },
+  { id: 'entry-level', name: 'Entry Level', income: 1440000, description: '₦120k/month' },
+  { id: 'mid-career', name: 'Mid-Career', income: 6000000, description: '₦500k/month' },
+  { id: 'senior-manager', name: 'Senior Manager', income: 15000000, description: '₦1.25M/month' },
+  { id: 'executive', name: 'Executive', income: 60000000, description: '₦5M/month' },
+];
   { id: 'standard-retail', name: 'Standard Retail Business', description: '5 invoices, 2 expenses' },
   { id: 'zero-rated-exports', name: 'Export Business', description: '3 zero-rated invoices, 2 expenses' },
   { id: 'mixed-classification', name: 'Mixed Classification', description: 'Standard + zero-rated + exempt' },
@@ -141,13 +203,18 @@ export default function AdminVATTesting() {
   const [incomeTaxIncludeDeductions, setIncomeTaxIncludeDeductions] = useState(true);
   const [incomeTaxResult, setIncomeTaxResult] = useState<IncomeTaxResult | null>(null);
   
+  // Business Classification state
+  const [classificationSeedResult, setClassificationSeedResult] = useState<ClassificationSeedResult | null>(null);
+  const [classificationJobResult, setClassificationJobResult] = useState<ClassificationJobResult | null>(null);
+  
   // Expanded sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     calculator: true,
     classification: true,
     seeder: true,
     reconciliation: true,
-    incomeTax: true
+    incomeTax: true,
+    businessClassification: true
   });
 
   const toggleSection = (section: string) => {
@@ -472,6 +539,77 @@ export default function AdminVATTesting() {
       }
     } catch (error) {
       toast({ title: "Export failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Seed test businesses for classification
+  const handleSeedBusinesses = async () => {
+    setLoading('seed-businesses');
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/business-classifier`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seed-businesses' })
+      });
+      
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      
+      setClassificationSeedResult(result);
+      setClassificationJobResult(null);
+      toast({ title: `Seeded ${result.businesses.length} test businesses` });
+    } catch (error) {
+      toast({ 
+        title: "Seeding failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Run classification job on all businesses
+  const handleRunClassificationJob = async () => {
+    setLoading('classification-job');
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/business-classifier`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'classify-all', year: new Date().getFullYear() })
+      });
+      
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      
+      setClassificationJobResult(result);
+      
+      // Validate results against expected
+      if (classificationSeedResult) {
+        const passed = classificationSeedResult.businesses.every(biz => {
+          const actual = result.results.find((r: ClassificationResult) => r.businessId === biz.id);
+          return actual && actual.classification === biz.expected;
+        });
+        
+        toast({ 
+          title: passed ? "Classification Tests PASSED" : "Classification Tests FAILED",
+          description: `${result.summary.small} small, ${result.summary.medium} medium, ${result.summary.large} large`,
+          variant: passed ? "default" : "destructive"
+        });
+      } else {
+        toast({ 
+          title: "Classification completed",
+          description: `${result.summary.small} small, ${result.summary.medium} medium, ${result.summary.large} large`
+        });
+      }
+    } catch (error) {
+      toast({ 
+        title: "Classification failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
     } finally {
       setLoading(null);
     }
@@ -1102,6 +1240,142 @@ export default function AdminVATTesting() {
                 <div className="pt-2 text-xs text-muted-foreground">
                   {incomeTaxResult.actReference}
                 </div>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Business Classification Section */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer flex flex-row items-center justify-between"
+          onClick={() => toggleSection('businessClassification')}
+        >
+          <div className="flex items-center gap-3">
+            <Building2 className="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>Business Classification Tests</CardTitle>
+              <CardDescription>Tax Act 2025 Section 56 - Small Company Status (0% tax)</CardDescription>
+            </div>
+          </div>
+          {expandedSections.businessClassification ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </CardHeader>
+        {expandedSections.businessClassification && (
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleSeedBusinesses}
+                disabled={loading !== null}
+                className="gap-2"
+              >
+                {loading === 'seed-businesses' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                Seed Test Businesses
+              </Button>
+              <Button 
+                onClick={handleRunClassificationJob}
+                disabled={loading !== null}
+                className="gap-2"
+              >
+                {loading === 'classification-job' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                Run Classification Job
+              </Button>
+            </div>
+
+            {/* Test Cases */}
+            {classificationSeedResult && (
+              <div className="p-4 bg-muted rounded-lg space-y-3">
+                <p className="font-medium flex items-center gap-2">
+                  <Database className="w-4 h-4" />
+                  Seeded Test Businesses
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {classificationSeedResult.testCases.map((testCase, idx) => {
+                    const actualResult = classificationJobResult?.results.find(
+                      r => classificationSeedResult.businesses[idx]?.id === r.businessId
+                    );
+                    const passed = actualResult?.classification === testCase.expectedClassification;
+                    
+                    return (
+                      <div 
+                        key={testCase.name}
+                        className={`p-3 rounded-lg border ${
+                          actualResult 
+                            ? passed 
+                              ? 'bg-green-500/10 border-green-500/30' 
+                              : 'bg-red-500/10 border-red-500/30'
+                            : 'bg-background border-border'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm">{testCase.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Turnover: ₦{(testCase.turnover / 1_000_000).toFixed(0)}M | Assets: ₦{(testCase.assets / 1_000_000).toFixed(0)}M
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {testCase.isProfessionalServices && '⚖️ Professional Services | '}
+                              Expected: <span className="font-mono">{testCase.expectedClassification}</span>
+                              {actualResult && (
+                                <> | Got: <span className={`font-mono ${passed ? 'text-green-500' : 'text-red-500'}`}>{actualResult.classification}</span></>
+                              )}
+                            </p>
+                          </div>
+                          {actualResult && (
+                            passed 
+                              ? <Check className="w-5 h-5 text-green-500" />
+                              : <X className="w-5 h-5 text-red-500" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Classification Results Summary */}
+            {classificationJobResult && (
+              <div className="p-4 bg-muted rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">Classification Summary - {classificationJobResult.year}</p>
+                  <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded">
+                    {classificationJobResult.summary.total} businesses
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-3 bg-green-500/10 rounded-lg">
+                    <p className="text-2xl font-bold text-green-500">{classificationJobResult.summary.small}</p>
+                    <p className="text-xs text-muted-foreground">Small (0% tax)</p>
+                  </div>
+                  <div className="text-center p-3 bg-blue-500/10 rounded-lg">
+                    <p className="text-2xl font-bold text-blue-500">{classificationJobResult.summary.medium}</p>
+                    <p className="text-xs text-muted-foreground">Medium (30% tax)</p>
+                  </div>
+                  <div className="text-center p-3 bg-purple-500/10 rounded-lg">
+                    <p className="text-2xl font-bold text-purple-500">{classificationJobResult.summary.large}</p>
+                    <p className="text-xs text-muted-foreground">Large (30% tax)</p>
+                  </div>
+                </div>
+
+                {/* Notifications Preview */}
+                {classificationJobResult.notifications.length > 0 && (
+                  <div className="pt-3 border-t border-border">
+                    <p className="text-sm font-medium flex items-center gap-2 mb-2">
+                      <Bell className="w-4 h-4" />
+                      Small Company Notifications ({classificationJobResult.notifications.length})
+                    </p>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {classificationJobResult.notifications.map((notif, idx) => (
+                        <div key={idx} className="p-3 bg-green-500/5 border border-green-500/20 rounded-lg text-xs">
+                          <p className="font-medium text-green-600 dark:text-green-400 mb-1">{notif.businessName}</p>
+                          <pre className="whitespace-pre-wrap text-muted-foreground font-mono">{notif.message}</pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

@@ -39,6 +39,7 @@ const HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
 
 Available commands:
 📝 *vat [amount] [description]* - Calculate VAT
+💼 *tax [amount]* - Calculate income tax
 📊 *summary* - Get your VAT filing summary
 💰 *paid* - Confirm payment for a filing
 📤 *upload* - Upload an invoice for processing
@@ -46,8 +47,9 @@ Available commands:
 
 Examples:
 • vat 50000 electronics
-• vat 100000 rice
-• vat 25000 medicine`;
+• tax 10000000
+• monthly tax 500000
+• summary`;
 
 const AdminSimulator = () => {
   const { toast } = useToast();
@@ -147,6 +149,21 @@ const AdminSimulator = () => {
       return await response.json();
     } catch (error) {
       console.error('Invoice Processor error:', error);
+      return null;
+    }
+  };
+
+  // Call Income Tax Calculator API
+  const callIncomeTaxCalculator = async (grossIncome: number, period: 'annual' | 'monthly') => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grossIncome, period, includeDeductions: true })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Income Tax Calculator error:', error);
       return null;
     }
   };
@@ -310,6 +327,57 @@ const AdminSimulator = () => {
           );
         } else {
           addBotMessage("❌ Failed to calculate VAT. Please try again.");
+        }
+        return;
+      }
+
+      // Income tax calculation: "tax 10000000" or "monthly tax 500000"
+      const taxMatch = lowerMessage.match(/^(?:calculate\s+)?(?:my\s+)?(?:(monthly)\s+)?tax(?:\s+on)?\s+[₦n]?(\d[\d,]*)/i);
+      if (taxMatch) {
+        const isMonthly = !!taxMatch[1];
+        const amount = parseInt(taxMatch[2].replace(/,/g, ""));
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating income tax...");
+        
+        const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual');
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          const breakdown = result.taxBreakdown
+            .filter((band: { taxInBand: number }) => band.taxInBand > 0)
+            .map((band: { band: string; rate: number; taxInBand: number }) => 
+              `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
+            )
+            .join('\n');
+          
+          if (result.isMinimumWageExempt) {
+            addBotMessage(
+              `📊 Personal Income Tax Calculation\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Gross Income: ${formatCurrency(result.grossIncome)}\n\n` +
+              `✅ EXEMPT FROM TAX\n\n` +
+              `Your income is at or below minimum wage threshold.\n` +
+              `Reference: ${result.actReference}`
+            );
+          } else {
+            addBotMessage(
+              `📊 Personal Income Tax Calculation\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Gross Income: ${formatCurrency(result.grossIncome)}\n` +
+              `Deductions: ${formatCurrency(result.deductions.total)}\n` +
+              `Chargeable Income: ${formatCurrency(result.chargeableIncome)}\n\n` +
+              `📋 Tax Breakdown (Section 58):\n` +
+              `${breakdown}\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `💰 Total Tax: ${formatCurrency(result.totalTax)}\n` +
+              `📊 Effective Rate: ${(result.effectiveRate * 100).toFixed(2)}%\n` +
+              `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
+              `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}`
+            );
+          }
+        } else {
+          addBotMessage("❌ Failed to calculate income tax. Please try again.");
         }
         return;
       }
@@ -664,9 +732,9 @@ const AdminSimulator = () => {
               <p className="text-xs text-muted-foreground mb-2">Try these commands:</p>
               <div className="space-y-1 text-xs">
                 <code className="block bg-muted px-2 py-1 rounded">vat 50000 electronics</code>
-                <code className="block bg-muted px-2 py-1 rounded">vat 100000 rice</code>
+                <code className="block bg-muted px-2 py-1 rounded">tax 10000000</code>
+                <code className="block bg-muted px-2 py-1 rounded">monthly tax 500000</code>
                 <code className="block bg-muted px-2 py-1 rounded">summary</code>
-                <code className="block bg-muted px-2 py-1 rounded">upload</code>
               </div>
             </div>
           </CardContent>
