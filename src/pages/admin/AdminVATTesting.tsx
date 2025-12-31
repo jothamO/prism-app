@@ -151,24 +151,6 @@ const INCOME_TAX_SCENARIOS = [
   { id: 'executive', name: 'Executive', income: 60000000, description: '₦5M/month' },
 ];
 
-const TEST_SCENARIOS = [
-  { id: 'standard-retail', name: 'Standard Retail Business', description: '5 invoices, 2 expenses' },
-  { id: 'zero-rated-exports', name: 'Export Business', description: '3 zero-rated invoices, 2 expenses' },
-  { id: 'mixed-classification', name: 'Mixed Classification', description: 'Standard + zero-rated + exempt' },
-  { id: 'high-volume', name: 'High Volume', description: '50 invoices, 25 expenses' }
-];
-
-const CLASSIFICATION_TEST_CASES = [
-  { description: 'Rice (50kg bag)', expected: 'zero-rated', category: 'food' },
-  { description: 'Laptop computer', expected: 'standard', category: 'electronics' },
-  { description: 'Medical equipment', expected: 'zero-rated', category: 'medical' },
-  { description: 'Office rent', expected: 'exempt', category: 'property' },
-  { description: 'Export goods to UK', expected: 'zero-rated', category: 'export' },
-  { description: 'Consulting services', expected: 'standard', category: 'services' },
-  { description: 'Textbooks for schools', expected: 'zero-rated', category: 'education' },
-  { description: 'Bank charges', expected: 'exempt', category: 'financial' }
-];
-];
 
 export default function AdminVATTesting() {
   const { toast } = useToast();
