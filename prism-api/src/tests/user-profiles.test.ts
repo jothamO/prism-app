@@ -13,10 +13,11 @@ describe('Phase 5 Week 4: User Profile Classification', () => {
     let testUserId: string;
 
     beforeAll(async () => {
-        // Create test user
+        // Create test user with required fields
         const { data: user } = await supabase.from('users').insert({
             whatsapp_number: '+234TESTPROFILE',
             business_name: 'Profile Test',
+            tin: 'TEST-TIN-PROFILE-001',
             age: 66 // Senior citizen
         }).select().single();
         testUserId = user.id;
@@ -36,7 +37,8 @@ describe('Phase 5 Week 4: User Profile Classification', () => {
                 user_id: testUserId,
                 description: 'Monthly pension payment received',
                 amount: 200_000,
-                date: new Date().toISOString().substring(0, 10)
+                date: new Date().toISOString().substring(0, 10),
+                period: new Date().toISOString().substring(0, 7)
             });
 
             const profile = await profileDetectorService.detectProfile(testUserId);
@@ -61,7 +63,8 @@ describe('Phase 5 Week 4: User Profile Classification', () => {
                 user_id: testUserId,
                 description: 'Salary from US Embassy',
                 amount: 500_000,
-                date: new Date().toISOString().substring(0, 10)
+                date: new Date().toISOString().substring(0, 10),
+                period: new Date().toISOString().substring(0, 7)
             });
 
             const profile = await profileDetectorService.detectProfile(testUserId);
@@ -144,7 +147,8 @@ describe('Phase 5 Week 4: User Profile Classification', () => {
                 user_id: testUserId,
                 description: 'Pension income',
                 amount: 180_000,
-                date: new Date().toISOString().substring(0, 10)
+                date: new Date().toISOString().substring(0, 10),
+                period: new Date().toISOString().substring(0, 7)
             });
 
             const income = 2_000_000;
