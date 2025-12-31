@@ -748,6 +748,50 @@ export type Database = {
           },
         ]
       }
+      profile_corrections: {
+        Row: {
+          ai_prediction: Json
+          correction_reason: string | null
+          created_at: string
+          id: string
+          signals: Json | null
+          training_batch_id: string | null
+          used_in_training: boolean | null
+          user_correction: Json
+          user_id: string
+        }
+        Insert: {
+          ai_prediction: Json
+          correction_reason?: string | null
+          created_at?: string
+          id?: string
+          signals?: Json | null
+          training_batch_id?: string | null
+          used_in_training?: boolean | null
+          user_correction: Json
+          user_id: string
+        }
+        Update: {
+          ai_prediction?: Json
+          correction_reason?: string | null
+          created_at?: string
+          id?: string
+          signals?: Json | null
+          training_batch_id?: string | null
+          used_in_training?: boolean | null
+          user_correction?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_corrections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1240,8 +1284,74 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tax_profiles: {
+        Row: {
+          ai_confidence: number | null
+          created_at: string
+          employment_status: string | null
+          has_diplomatic_immunity: boolean | null
+          id: string
+          income_types: string[] | null
+          industry_type: string | null
+          is_disabled: boolean | null
+          is_pensioner: boolean | null
+          is_professional_services: boolean | null
+          is_senior_citizen: boolean | null
+          last_updated_at: string | null
+          updated_at: string
+          user_confirmed: boolean | null
+          user_id: string
+          user_type: string | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          created_at?: string
+          employment_status?: string | null
+          has_diplomatic_immunity?: boolean | null
+          id?: string
+          income_types?: string[] | null
+          industry_type?: string | null
+          is_disabled?: boolean | null
+          is_pensioner?: boolean | null
+          is_professional_services?: boolean | null
+          is_senior_citizen?: boolean | null
+          last_updated_at?: string | null
+          updated_at?: string
+          user_confirmed?: boolean | null
+          user_id: string
+          user_type?: string | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          created_at?: string
+          employment_status?: string | null
+          has_diplomatic_immunity?: boolean | null
+          id?: string
+          income_types?: string[] | null
+          industry_type?: string | null
+          is_disabled?: boolean | null
+          is_pensioner?: boolean | null
+          is_professional_services?: boolean | null
+          is_senior_citizen?: boolean | null
+          last_updated_at?: string | null
+          updated_at?: string
+          user_confirmed?: boolean | null
+          user_id?: string
+          user_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tax_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
+          age: number | null
           business_name: string
           business_type: string | null
           created_at: string | null
@@ -1258,6 +1368,7 @@ export type Database = {
           whatsapp_number: string
         }
         Insert: {
+          age?: number | null
           business_name: string
           business_type?: string | null
           created_at?: string | null
@@ -1274,6 +1385,7 @@ export type Database = {
           whatsapp_number: string
         }
         Update: {
+          age?: number | null
           business_name?: string
           business_type?: string | null
           created_at?: string | null
