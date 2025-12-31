@@ -171,238 +171,236 @@ export class InsightsGeneratorService {
                 title: 'You've exceeded the small company threshold',
                 description: `Your turnover is ₦${this.formatCurrency(metrics.turnover)}. You now pay 30% company tax instead of 0%.`,
                 action: 'Consider tax planning strategies',
-                    potentialCost: (metrics.turnover - 50_000_000) * 0.30,
-                        metadata: { classification: 'large' }
-        };
-    }
+                potentialCost: (metrics.turnover - 50_000_000) * 0.30,
+                metadata: { classification: 'large' }
+            };
+        }
 
-    // Close to threshold (within 20%)
-    const proximityPercentage = (metrics.turnover / 50_000_000) * 100;
-    if(proximityPercentage >= 80) {
-    const remaining = 50_000_000 - metrics.turnover;
+        // Close to threshold (within 20%)
+        const proximityPercentage = (metrics.turnover / 50_000_000) * 100;
+        if (proximityPercentage >= 80) {
+            const remaining = 50_000_000 - metrics.turnover;
 
-    return {
-        type: 'threshold_warning',
-        priority: 'high',
-        title: `You're ₦${this.formatCurrency(remaining)} from losing 0% tax`,
-        description: `Your turnover is ₦${this.formatCurrency(metrics.turnover)} (${proximityPercentage.toFixed(0)}% of ₦50M threshold). Exceeding ₦50M means 30% tax on profits.`,
-        action: 'Plan growth carefully or explore tax optimization',
-        potentialCost: remaining * 0.30,
-        metadata: { threshold: 50_000_000, current: metrics.turnover }
-    };
-}
+            return {
+                type: 'threshold_warning',
+                priority: 'high',
+                title: `You're ₦${this.formatCurrency(remaining)} from losing 0% tax`,
+                description: `Your turnover is ₦${this.formatCurrency(metrics.turnover)} (${proximityPercentage.toFixed(0)}% of ₦50M threshold). Exceeding ₦50M means 30% tax on profits.`,
+                action: 'Plan growth carefully or explore tax optimization',
+                potentialCost: remaining * 0.30,
+                metadata: { threshold: 50_000_000, current: metrics.turnover }
+            };
+        }
 
-return null;
+        return null;
     }
 
     /**
      * Check VAT refund eligibility
      */
-    private async checkVATRefundEligibility(userId: string, month: string): Promise < Insight | null > {
-    try {
-        const reconciliation = await vatReconciliationService.getReconciliation(userId, month);
+    private async checkVATRefundEligibility(userId: string, month: string): Promise<Insight | null> {
+        try {
+            const reconciliation = await vatReconciliationService.getReconciliation(userId, month);
 
-        if(!reconciliation) return null;
+            if (!reconciliation) return null;
 
-        // Check if in credit position for 3+ months
-        if(reconciliation.net_vat_position < 0 &&
-            Math.abs(reconciliation.net_vat_position) > 500_000) {
+            // Check if in credit position for 3+ months
+            if (reconciliation.net_vat < 0 && Math.abs(reconciliation.net_vat) > 500_000) {
+                // Check previous months to confirm 3+ month trend
+                const threeMonthsAgo = new Date();
+                threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-    // Check previous months to confirm 3+ month trend
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+                const { data: previousReconciliations } = await supabase
+                    .from('vat_reconciliations')
+                    .select('net_vat')
+                    .eq('user_id', userId)
+                    .gte('period', threeMonthsAgo.toISOString().substring(0, 7))
+                    .lt('period', month);
 
-    const { data: previousReconciliations } = await supabase
-        .from('vat_reconciliations')
-        .select('net_vat_position')
-        .eq('user_id', userId)
-        .gte('month', threeMonthsAgo.toISOString().substring(0, 7))
-        .lt('month', month);
+                const allInCredit = previousReconciliations?.every(r => r.net_vat < 0) || false;
 
-    const allInCredit = previousReconciliations?.every(r => r.net_vat_position < 0) || false;
-
-    if (allInCredit) {
-        return {
-            type: 'vat_refund',
-            priority: 'high',
-            title: `Request ₦${this.formatCurrency(Math.abs(reconciliation.net_vat_position))} VAT refund`,
-            description: `You've been in VAT credit for 3+ months. Section 156 of Tax Act 2025 allows refund requests after 3 consecutive months.`,
-            action: 'Submit VAT refund request to FIRS',
-            potentialSaving: Math.abs(reconciliation.net_vat_position),
-            metadata: {
-                months_in_credit: (previousReconciliations?.length || 0) + 1,
-                refund_amount: Math.abs(reconciliation.net_vat_position)
+                if (allInCredit) {
+                    return {
+                        type: 'vat_refund',
+                        priority: 'high',
+                        title: `Request ₦${this.formatCurrency(Math.abs(reconciliation.net_vat))} VAT refund`,
+                        description: `You've been in VAT credit for 3+ months. Section 156 of Tax Act 2025 allows refund requests after 3 consecutive months.`,
+                        action: 'Submit VAT refund request to FIRS',
+                        potentialSaving: Math.abs(reconciliation.net_vat),
+                        metadata: {
+                            months_in_credit: (previousReconciliations?.length || 0) + 1,
+                            refund_amount: Math.abs(reconciliation.net_vat)
+                        }
+                    };
+                }
             }
-        };
-    }
-}
         } catch (error) {
-    console.error('VAT refund check error:', error);
-}
+            console.error('VAT refund check error:', error);
+        }
 
-return null;
+        return null;
     }
 
     /**
      * Check business registration number
      */
-    private async checkBusinessRegistration(userId: string): Promise < Insight | null > {
-    const { data: businesses } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('user_id', userId)
-        .is('registration_number', null);
+    private async checkBusinessRegistration(userId: string): Promise<Insight | null> {
+        const { data: businesses } = await supabase
+            .from('businesses')
+            .select('*')
+            .eq('user_id', userId)
+            .is('tin', null);
 
-    if(businesses && businesses.length > 0) {
-    return {
-        type: 'compliance',
-        priority: 'high',
-        title: 'Add your business registration number',
-        description: `Tax Act 2025 requires business registration numbers on invoices (Section 153). ${businesses.length} business(es) missing registration.`,
-        action: 'Add CAC/BN registration number',
-        metadata: {
-            business_count: businesses.length,
-            business_ids: businesses.map(b => b.id)
+        if (businesses && businesses.length > 0) {
+            return {
+                type: 'compliance',
+                priority: 'high',
+                title: 'Add your business TIN',
+                description: `Tax Act 2025 requires TIN on invoices (Section 153). ${businesses.length} business(es) missing TIN.`,
+                action: 'Add TIN registration number',
+                metadata: {
+                    business_count: businesses.length,
+                    business_ids: businesses.map(b => b.id)
+                }
+            };
         }
-    };
-}
 
-return null;
+        return null;
     }
 
     /**
      * Get upcoming tax deadlines
      */
-    private async getUpcomingDeadlines(userId: string): Promise < Insight[] > {
-    const insights: Insight[] = [];
-    const today = new Date();
-    const dayOfMonth = today.getDate();
+    private async getUpcomingDeadlines(userId: string): Promise<Insight[]> {
+        const insights: Insight[] = [];
+        const today = new Date();
+        const dayOfMonth = today.getDate();
 
-    // VAT filing deadline approaching (14th)
-    if(dayOfMonth >= 10 && dayOfMonth <= 13) {
-    insights.push({
-        type: 'compliance',
-        priority: 'high',
-        title: 'VAT filing due in ' + (14 - dayOfMonth) + ' days',
-        description: 'Monthly VAT returns must be filed by the 14th day of the month (Section 155).',
-        action: 'Review and file VAT return',
-        deadline: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-14`
-    });
-}
+        // VAT filing deadline approaching (14th)
+        if (dayOfMonth >= 10 && dayOfMonth <= 13) {
+            insights.push({
+                type: 'compliance',
+                priority: 'high',
+                title: 'VAT filing due in ' + (14 - dayOfMonth) + ' days',
+                description: 'Monthly VAT returns must be filed by the 14th day of the month (Section 155).',
+                action: 'Review and file VAT return',
+                deadline: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-14`
+            });
+        }
 
-return insights;
+        return insights;
     }
 
     /**
      * Project next month's tax liability
      */
-    private async projectTaxLiability(businessId: string, userId: string): Promise < Insight | null > {
-    const currentMonth = new Date().toISOString().substring(0, 7);
+    private async projectTaxLiability(businessId: string, userId: string): Promise<Insight | null> {
+        const currentMonth = new Date().toISOString().substring(0, 7);
 
-    // Get this month's revenue
-    const { data: invoices } = await supabase
-        .from('invoices')
-        .select('total')
-        .eq('business_id', businessId)
-        .gte('date', `${currentMonth}-01`)
-        .lte('date', `${currentMonth}-31`);
+        // Get this month's revenue
+        const { data: invoices } = await supabase
+            .from('invoices')
+            .select('total')
+            .eq('business_id', businessId)
+            .gte('date', `${currentMonth}-01`)
+            .lte('date', `${currentMonth}-31`);
 
-    if(!invoices || invoices.length === 0) return null;
+        if (!invoices || invoices.length === 0) return null;
 
-const monthlyRevenue = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+        const monthlyRevenue = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
 
-// Estimate tax (assuming 20% profit margin, 30% tax rate)
-const estimatedProfit = monthlyRevenue * 0.20;
-const estimatedTax = estimatedProfit * 0.30;
+        // Estimate tax (assuming 20% profit margin, 30% tax rate)
+        const estimatedProfit = monthlyRevenue * 0.20;
+        const estimatedTax = estimatedProfit * 0.30;
 
-if (estimatedTax > 100_000) {
-    return {
-        type: 'cash_flow',
-        priority: 'medium',
-        title: `Estimated tax: ₦${this.formatCurrency(estimatedTax)} next month`,
-        description: `Based on ₦${this.formatCurrency(monthlyRevenue)} revenue this month (assuming 20% profit margin).`,
-        action: 'Set aside funds for tax payment',
-        potentialCost: estimatedTax,
-        metadata: {
-            revenue: monthlyRevenue,
-            estimated_profit: estimatedProfit
+        if (estimatedTax > 100_000) {
+            return {
+                type: 'cash_flow',
+                priority: 'medium',
+                title: `Estimated tax: ₦${this.formatCurrency(estimatedTax)} next month`,
+                description: `Based on ₦${this.formatCurrency(monthlyRevenue)} revenue this month (assuming 20% profit margin).`,
+                action: 'Set aside funds for tax payment',
+                potentialCost: estimatedTax,
+                metadata: {
+                    revenue: monthlyRevenue,
+                    estimated_profit: estimatedProfit
+                }
+            };
         }
-    };
-}
 
-return null;
+        return null;
     }
 
     /**
      * Save insights to database
      */
-    async saveInsights(userId: string, insights: Insight[]): Promise < void> {
-    const month = new Date().toISOString().substring(0, 7);
+    async saveInsights(userId: string, insights: Insight[]): Promise<void> {
+        const month = new Date().toISOString().substring(0, 7);
 
-    // Delete old insights for this month
-    await supabase
+        // Delete old insights for this month
+        await supabase
             .from('user_insights')
-        .delete()
-        .eq('user_id', userId)
-        .eq('month', month);
+            .delete()
+            .eq('user_id', userId)
+            .eq('month', month);
 
-    // Save new insights
-    const insightsToSave = insights.map(insight => ({
-        user_id: userId,
-        month,
-        type: insight.type,
-        priority: insight.priority,
-        title: insight.title,
-        description: insight.description,
-        action: insight.action,
-        potential_saving: insight.potentialSaving,
-        potential_cost: insight.potentialCost,
-        deadline: insight.deadline,
-        metadata: insight.metadata,
-        is_read: false
-    }));
+        // Save new insights
+        const insightsToSave = insights.map(insight => ({
+            user_id: userId,
+            month,
+            type: insight.type,
+            priority: insight.priority,
+            title: insight.title,
+            description: insight.description,
+            action: insight.action,
+            potential_saving: insight.potentialSaving,
+            potential_cost: insight.potentialCost,
+            deadline: insight.deadline,
+            metadata: insight.metadata,
+            is_read: false
+        }));
 
-    if(insightsToSave.length > 0) {
-    await supabase.from('user_insights').insert(insightsToSave);
-}
+        if (insightsToSave.length > 0) {
+            await supabase.from('user_insights').insert(insightsToSave);
+        }
     }
 
     /**
      * Get saved insights for user
      */
-    async getUserInsights(userId: string, month ?: string): Promise < Insight[] > {
-    const targetMonth = month || new Date().toISOString().substring(0, 7);
+    async getUserInsights(userId: string, month?: string): Promise<Insight[]> {
+        const targetMonth = month || new Date().toISOString().substring(0, 7);
 
-    const { data } = await supabase
-        .from('user_insights')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('month', targetMonth)
-        .order('priority', { ascending: true })
-        .order('potential_saving', { ascending: false });
+        const { data } = await supabase
+            .from('user_insights')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('month', targetMonth)
+            .order('priority', { ascending: true })
+            .order('potential_saving', { ascending: false });
 
-    return data || [];
-}
+        return data || [];
+    }
 
     /**
      * Mark insight as read
      */
-    async markAsRead(insightId: string): Promise < void> {
-    await supabase
+    async markAsRead(insightId: string): Promise<void> {
+        await supabase
             .from('user_insights')
-        .update({ is_read: true })
-        .eq('id', insightId);
-}
+            .update({ is_read: true })
+            .eq('id', insightId);
+    }
 
     /**
      * Format currency
      */
     private formatCurrency(amount: number): string {
-    return amount.toLocaleString('en-NG', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    });
-}
+        return amount.toLocaleString('en-NG', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        });
+    }
 }
 
 export const insightsGeneratorService = new InsightsGeneratorService();

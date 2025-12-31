@@ -981,6 +981,74 @@ export type Database = {
           },
         ]
       }
+      user_insights: {
+        Row: {
+          acted_on_at: string | null
+          action: string
+          created_at: string
+          deadline: string | null
+          description: string
+          id: string
+          is_acted_on: boolean | null
+          is_read: boolean | null
+          metadata: Json | null
+          month: string
+          potential_cost: number | null
+          potential_saving: number | null
+          priority: string
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          acted_on_at?: string | null
+          action: string
+          created_at?: string
+          deadline?: string | null
+          description: string
+          id?: string
+          is_acted_on?: boolean | null
+          is_read?: boolean | null
+          metadata?: Json | null
+          month: string
+          potential_cost?: number | null
+          potential_saving?: number | null
+          priority: string
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          acted_on_at?: string | null
+          action?: string
+          created_at?: string
+          deadline?: string | null
+          description?: string
+          id?: string
+          is_acted_on?: boolean | null
+          is_read?: boolean | null
+          metadata?: Json | null
+          month?: string
+          potential_cost?: number | null
+          potential_saving?: number | null
+          priority?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_insights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string

@@ -8,7 +8,7 @@
 
 import { Queue, Worker } from 'bullmq';
 import { redisConnection } from '../config/redis';
-import { insightsGeneratorService } from '../services/insights-generator.service';
+import { insightsGeneratorService, Insight } from '../services/insights-generator.service';
 import { supabase } from '../config/database';
 import { whatsappService } from '../services/whatsapp.service';
 
@@ -106,7 +106,7 @@ export class MonthlyInsightsWorker {
     private async sendInsightsNotification(
         whatsappNumber: string,
         businessName: string,
-        insights: any[]
+        insights: Insight[]
     ): Promise<void> {
         try {
             let message = `💡 *Tax Insights for ${businessName}*\n\n`;
