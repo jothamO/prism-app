@@ -33,6 +33,12 @@ interface DeductionsInput {
   rentPaid?: number; // Annual rent for relief
   lifeInsurance?: number; // Premium paid
   housingLoanInterest?: number; // Interest on housing loan
+  // Freelancer/Business deductions (Section 20)
+  businessExpenses?: number; // Office rent, utilities, internet
+  equipmentCosts?: number; // Computer, phone, software
+  professionalFees?: number; // Accounting, legal fees
+  advertisingMarketing?: number; // Business promotion
+  travelExpenses?: number; // Business travel
 }
 
 interface TaxBandBreakdown {
@@ -53,10 +59,20 @@ interface IncomeTaxResult {
     rentRelief: number;
     lifeInsurance: number;
     housingLoanInterest: number;
+    businessExpenses: number;
+    total: number;
+  };
+  businessExpensesBreakdown?: {
+    businessExpenses: number;
+    equipmentCosts: number;
+    professionalFees: number;
+    advertisingMarketing: number;
+    travelExpenses: number;
     total: number;
   };
   pensionExemption?: number;
   taxableIncome?: number;
+  netBusinessIncome?: number;
   chargeableIncome: number;
   taxBreakdown: TaxBandBreakdown[];
   totalTax: number;
@@ -66,21 +82,47 @@ interface IncomeTaxResult {
   monthlyNetIncome: number;
   isMinimumWageExempt: boolean;
   isPensionExempt?: boolean;
+  isFreelancer?: boolean;
+  freelancerTips?: string[];
   actReference: string;
+}
+
+function calculateBusinessExpenses(deductions: DeductionsInput): {
+  businessExpenses: number;
+  equipmentCosts: number;
+  professionalFees: number;
+  advertisingMarketing: number;
+  travelExpenses: number;
+  total: number;
+} {
+  const businessExpenses = deductions.businessExpenses ?? 0;
+  const equipmentCosts = deductions.equipmentCosts ?? 0;
+  const professionalFees = deductions.professionalFees ?? 0;
+  const advertisingMarketing = deductions.advertisingMarketing ?? 0;
+  const travelExpenses = deductions.travelExpenses ?? 0;
+  
+  const total = businessExpenses + equipmentCosts + professionalFees + advertisingMarketing + travelExpenses;
+  
+  return { businessExpenses, equipmentCosts, professionalFees, advertisingMarketing, travelExpenses, total };
 }
 
 function calculateDeductions(
   grossIncome: number,
-  deductions: DeductionsInput
-): { pension: number; nhf: number; nhis: number; rentRelief: number; lifeInsurance: number; housingLoanInterest: number; total: number } {
+  deductions: DeductionsInput,
+  incomeType: IncomeType = 'employment'
+): { pension: number; nhf: number; nhis: number; rentRelief: number; lifeInsurance: number; housingLoanInterest: number; businessExpenses: number; total: number } {
+  // For freelancers/business income, pension/NHF/NHIS are optional (not automatic)
+  const isFreelancer = incomeType === 'business';
+  
   // Pension contribution (typically 8% of basic + housing + transport, max 18% employer+employee)
-  const pension = deductions.pension ?? (grossIncome * 0.08);
+  // Freelancers don't have automatic pension unless they opt-in
+  const pension = isFreelancer ? (deductions.pension ?? 0) : (deductions.pension ?? (grossIncome * 0.08));
   
-  // National Housing Fund (2.5% of basic salary)
-  const nhf = deductions.nhf ?? (grossIncome * 0.025);
+  // National Housing Fund (2.5% of basic salary) - employees only
+  const nhf = isFreelancer ? (deductions.nhf ?? 0) : (deductions.nhf ?? (grossIncome * 0.025));
   
-  // NHIS contribution (typically 5% of basic salary, 3.25% employee portion)
-  const nhis = deductions.nhis ?? (grossIncome * 0.0325);
+  // NHIS contribution (typically 5% of basic salary, 3.25% employee portion) - employees only
+  const nhis = isFreelancer ? (deductions.nhis ?? 0) : (deductions.nhis ?? (grossIncome * 0.0325));
   
   // Rent relief - 50% of rent paid or 25% of total income, whichever is less
   let rentRelief = 0;
@@ -94,9 +136,13 @@ function calculateDeductions(
   // Housing loan interest (first ₦500,000 is deductible)
   const housingLoanInterest = Math.min(deductions.housingLoanInterest ?? 0, 500000);
   
-  const total = pension + nhf + nhis + rentRelief + lifeInsurance + housingLoanInterest;
+  // Business expenses (Section 20) - for freelancers
+  const bizExpenses = calculateBusinessExpenses(deductions);
+  const businessExpenses = bizExpenses.total;
   
-  return { pension, nhf, nhis, rentRelief, lifeInsurance, housingLoanInterest, total };
+  const total = pension + nhf + nhis + rentRelief + lifeInsurance + housingLoanInterest + businessExpenses;
+  
+  return { pension, nhf, nhis, rentRelief, lifeInsurance, housingLoanInterest, businessExpenses, total };
 }
 
 function calculateProgressiveTax(chargeableIncome: number): { breakdown: TaxBandBreakdown[]; totalTax: number } {
@@ -161,6 +207,7 @@ serve(async (req) => {
           rentRelief: 0,
           lifeInsurance: 0,
           housingLoanInterest: 0,
+          businessExpenses: 0,
           total: 0,
         },
         pensionExemption: grossIncome,
@@ -210,6 +257,7 @@ serve(async (req) => {
           rentRelief: 0,
           lifeInsurance: 0,
           housingLoanInterest: 0,
+          businessExpenses: 0,
           total: 0,
         },
         pensionExemption: pensionExemption > 0 ? pensionExemption : undefined,
@@ -238,30 +286,53 @@ serve(async (req) => {
       });
     }
 
-    // Calculate deductions based on taxable income (excluding pension)
-    const deductions = includeDeductions
-      ? calculateDeductions(taxableIncome, inputDeductions)
-      : { pension: 0, nhf: 0, nhis: 0, rentRelief: 0, lifeInsurance: 0, housingLoanInterest: 0, total: 0 };
+    // Calculate business expenses for freelancers (Section 20)
+    const isFreelancer = incomeType === 'business';
+    const businessExpensesBreakdown = isFreelancer ? calculateBusinessExpenses(inputDeductions) : undefined;
+    
+    // For freelancers, net business income = gross - business expenses
+    let netBusinessIncome = taxableIncome;
+    if (isFreelancer && businessExpensesBreakdown) {
+      netBusinessIncome = Math.max(0, taxableIncome - businessExpensesBreakdown.total);
+    }
 
-    // Calculate chargeable income
-    const chargeableIncome = Math.max(0, taxableIncome - deductions.total);
+    // Calculate deductions based on net business income (for freelancers) or taxable income (for employees)
+    const incomeForDeductions = isFreelancer ? netBusinessIncome : taxableIncome;
+    const deductions = includeDeductions
+      ? calculateDeductions(incomeForDeductions, inputDeductions, incomeType)
+      : { pension: 0, nhf: 0, nhis: 0, rentRelief: 0, lifeInsurance: 0, housingLoanInterest: 0, businessExpenses: 0, total: 0 };
+
+    // Calculate chargeable income (already includes business expenses for freelancers via deductions)
+    const chargeableIncome = isFreelancer 
+      ? Math.max(0, netBusinessIncome - (deductions.total - deductions.businessExpenses)) // Avoid double-counting biz expenses
+      : Math.max(0, taxableIncome - deductions.total);
 
     // Calculate progressive tax
     const { breakdown, totalTax } = calculateProgressiveTax(chargeableIncome);
 
     // Calculate final values
     const effectiveRate = grossIncome > 0 ? (totalTax / grossIncome) * 100 : 0;
-    const netIncome = grossIncome - totalTax - deductions.total;
+    const netIncome = grossIncome - totalTax - (isFreelancer ? (businessExpensesBreakdown?.total || 0) : deductions.total);
     const monthlyTax = totalTax / 12;
     const monthlyNetIncome = netIncome / 12;
+
+    // Freelancer tips
+    const freelancerTips = isFreelancer ? [
+      'Register as Small Company for 0% rate if turnover ≤₦50M (Section 56)',
+      'Keep receipts for all business expenses (Section 32)',
+      'R&D expenses get additional deduction (Section 165)',
+      'Consider voluntary pension contributions for tax relief'
+    ] : undefined;
 
     const result: IncomeTaxResult = {
       grossIncome,
       period,
       incomeType,
       deductions,
+      businessExpensesBreakdown,
       pensionExemption: pensionExemption > 0 ? pensionExemption : undefined,
-      taxableIncome: pensionExemption > 0 ? taxableIncome : undefined,
+      taxableIncome: pensionExemption > 0 || isFreelancer ? taxableIncome : undefined,
+      netBusinessIncome: isFreelancer ? netBusinessIncome : undefined,
       chargeableIncome,
       taxBreakdown: breakdown,
       totalTax,
@@ -270,9 +341,14 @@ serve(async (req) => {
       monthlyTax,
       monthlyNetIncome,
       isMinimumWageExempt: false,
-      actReference: pensionExemption > 0 
-        ? 'Section 163 (Pension Exempt) + Section 58 (Progressive Rates)'
-        : 'Section 58, Fourth Schedule - Personal Income Tax Rates',
+      isPensionExempt: false,
+      isFreelancer,
+      freelancerTips,
+      actReference: isFreelancer 
+        ? 'Section 20, 21, 28 - Business Income; Section 58 - Progressive Rates'
+        : pensionExemption > 0 
+          ? 'Section 163 (Pension Exempt) + Section 58 (Progressive Rates)'
+          : 'Section 58, Fourth Schedule - Personal Income Tax Rates',
     };
 
     console.log('Income Tax Calculation Result:', result);
