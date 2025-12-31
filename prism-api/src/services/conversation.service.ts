@@ -6,6 +6,8 @@ export interface ConversationState {
     data: any;
     businessId?: string;
     currentBusinessName?: string;
+    activeProjectId?: string;
+    activeProjectName?: string;
     updatedAt: number;
 }
 

@@ -8,6 +8,7 @@ import { conversationService } from "../services/conversation.service";
 import { analyticsService } from "../services/analytics.service";
 import { websocketService } from "../services/websocket.service";
 import { antiAvoidanceService } from "../services/anti-avoidance.service";
+import { projectController } from "./project.controller";
 
 export class WebhookController {
   async handleWhatsApp(req: Request, res: Response) {
@@ -105,6 +106,12 @@ export class WebhookController {
 
     const lowerText = text.toLowerCase();
 
+    // Try project commands first
+    const isProjectCommand = await projectController.handleProjectCommand(userId, text, user);
+    if (isProjectCommand) {
+      return;
+    }
+
     if (lowerText.includes("vat") || lowerText.includes("summary")) {
       await this.sendVATSummary(userId);
     } else if (lowerText.includes("help")) {
@@ -119,7 +126,7 @@ export class WebhookController {
     } else {
       await whatsappService.sendMessage(
         userId,
-        "I'm not sure how to help with that yet. Try 'help', 'vat', or 'switch [business]'.",
+        "I'm not sure how to help with that yet. Try 'help', 'vat', 'projects', or 'new project'.",
       );
     }
   }
