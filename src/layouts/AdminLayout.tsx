@@ -30,6 +30,7 @@ export default function AdminLayout() {
     { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
     { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
     { name: "AI Feedback", path: "/admin/feedback", icon: Brain },
+    { name: "Tax Profiles", path: "/admin/profiles", icon: Users },
     { name: "Filings", path: "/admin/filings", icon: FileText },
     { name: "Invoices", path: "/admin/invoices", icon: FileText },
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },

@@ -42,6 +42,7 @@ Available commands:
 💼 *tax [amount]* - Calculate income tax
 🏛️ *pension [amount]* - Calculate tax for pensioners
 💻 *freelance [income] expenses [amount]* - Freelancer tax
+👤 *profile* - View your detected tax profile
 📊 *summary* - Get your VAT filing summary
 💰 *paid* - Confirm payment for a filing
 📤 *upload* - Upload an invoice for processing
@@ -54,6 +55,7 @@ Examples:
 • pension 2400000
 • freelance 7200000 expenses 1800000
 • contractor 10000000
+• profile
 • summary`;
 
 const AdminSimulator = () => {
@@ -546,6 +548,78 @@ const AdminSimulator = () => {
           );
         } else {
           addBotMessage("❌ Failed to calculate VAT. Please try again.");
+        }
+        return;
+      }
+
+      // Profile command: "profile" - show detected tax profile
+      if (lowerMessage === "profile" || lowerMessage === "my profile" || lowerMessage === "tax profile") {
+        if (!userData.id) {
+          addBotMessage(
+            "❌ No user data found. Please seed test data first by typing *hi*."
+          );
+          return;
+        }
+
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Fetching your tax profile...");
+
+        try {
+          const { data: profile } = await fetch(`${SUPABASE_URL}/rest/v1/user_tax_profiles?user_id=eq.${userData.id}&select=*`, {
+            headers: {
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'Content-Type': 'application/json'
+            }
+          }).then(r => r.json()).then(data => ({ data: data[0] }));
+
+          setIsTyping(false);
+
+          if (profile) {
+            const exemptions: string[] = [];
+            if (profile.is_pensioner) exemptions.push('🏛️ Pension Exemption (Section 163)');
+            if (profile.is_senior_citizen) exemptions.push('👴 Senior Citizen Allowance');
+            if (profile.is_disabled) exemptions.push('♿ Disability Allowance');
+            if (profile.has_diplomatic_immunity) exemptions.push('🛡️ Diplomatic Immunity (Full Exemption)');
+
+            const exemptionsList = exemptions.length > 0 
+              ? exemptions.join('\n') 
+              : 'None detected';
+
+            const confidenceEmoji = profile.ai_confidence >= 0.9 ? '🟢' : profile.ai_confidence >= 0.7 ? '🟡' : '🔴';
+            const confirmedStatus = profile.user_confirmed ? '✅ Confirmed' : '⏳ Pending Confirmation';
+
+            addBotMessage(
+              `👤 Your Tax Profile\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📋 Classification:\n` +
+              `├─ User Type: ${profile.user_type || 'Individual'}\n` +
+              `├─ Employment: ${profile.employment_status?.replace('_', ' ') || 'Unknown'}\n` +
+              `└─ Industry: ${profile.industry_type || 'General'}\n\n` +
+              `🎯 Applicable Exemptions:\n${exemptionsList}\n\n` +
+              `📊 AI Detection:\n` +
+              `├─ ${confidenceEmoji} Confidence: ${((profile.ai_confidence || 0) * 100).toFixed(0)}%\n` +
+              `└─ Status: ${confirmedStatus}\n\n` +
+              `💡 These exemptions are automatically applied\n` +
+              `when you calculate your taxes.\n\n` +
+              `To update your profile, contact support or\n` +
+              `visit the admin dashboard.`
+            );
+          } else {
+            addBotMessage(
+              `👤 No Tax Profile Found\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `We haven't detected a tax profile for you yet.\n\n` +
+              `Your profile is automatically created when:\n` +
+              `• You calculate your income tax\n` +
+              `• You upload pension-related documents\n` +
+              `• You provide age or employment information\n\n` +
+              `Try running a tax calculation first:\n` +
+              `*tax 5000000*`
+            );
+          }
+        } catch (error) {
+          setIsTyping(false);
+          addBotMessage("❌ Failed to fetch profile. Please try again.");
         }
         return;
       }
