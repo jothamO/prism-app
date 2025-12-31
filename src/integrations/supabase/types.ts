@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_feedback: {
+        Row: {
+          ai_model_version: string | null
+          ai_prediction: Json
+          amount: number | null
+          business_id: string | null
+          correction_type: string
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          item_description: string
+          metadata: Json | null
+          trained_at: string | null
+          training_batch_id: string | null
+          used_in_training: boolean | null
+          user_correction: Json
+          user_id: string
+        }
+        Insert: {
+          ai_model_version?: string | null
+          ai_prediction: Json
+          amount?: number | null
+          business_id?: string | null
+          correction_type: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          item_description: string
+          metadata?: Json | null
+          trained_at?: string | null
+          training_batch_id?: string | null
+          used_in_training?: boolean | null
+          user_correction: Json
+          user_id: string
+        }
+        Update: {
+          ai_model_version?: string | null
+          ai_prediction?: Json
+          amount?: number | null
+          business_id?: string | null
+          correction_type?: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          item_description?: string
+          metadata?: Json | null
+          trained_at?: string | null
+          training_batch_id?: string | null
+          used_in_training?: boolean | null
+          user_correction?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_feedback_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analytics_summary: {
         Row: {
           created_at: string | null
@@ -84,6 +156,53 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_classification_patterns: {
+        Row: {
+          business_id: string
+          category: string
+          confidence: number | null
+          correct_predictions: number | null
+          created_at: string | null
+          id: string
+          item_pattern: string
+          last_used_at: string | null
+          occurrence_count: number | null
+          total_amount: number | null
+        }
+        Insert: {
+          business_id: string
+          category: string
+          confidence?: number | null
+          correct_predictions?: number | null
+          created_at?: string | null
+          id?: string
+          item_pattern: string
+          last_used_at?: string | null
+          occurrence_count?: number | null
+          total_amount?: number | null
+        }
+        Update: {
+          business_id?: string
+          category?: string
+          confidence?: number | null
+          correct_predictions?: number | null
+          created_at?: string | null
+          id?: string
+          item_pattern?: string
+          last_used_at?: string | null
+          occurrence_count?: number | null
+          total_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_classification_patterns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -304,6 +423,57 @@ export type Database = {
           },
         ]
       }
+      invoice_validations: {
+        Row: {
+          created_at: string | null
+          fields_changed: string[] | null
+          id: string
+          invoice_id: string
+          ocr_confidence_score: number | null
+          original_data: Json
+          user_id: string
+          validated_data: Json
+          validation_time_seconds: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          fields_changed?: string[] | null
+          id?: string
+          invoice_id: string
+          ocr_confidence_score?: number | null
+          original_data: Json
+          user_id: string
+          validated_data: Json
+          validation_time_seconds?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          fields_changed?: string[] | null
+          id?: string
+          invoice_id?: string
+          ocr_confidence_score?: number | null
+          original_data?: Json
+          user_id?: string
+          validated_data?: Json
+          validation_time_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_validations_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_validations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           account_id: string | null
@@ -453,6 +623,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ml_models: {
+        Row: {
+          accuracy: number | null
+          created_at: string | null
+          deployed_at: string | null
+          f1_score: number | null
+          id: string
+          is_active: boolean | null
+          model_name: string
+          precision_score: number | null
+          recall_score: number | null
+          trained_at: string | null
+          training_data_count: number | null
+          version: string
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string | null
+          deployed_at?: string | null
+          f1_score?: number | null
+          id?: string
+          is_active?: boolean | null
+          model_name: string
+          precision_score?: number | null
+          recall_score?: number | null
+          trained_at?: string | null
+          training_data_count?: number | null
+          version: string
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string | null
+          deployed_at?: string | null
+          f1_score?: number | null
+          id?: string
+          is_active?: boolean | null
+          model_name?: string
+          precision_score?: number | null
+          recall_score?: number | null
+          trained_at?: string | null
+          training_data_count?: number | null
+          version?: string
+        }
+        Relationships: []
       }
       non_revenue_transactions: {
         Row: {
@@ -915,6 +1130,17 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      upsert_business_pattern: {
+        Args: {
+          p_amount?: number
+          p_business_id: string
+          p_category: string
+          p_pattern: string
+        }
+        Returns: string
       }
     }
     Enums: {

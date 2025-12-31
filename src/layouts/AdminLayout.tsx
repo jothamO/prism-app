@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   Smartphone,
   FlaskConical,
-  Link2
+  Link2,
+  Brain
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -26,6 +27,7 @@ export default function AdminLayout() {
     { name: "Users", path: "/admin/users", icon: Users },
     { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
     { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
+    { name: "AI Feedback", path: "/admin/feedback", icon: Brain },
     { name: "Filings", path: "/admin/filings", icon: FileText },
     { name: "Invoices", path: "/admin/invoices", icon: FileText },
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
