@@ -150,6 +150,8 @@ const INCOME_TAX_SCENARIOS = [
   { id: 'senior-manager', name: 'Senior Manager', income: 15000000, description: '₦1.25M/month' },
   { id: 'executive', name: 'Executive', income: 60000000, description: '₦5M/month' },
 ];
+
+const TEST_SCENARIOS = [
   { id: 'standard-retail', name: 'Standard Retail Business', description: '5 invoices, 2 expenses' },
   { id: 'zero-rated-exports', name: 'Export Business', description: '3 zero-rated invoices, 2 expenses' },
   { id: 'mixed-classification', name: 'Mixed Classification', description: 'Standard + zero-rated + exempt' },
@@ -166,13 +168,6 @@ const CLASSIFICATION_TEST_CASES = [
   { description: 'Textbooks for schools', expected: 'zero-rated', category: 'education' },
   { description: 'Bank charges', expected: 'exempt', category: 'financial' }
 ];
-
-const INCOME_TAX_SCENARIOS = [
-  { id: 'minimum-wage', name: 'Minimum Wage', income: 420000, description: 'Exempt from tax' },
-  { id: 'entry-level', name: 'Entry Level', income: 1440000, description: '₦120k/month' },
-  { id: 'mid-career', name: 'Mid-Career', income: 6000000, description: '₦500k/month' },
-  { id: 'senior-manager', name: 'Senior Manager', income: 15000000, description: '₦1.25M/month' },
-  { id: 'executive', name: 'Executive', income: 60000000, description: '₦5M/month' },
 ];
 
 export default function AdminVATTesting() {
