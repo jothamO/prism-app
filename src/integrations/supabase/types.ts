@@ -96,6 +96,8 @@ export type Database = {
           is_primary: boolean | null
           name: string
           next_filing_date: string | null
+          registration_number: string | null
+          registration_type: string | null
           tin: string | null
           updated_at: string
           user_id: string
@@ -109,6 +111,8 @@ export type Database = {
           is_primary?: boolean | null
           name: string
           next_filing_date?: string | null
+          registration_number?: string | null
+          registration_type?: string | null
           tin?: string | null
           updated_at?: string
           user_id: string
@@ -122,6 +126,8 @@ export type Database = {
           is_primary?: boolean | null
           name?: string
           next_filing_date?: string | null
+          registration_number?: string | null
+          registration_type?: string | null
           tin?: string | null
           updated_at?: string
           user_id?: string
@@ -134,6 +140,7 @@ export type Database = {
         Row: {
           amount: number
           business_id: string | null
+          can_claim_input_vat: boolean | null
           category: string | null
           created_at: string | null
           date: string
@@ -149,6 +156,7 @@ export type Database = {
         Insert: {
           amount: number
           business_id?: string | null
+          can_claim_input_vat?: boolean | null
           category?: string | null
           created_at?: string | null
           date: string
@@ -164,6 +172,7 @@ export type Database = {
         Update: {
           amount?: number
           business_id?: string | null
+          can_claim_input_vat?: boolean | null
           category?: string | null
           created_at?: string | null
           date?: string
@@ -279,6 +288,7 @@ export type Database = {
           account_id: string | null
           bank_reference: string | null
           business_id: string | null
+          business_registration_number: string | null
           confidence_score: number | null
           created_at: string | null
           customer_name: string | null
@@ -304,6 +314,7 @@ export type Database = {
           account_id?: string | null
           bank_reference?: string | null
           business_id?: string | null
+          business_registration_number?: string | null
           confidence_score?: number | null
           created_at?: string | null
           customer_name?: string | null
@@ -329,6 +340,7 @@ export type Database = {
           account_id?: string | null
           bank_reference?: string | null
           business_id?: string | null
+          business_registration_number?: string | null
           confidence_score?: number | null
           created_at?: string | null
           customer_name?: string | null
@@ -762,6 +774,81 @@ export type Database = {
           whatsapp_number?: string
         }
         Relationships: []
+      }
+      vat_reconciliations: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          credit_brought_forward: number | null
+          credit_carried_forward: number | null
+          filed_at: string | null
+          filed_by: string | null
+          id: string
+          input_vat: number
+          input_vat_expenses_count: number | null
+          net_vat: number
+          output_vat: number
+          output_vat_invoices_count: number | null
+          period: string
+          remittance_proof: string | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          credit_brought_forward?: number | null
+          credit_carried_forward?: number | null
+          filed_at?: string | null
+          filed_by?: string | null
+          id?: string
+          input_vat?: number
+          input_vat_expenses_count?: number | null
+          net_vat?: number
+          output_vat?: number
+          output_vat_invoices_count?: number | null
+          period: string
+          remittance_proof?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          credit_brought_forward?: number | null
+          credit_carried_forward?: number | null
+          filed_at?: string | null
+          filed_by?: string | null
+          id?: string
+          input_vat?: number
+          input_vat_expenses_count?: number | null
+          net_vat?: number
+          output_vat?: number
+          output_vat_invoices_count?: number | null
+          period?: string
+          remittance_proof?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vat_reconciliations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vat_reconciliations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
