@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.income-tax-calculator]
 verify_jwt = false
+
+[functions.business-classifier]
+verify_jwt = false
