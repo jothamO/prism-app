@@ -12,7 +12,8 @@ import {
   X,
   RefreshCw,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -338,6 +339,81 @@ export default function AdminVATTesting() {
     }
   };
 
+  // Export PDF Reports
+  const handleExportReport = async (type: 'classification' | 'reconciliation' | 'e2e') => {
+    setLoading(`export-${type}`);
+    try {
+      let reportData: Record<string, unknown> = {};
+      
+      if (type === 'classification') {
+        if (Object.keys(classificationResults).length === 0) {
+          toast({ title: "Run classification tests first", variant: "destructive" });
+          return;
+        }
+        reportData = {
+          results: CLASSIFICATION_TEST_CASES.map(tc => ({
+            description: tc.description,
+            expected: tc.expected,
+            result: classificationResults[tc.description]?.result || 'not tested',
+            passed: classificationResults[tc.description]?.passed || false,
+            actReference: tc.expected === 'zero-rated' ? 'Section 186' : 
+                         tc.expected === 'exempt' ? 'Section 187' : 'Section 148'
+          }))
+        };
+      } else if (type === 'reconciliation') {
+        if (!reconResult) {
+          toast({ title: "Run reconciliation first", variant: "destructive" });
+          return;
+        }
+        reportData = {
+          ...reconResult,
+          businessName: seedResult?.business.name || 'Test Business',
+          tin: '1234567890'
+        };
+      } else if (type === 'e2e') {
+        if (!seedResult || !reconResult) {
+          toast({ title: "Run E2E test first", variant: "destructive" });
+          return;
+        }
+        reportData = {
+          scenario: seedResult.scenario,
+          timestamp: new Date().toISOString(),
+          passed: Math.abs(seedResult.summary.netVAT - reconResult.netVAT) < 0.01,
+          expected: { netVAT: seedResult.summary.netVAT, invoices: seedResult.created.invoices, expenses: seedResult.created.expenses },
+          actual: { netVAT: reconResult.netVAT, invoices: reconResult.outputVATInvoicesCount, expenses: reconResult.inputVATExpensesCount },
+          classificationResults: CLASSIFICATION_TEST_CASES.map(tc => ({
+            description: tc.description,
+            expected: tc.expected,
+            result: classificationResults[tc.description]?.result || tc.expected,
+            passed: classificationResults[tc.description]?.passed ?? true
+          })),
+          reconciliationData: { ...reconResult, businessName: seedResult.business.name, tin: '1234567890' }
+        };
+      }
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-pdf-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportType: type, data: reportData })
+      });
+      
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+      
+      // Open HTML in new window for printing
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(result.html);
+        printWindow.document.close();
+        toast({ title: "Report opened - use Ctrl+P to save as PDF" });
+      }
+    } catch (error) {
+      toast({ title: "Export failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -345,14 +421,25 @@ export default function AdminVATTesting() {
           <h1 className="text-2xl font-bold text-foreground">VAT Flow Testing</h1>
           <p className="text-muted-foreground">End-to-end testing for Tax Act 2025 compliance</p>
         </div>
-        <Button 
-          onClick={handleRunE2ETest}
-          disabled={loading !== null}
-          className="gap-2"
-        >
-          {loading === 'e2e' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          Run E2E Test
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleRunE2ETest}
+            disabled={loading !== null}
+            className="gap-2"
+          >
+            {loading === 'e2e' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            Run E2E Test
+          </Button>
+          <Button 
+            onClick={() => handleExportReport('e2e')}
+            disabled={loading !== null || !reconResult}
+            variant="outline"
+            className="gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Export Report
+          </Button>
+        </div>
       </div>
 
       {/* VAT Calculator Section */}

@@ -2,7 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Upload, Phone, Bot, User, Loader2 } from "lucide-react";
+import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface Message {
   id: string;
@@ -13,26 +16,49 @@ interface Message {
   buttons?: Array<{ id: string; title: string }>;
 }
 
-type UserState = "new" | "awaiting_tin" | "awaiting_business_name" | "registered" | "awaiting_invoice";
+type UserState = "new" | "awaiting_tin" | "awaiting_business_name" | "registered" | "awaiting_invoice" | "awaiting_confirm";
+
+interface TestUserData {
+  id?: string;
+  tin?: string;
+  businessName?: string;
+  businessId?: string;
+}
+
+interface PendingInvoice {
+  invoiceNumber: string;
+  customerName: string;
+  items: Array<{ description: string; quantity: number; unitPrice: number; vatAmount: number }>;
+  subtotal: number;
+  vatAmount: number;
+  total: number;
+  confidence: number;
+}
 
 const HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
 
 Available commands:
-📝 *vat* - Calculate VAT on an amount
+📝 *vat [amount] [description]* - Calculate VAT
 📊 *summary* - Get your VAT filing summary
 💰 *paid* - Confirm payment for a filing
 📤 *upload* - Upload an invoice for processing
 ❓ *help* - Show this menu
 
-Or simply send me an invoice image to process!`;
+Examples:
+• vat 50000 electronics
+• vat 100000 rice
+• vat 25000 medicine`;
 
 const AdminSimulator = () => {
+  const { toast } = useToast();
   const [phoneNumber, setPhoneNumber] = useState("+234");
   const [inputMessage, setInputMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [userState, setUserState] = useState<UserState>("new");
   const [isTyping, setIsTyping] = useState(false);
-  const [userData, setUserData] = useState<{ tin?: string; businessName?: string }>({});
+  const [userData, setUserData] = useState<TestUserData>({});
+  const [testMode, setTestMode] = useState(true);
+  const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,10 +85,103 @@ const AdminSimulator = () => {
         },
       ]);
       setIsTyping(false);
-    }, 800 + Math.random() * 500);
+    }, 500 + Math.random() * 300);
   };
 
-  const handleSendMessage = () => {
+  const addBotMessageImmediate = (text: string, buttons?: Array<{ id: string; title: string }>) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        text,
+        sender: "bot",
+        timestamp: new Date(),
+        type: buttons ? "buttons" : "text",
+        buttons,
+      },
+    ]);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+  };
+
+  // Call VAT Calculator API
+  const callVATCalculator = async (amount: number, description: string) => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/vat-calculator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, itemDescription: description })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('VAT Calculator error:', error);
+      return null;
+    }
+  };
+
+  // Call VAT Reconciliation API
+  const callReconciliation = async (userId: string, period: string) => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/vat-reconciliation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'calculate', userId, period })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Reconciliation error:', error);
+      return null;
+    }
+  };
+
+  // Call Invoice Processor API
+  const callInvoiceProcessor = async (action: string, data: Record<string, unknown>) => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/invoice-processor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...data })
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('Invoice Processor error:', error);
+      return null;
+    }
+  };
+
+  // Seed test user
+  const seedTestUser = async () => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'seed',
+          scenario: 'standard-retail',
+          period: new Date().toISOString().substring(0, 7)
+        })
+      });
+      const result = await response.json();
+      if (result.user && result.business) {
+        setUserData({
+          id: result.user.id,
+          tin: '1234567890',
+          businessName: result.business.name,
+          businessId: result.business.id
+        });
+        setUserState("registered");
+        return result;
+      }
+      return null;
+    } catch (error) {
+      console.error('Seed error:', error);
+      return null;
+    }
+  };
+
+  const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
     const userMessage: Message = {
@@ -79,10 +198,37 @@ const AdminSimulator = () => {
     // Handle based on user state
     if (userState === "new") {
       if (lowerMessage === "help" || lowerMessage === "hi" || lowerMessage === "hello") {
-        addBotMessage(
-          "Welcome to PRISM - Nigeria's VAT automation platform! 🇳🇬\n\nTo get started, I'll need to verify your business.\n\nPlease enter your TIN (Tax Identification Number):"
-        );
-        setUserState("awaiting_tin");
+        if (testMode) {
+          setIsTyping(true);
+          addBotMessageImmediate("🔄 Setting up test environment...");
+          const result = await seedTestUser();
+          setIsTyping(false);
+          
+          if (result) {
+            addBotMessage(
+              `✅ Test environment ready!\n\n` +
+              `Business: *${result.business.name}*\n` +
+              `User ID: ${result.user.id.substring(0, 8)}...\n` +
+              `Invoices: ${result.created.invoices}\n` +
+              `Expenses: ${result.created.expenses}\n\n` +
+              HELP_MESSAGE
+            );
+          } else {
+            addBotMessage(
+              "Welcome to PRISM - Nigeria's VAT automation platform! 🇳🇬\n\n" +
+              "To get started, I'll need to verify your business.\n\n" +
+              "Please enter your TIN (Tax Identification Number):"
+            );
+            setUserState("awaiting_tin");
+          }
+        } else {
+          addBotMessage(
+            "Welcome to PRISM - Nigeria's VAT automation platform! 🇳🇬\n\n" +
+            "To get started, I'll need to verify your business.\n\n" +
+            "Please enter your TIN (Tax Identification Number):"
+          );
+          setUserState("awaiting_tin");
+        }
       } else {
         addBotMessage(
           "Hello! 👋 I'm the PRISM assistant.\n\nIt looks like you're new here. Type *help* or *hi* to get started!"
@@ -115,6 +261,17 @@ const AdminSimulator = () => {
       return;
     }
 
+    if (userState === "awaiting_confirm") {
+      if (lowerMessage === "confirm" || lowerMessage === "yes" || lowerMessage === "y") {
+        handleButtonClick("confirm");
+      } else if (lowerMessage === "edit" || lowerMessage === "no" || lowerMessage === "n") {
+        handleButtonClick("edit");
+      } else {
+        addBotMessage("Please type *confirm* to save the invoice or *edit* to make changes.");
+      }
+      return;
+    }
+
     // Registered user commands
     if (userState === "registered" || userState === "awaiting_invoice") {
       setUserState("registered");
@@ -124,48 +281,106 @@ const AdminSimulator = () => {
         return;
       }
 
-      if (lowerMessage === "vat") {
-        addBotMessage(
-          "💰 VAT Calculator\n\nPlease enter the amount (in Naira) to calculate VAT:\n\nExample: *50000*"
-        );
+      // VAT calculation command: "vat 50000 electronics" or just a number
+      const vatMatch = lowerMessage.match(/^vat\s+(\d+(?:,\d{3})*)\s*(.*)$/);
+      if (vatMatch) {
+        const amount = parseInt(vatMatch[1].replace(/,/g, ""));
+        const description = vatMatch[2] || "general goods";
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating VAT...");
+        
+        const result = await callVATCalculator(amount, description);
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          const classificationEmoji = 
+            result.classification === 'standard' ? '📊' :
+            result.classification === 'zero-rated' ? '🆓' : '🚫';
+          
+          addBotMessage(
+            `${classificationEmoji} VAT Calculation Result:\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `Classification: *${result.classification.toUpperCase()}*\n` +
+            `Act Reference: ${result.actReference}\n\n` +
+            `Amount: ${formatCurrency(result.subtotal)}\n` +
+            `VAT (${(result.vatRate * 100).toFixed(1)}%): ${formatCurrency(result.vatAmount)}\n` +
+            `Total: ${formatCurrency(result.total)}\n\n` +
+            (result.canClaimInputVAT ? '✅ Input VAT claimable' : '❌ Cannot claim input VAT')
+          );
+        } else {
+          addBotMessage("❌ Failed to calculate VAT. Please try again.");
+        }
         return;
       }
 
+      // Just a number - assume VAT calculation
       if (/^\d+$/.test(lowerMessage.replace(/,/g, ""))) {
         const amount = parseInt(lowerMessage.replace(/,/g, ""));
-        const vat = amount * 0.075;
-        const total = amount + vat;
-        addBotMessage(
-          `📊 VAT Calculation:\n\n` +
-            `Amount: ₦${amount.toLocaleString()}\n` +
-            `VAT (7.5%): ₦${vat.toLocaleString()}\n` +
-            `Total: ₦${total.toLocaleString()}`
-        );
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating VAT...");
+        
+        const result = await callVATCalculator(amount, "general goods");
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          addBotMessage(
+            `📊 VAT Calculation:\n\n` +
+            `Amount: ${formatCurrency(result.subtotal)}\n` +
+            `VAT (${(result.vatRate * 100).toFixed(1)}%): ${formatCurrency(result.vatAmount)}\n` +
+            `Total: ${formatCurrency(result.total)}\n\n` +
+            `💡 Tip: Add a description for accurate classification:\n` +
+            `Example: *vat ${amount} electronics*`
+          );
+        } else {
+          addBotMessage("❌ Failed to calculate VAT. Please try again.");
+        }
         return;
       }
 
       if (lowerMessage === "summary") {
-        addBotMessage(
-          `📊 VAT Filing Summary for *${userData.businessName || "Your Business"}*\n\n` +
-            `Period: November 2024\n\n` +
-            `📥 Input VAT: ₦125,000\n` +
-            `📤 Output VAT: ₦287,500\n` +
-            `💵 Net Payable: ₦162,500\n\n` +
-            `📅 Due Date: December 21, 2024\n` +
-            `Status: ⏳ Pending`,
-          [
-            { id: "pay_now", title: "Pay Now" },
-            { id: "view_details", title: "View Details" },
-          ]
-        );
+        if (!userData.id) {
+          addBotMessage(
+            "❌ No user data found. Please seed test data first by typing *hi*."
+          );
+          return;
+        }
+
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Fetching VAT summary...");
+        
+        const period = new Date().toISOString().substring(0, 7);
+        const result = await callReconciliation(userData.id, period);
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          const statusEmoji = result.status === 'remit' ? '💵' : '💰';
+          
+          addBotMessage(
+            `📊 VAT Filing Summary for *${userData.businessName}*\n\n` +
+            `Period: ${result.period}\n\n` +
+            `📥 Input VAT: ${formatCurrency(result.inputVAT)}\n` +
+            `   (${result.inputVATExpensesCount} expenses)\n\n` +
+            `📤 Output VAT: ${formatCurrency(result.outputVAT)}\n` +
+            `   (${result.outputVATInvoicesCount} invoices)\n\n` +
+            `${statusEmoji} Net ${result.status === 'remit' ? 'Payable' : 'Credit'}: ${formatCurrency(Math.abs(result.netVAT))}\n\n` +
+            `Status: ${result.status === 'remit' ? '⏳ Pending Payment' : '✅ Credit Available'}`,
+            result.status === 'remit' ? [
+              { id: "pay_now", title: "Pay Now" },
+              { id: "view_details", title: "View Details" },
+            ] : undefined
+          );
+        } else {
+          addBotMessage("❌ Failed to fetch summary. Please try again.");
+        }
         return;
       }
 
       if (lowerMessage === "paid" || lowerMessage === "pay_now") {
         addBotMessage(
           `💳 Payment Confirmation\n\n` +
-            `Please confirm payment of ₦162,500 for November 2024 VAT filing.\n\n` +
-            `Generate Remita RRR?`,
+            `Generate Remita RRR for VAT payment?`,
           [
             { id: "generate_rrr", title: "Generate RRR" },
             { id: "cancel", title: "Cancel" },
@@ -175,14 +390,14 @@ const AdminSimulator = () => {
       }
 
       if (lowerMessage === "generate_rrr") {
+        const rrr = Math.floor(Math.random() * 900000000000) + 100000000000;
         addBotMessage(
           `✅ RRR Generated Successfully!\n\n` +
-            `RRR: *310234567890*\n` +
-            `Amount: ₦162,500\n\n` +
+            `RRR: *${rrr}*\n\n` +
             `Pay via:\n` +
             `🏦 Bank Transfer\n` +
             `💳 Card Payment\n` +
-            `📱 USSD: *322*310234567890#\n\n` +
+            `📱 USSD: *322*${rrr}#\n\n` +
             `Reply *paid* once payment is complete.`
         );
         return;
@@ -190,7 +405,7 @@ const AdminSimulator = () => {
 
       if (lowerMessage === "upload") {
         addBotMessage(
-          "📤 Invoice Upload\n\nPlease send an image of your invoice and I'll extract the details automatically."
+          "📤 Invoice Upload\n\nPlease send an image of your invoice and I'll extract the details using OCR."
         );
         setUserState("awaiting_invoice");
         return;
@@ -203,7 +418,7 @@ const AdminSimulator = () => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -216,58 +431,48 @@ const AdminSimulator = () => {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Simulate OCR processing
     setIsTyping(true);
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          text: "🔄 Processing invoice with OCR...",
-          sender: "bot",
-          timestamp: new Date(),
-        },
-      ]);
+    addBotMessageImmediate("🔄 Processing invoice with OCR...");
 
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 2).toString(),
-            text:
-              `✅ Invoice Extracted Successfully!\n\n` +
-              `📋 Invoice Details:\n` +
-              `━━━━━━━━━━━━━━━━━\n` +
-              `Vendor: ABC Supplies Ltd\n` +
-              `Invoice #: INV-2024-0892\n` +
-              `Date: Dec 15, 2024\n\n` +
-              `Items:\n` +
-              `• Office Supplies - ₦45,000\n` +
-              `• IT Equipment - ₦280,000\n\n` +
-              `Subtotal: ₦325,000\n` +
-              `VAT (7.5%): ₦24,375\n` +
-              `Total: ₦349,375\n\n` +
-              `Classification: *Input VAT* 📥`,
-            sender: "bot",
-            timestamp: new Date(),
-            type: "buttons",
-            buttons: [
-              { id: "confirm", title: "✓ Confirm" },
-              { id: "edit", title: "✎ Edit" },
-            ],
-          },
-        ]);
-        setIsTyping(false);
-        setUserState("registered");
-      }, 2000);
-    }, 1000);
+    // Call invoice processor API
+    const result = await callInvoiceProcessor('process-ocr', { imageUrl: file.name });
+    setIsTyping(false);
+
+    if (result && !result.error) {
+      setPendingInvoice(result);
+      
+      const itemsList = result.items.map((item: { description: string; quantity: number; unitPrice: number }) => 
+        `• ${item.description} x${item.quantity}: ${formatCurrency(item.unitPrice * item.quantity)}`
+      ).join('\n');
+
+      addBotMessage(
+        `✅ Invoice Extracted! (${(result.confidence * 100).toFixed(0)}% confidence)\n\n` +
+        `📋 Invoice Details:\n` +
+        `━━━━━━━━━━━━━━━━━\n` +
+        `Invoice #: ${result.invoiceNumber}\n` +
+        `Customer: ${result.customerName}\n\n` +
+        `Items:\n${itemsList}\n\n` +
+        `Subtotal: ${formatCurrency(result.subtotal)}\n` +
+        `VAT (7.5%): ${formatCurrency(result.vatAmount)}\n` +
+        `Total: ${formatCurrency(result.total)}\n\n` +
+        (result.confidence < 0.85 ? '⚠️ Low confidence - please verify details\n\n' : '') +
+        `Classification: *Output VAT* 📤`,
+        [
+          { id: "confirm", title: "✓ Confirm" },
+          { id: "edit", title: "✎ Edit" },
+        ]
+      );
+      setUserState("awaiting_confirm");
+    } else {
+      addBotMessage("❌ Failed to process invoice. Please try again with a clearer image.");
+    }
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleButtonClick = (buttonId: string) => {
+  const handleButtonClick = async (buttonId: string) => {
     const fakeMessage: Message = {
       id: Date.now().toString(),
       text: buttonId,
@@ -276,43 +481,104 @@ const AdminSimulator = () => {
     };
     setMessages((prev) => [...prev, fakeMessage]);
 
-    if (buttonId === "confirm") {
-      addBotMessage(
-        "✅ Invoice confirmed and added to your records!\n\n" +
-          "Your Input VAT has been updated.\n" +
-          "Type *summary* to see your updated VAT position."
-      );
+    if (buttonId === "confirm" && pendingInvoice) {
+      setIsTyping(true);
+      addBotMessageImmediate("🔄 Saving invoice...");
+
+      // Save invoice to database
+      const result = await callInvoiceProcessor('create-invoice', {
+        userId: userData.id,
+        businessId: userData.businessId,
+        invoiceNumber: pendingInvoice.invoiceNumber,
+        customerName: pendingInvoice.customerName,
+        items: pendingInvoice.items,
+        subtotal: pendingInvoice.subtotal,
+        vatAmount: pendingInvoice.vatAmount,
+        total: pendingInvoice.total,
+        confidence: pendingInvoice.confidence
+      });
+
+      setIsTyping(false);
+
+      if (result && result.invoice) {
+        addBotMessage(
+          `✅ Invoice saved to database!\n\n` +
+          `Invoice ID: ${result.invoice.id.substring(0, 8)}...\n` +
+          (result.review ? `⚠️ Added to review queue (${result.review.priority} priority)\n` : '') +
+          `\nYour Output VAT has been updated.\n` +
+          `Type *summary* to see your updated VAT position.`
+        );
+        setPendingInvoice(null);
+        setUserState("registered");
+      } else {
+        addBotMessage("❌ Failed to save invoice. Please try again.");
+      }
     } else if (buttonId === "edit") {
       addBotMessage(
         "✏️ Edit Mode\n\n" +
           "Please specify what to edit:\n" +
-          "1. Vendor name\n" +
+          "1. Customer name\n" +
           "2. Amount\n" +
-          "3. Date\n" +
+          "3. Items\n" +
           "4. Classification"
       );
+      setUserState("registered");
     } else if (buttonId === "view_details") {
-      addBotMessage(
-        "📋 Detailed Filing Report\n\n" +
-          "Input Invoices: 12\n" +
-          "Output Invoices: 8\n\n" +
-          "Top Input Sources:\n" +
-          "• ABC Supplies: ₦85,000\n" +
-          "• XYZ Services: ₦40,000\n\n" +
-          "Top Output Sources:\n" +
-          "• Client A: ₦150,000\n" +
-          "• Client B: ₦137,500"
-      );
-    } else {
+      if (userData.id) {
+        setIsTyping(true);
+        const period = new Date().toISOString().substring(0, 7);
+        const result = await callReconciliation(userData.id, period);
+        setIsTyping(false);
+
+        if (result) {
+          addBotMessage(
+            `📋 Detailed Filing Report\n\n` +
+            `Period: ${result.period}\n\n` +
+            `Output Invoices: ${result.outputVATInvoicesCount}\n` +
+            `Output VAT: ${formatCurrency(result.outputVAT)}\n\n` +
+            `Input Expenses: ${result.inputVATExpensesCount}\n` +
+            `Input VAT: ${formatCurrency(result.inputVAT)}\n\n` +
+            `Credit Brought Forward: ${formatCurrency(result.creditBroughtForward)}\n` +
+            `Credit Carried Forward: ${formatCurrency(result.creditCarriedForward)}`
+          );
+        }
+      }
+    } else if (buttonId === "pay_now") {
       handleSendMessage();
+    } else if (buttonId === "generate_rrr") {
+      const rrr = Math.floor(Math.random() * 900000000000) + 100000000000;
+      addBotMessage(
+        `✅ RRR Generated Successfully!\n\n` +
+        `RRR: *${rrr}*\n\n` +
+        `Pay via:\n` +
+        `🏦 Bank Transfer\n` +
+        `💳 Card Payment\n` +
+        `📱 USSD: *322*${rrr}#\n\n` +
+        `Reply *paid* once payment is complete.`
+      );
+    } else if (buttonId === "cancel") {
+      addBotMessage("Payment cancelled. Type *summary* to view your filing status.");
     }
   };
 
-  const resetSimulator = () => {
+  const resetSimulator = async () => {
+    // Clear test data
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear' })
+      });
+    } catch (e) {
+      console.error('Failed to clear test data:', e);
+    }
+    
     setMessages([]);
     setUserState("new");
     setUserData({});
     setInputMessage("");
+    setPendingInvoice(null);
+    toast({ title: "Simulator reset" });
   };
 
   return (
@@ -321,16 +587,18 @@ const AdminSimulator = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">WhatsApp Simulator</h2>
           <p className="text-muted-foreground">
-            Test the chatbot conversation flows
+            Test chatbot with live VAT edge functions
           </p>
         </div>
-        <Button variant="outline" onClick={resetSimulator}>
-          Reset Conversation
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={resetSimulator}>
+            Reset Conversation
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Phone Input */}
+        {/* Config Panel */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -348,6 +616,25 @@ const AdminSimulator = () => {
                 className="mt-1"
               />
             </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={testMode}
+                  onChange={(e) => setTestMode(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm font-medium flex items-center gap-1">
+                  <Zap className="w-4 h-4 text-yellow-500" />
+                  Test Mode
+                </span>
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Auto-seeds test data on first message
+            </p>
+
             <div>
               <label className="text-sm font-medium">User State</label>
               <div className="mt-1 rounded-md bg-muted px-3 py-2 text-sm">
@@ -356,23 +643,31 @@ const AdminSimulator = () => {
                 {userState === "awaiting_business_name" && "🏢 Awaiting Business Name"}
                 {userState === "registered" && "✅ Registered"}
                 {userState === "awaiting_invoice" && "📤 Awaiting Invoice"}
+                {userState === "awaiting_confirm" && "⏳ Awaiting Confirmation"}
               </div>
             </div>
-            {userData.businessName && (
-              <div>
-                <label className="text-sm font-medium">Business</label>
-                <div className="mt-1 rounded-md bg-muted px-3 py-2 text-sm">
-                  {userData.businessName}
+
+            {userData.id && (
+              <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg space-y-2">
+                <div className="flex items-center gap-2 text-green-500 text-sm font-medium">
+                  <Database className="w-4 h-4" />
+                  Live Database Connected
+                </div>
+                <div className="text-xs space-y-1">
+                  <p><span className="text-muted-foreground">User:</span> {userData.id.substring(0, 8)}...</p>
+                  <p><span className="text-muted-foreground">Business:</span> {userData.businessName}</p>
                 </div>
               </div>
             )}
-            <div className="pt-2">
-              <p className="text-xs text-muted-foreground">
-                Try commands: <code className="bg-muted px-1">help</code>,{" "}
-                <code className="bg-muted px-1">vat</code>,{" "}
-                <code className="bg-muted px-1">summary</code>,{" "}
-                <code className="bg-muted px-1">upload</code>
-              </p>
+
+            <div className="pt-2 border-t">
+              <p className="text-xs text-muted-foreground mb-2">Try these commands:</p>
+              <div className="space-y-1 text-xs">
+                <code className="block bg-muted px-2 py-1 rounded">vat 50000 electronics</code>
+                <code className="block bg-muted px-2 py-1 rounded">vat 100000 rice</code>
+                <code className="block bg-muted px-2 py-1 rounded">summary</code>
+                <code className="block bg-muted px-2 py-1 rounded">upload</code>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -387,7 +682,7 @@ const AdminSimulator = () => {
               <div>
                 <div className="font-medium">PRISM Bot</div>
                 <div className="text-xs opacity-80">
-                  {isTyping ? "typing..." : "online"}
+                  {isTyping ? "typing..." : testMode ? "🔴 LIVE API" : "online"}
                 </div>
               </div>
             </CardTitle>
@@ -405,7 +700,7 @@ const AdminSimulator = () => {
                   <div>
                     <Bot className="mx-auto h-12 w-12 opacity-50" />
                     <p className="mt-2">Start a conversation</p>
-                    <p className="text-sm">Type "hi" or "help" to begin</p>
+                    <p className="text-sm">Type "hi" to begin with live API testing</p>
                   </div>
                 </div>
               )}
@@ -495,9 +790,8 @@ const AdminSimulator = () => {
               />
               <Button
                 size="icon"
-                className="shrink-0 bg-[#075E54] hover:bg-[#054d44]"
+                className="shrink-0 bg-[#075E54] hover:bg-[#064e46]"
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim()}
               >
                 <Send className="h-5 w-5" />
               </Button>
