@@ -10,6 +10,7 @@ import apiRoutes from './routes/api.routes';
 import { scheduleMonthlyFilings } from './workers/auto-filing.worker';
 import { scheduleNotifications } from './workers/notifications.worker';
 import { websocketService } from './services/websocket.service';
+import { startTelegramBot } from './bot';
 
 dotenv.config();
 
@@ -37,6 +38,9 @@ httpServer.listen(port, async () => {
 
     // Initialize WebSocket
     websocketService.init(httpServer);
+
+    // Initialize Telegram Bot
+    startTelegramBot();
 
     // Initialize BullMQ schedulers
     await scheduleMonthlyFilings();
