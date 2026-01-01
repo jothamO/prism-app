@@ -436,7 +436,7 @@ function UsersTab() {
       </div>
 
       {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="bg-card border border-border rounded-xl overflow-x-clip overflow-y-visible">
         <table className="w-full">
           <thead className="bg-accent/50">
             <tr>
