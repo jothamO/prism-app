@@ -149,30 +149,125 @@ function validateCAC(cac: string): boolean {
   return /^(RC|BN)\d{6,7}$/i.test(cac);
 }
 
-// Mock verification (replace with real API later)
+// Real NIN verification via Mono API
 async function verifyNIN(nin: string) {
-  // Simulate API call
-  await new Promise((r) => setTimeout(r, 500));
-  return {
-    success: true,
-    data: {
-      firstName: "Test",
-      lastName: "User",
-      nin: nin,
-    },
-  };
+  const MONO_SECRET_KEY = Deno.env.get("MONO_SECRET_KEY");
+
+  if (!MONO_SECRET_KEY) {
+    console.error("MONO_SECRET_KEY not configured - using mock data");
+    // Fallback to mock for development
+    return {
+      success: true,
+      data: {
+        firstName: "Test",
+        lastName: "User (Mock - Add MONO_SECRET_KEY)",
+        nin: nin,
+      },
+    };
+  }
+
+  try {
+    console.log(`[NIN Verification] Verifying NIN: ${nin.substring(0, 3)}***`);
+
+    const response = await fetch("https://api.withmono.com/v3/lookup/nin", {
+      method: "POST",
+      headers: {
+        "mono-sec-key": MONO_SECRET_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ nin }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("Mono NIN verification failed:", response.status, error);
+      throw new Error("NIN verification failed");
+    }
+
+    const result = await response.json();
+    console.log(`[NIN Verification] Response status: ${result.status}`);
+
+    if (result.status === "success" && result.data) {
+      return {
+        success: true,
+        data: {
+          firstName: result.data.firstName || result.data.firstname || "Unknown",
+          lastName: result.data.lastName || result.data.lastname || "User",
+          middleName: result.data.middleName || result.data.middlename,
+          nin: result.data.nin,
+          phone: result.data.phone,
+          dateOfBirth: result.data.dateOfBirth || result.data.date_of_birth,
+          gender: result.data.gender,
+        },
+      };
+    }
+
+    throw new Error("Invalid NIN or no data returned");
+  } catch (error) {
+    console.error("NIN verification error:", error);
+    throw error;
+  }
 }
 
+// Real CAC verification via Mono API
 async function verifyCAC(cac: string) {
-  await new Promise((r) => setTimeout(r, 500));
-  return {
-    success: true,
-    data: {
-      companyName: "Test Company Ltd",
-      registrationNumber: cac,
-      status: "Active",
-    },
-  };
+  const MONO_SECRET_KEY = Deno.env.get("MONO_SECRET_KEY");
+
+  if (!MONO_SECRET_KEY) {
+    console.error("MONO_SECRET_KEY not configured - using mock data");
+    return {
+      success: true,
+      data: {
+        companyName: "Test Company Ltd (Mock - Add MONO_SECRET_KEY)",
+        registrationNumber: cac,
+        status: "Active",
+      },
+    };
+  }
+
+  try {
+    console.log(`[CAC Verification] Verifying CAC: ${cac}`);
+
+    const response = await fetch(
+      `https://api.withmono.com/v3/lookup/cac?search=${encodeURIComponent(cac)}`,
+      {
+        method: "GET",
+        headers: {
+          "mono-sec-key": MONO_SECRET_KEY,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("Mono CAC verification failed:", response.status, error);
+      throw new Error("CAC verification failed");
+    }
+
+    const result = await response.json();
+    console.log(`[CAC Verification] Found ${result.data?.length || 0} results`);
+
+    if (result.status === "success" && result.data && result.data.length > 0) {
+      const company = result.data[0];
+      return {
+        success: true,
+        data: {
+          id: company.id,
+          companyName: company.company_name || company.companyName,
+          registrationNumber: company.rc_number || company.registrationNumber,
+          registrationDate: company.registration_date || company.registrationDate,
+          status: company.status || "Active",
+          email: company.email,
+        },
+      };
+    }
+
+    throw new Error("CAC number not found in registry");
+  } catch (error) {
+    console.error("CAC verification error:", error);
+    throw error;
+  }
 }
 
 // ============= OCR with Lovable AI =============
@@ -273,15 +368,15 @@ async function handleHelp(chatId: number) {
   await sendMessage(
     chatId,
     `📋 <b>Available Commands</b>\n\n` +
-      `/start - Start over or check status\n` +
-      `/help - Show this help message\n\n` +
-      `<b>Features:</b>\n` +
-      `📸 Send a receipt photo to log expenses\n` +
-      `💬 Ask me any tax-related questions\n\n` +
-      `<b>Coming Soon:</b>\n` +
-      `🏦 Bank account connection\n` +
-      `📊 Tax filing reminders\n` +
-      `📈 Monthly insights`
+    `/start - Start over or check status\n` +
+    `/help - Show this help message\n\n` +
+    `<b>Features:</b>\n` +
+    `📸 Send a receipt photo to log expenses\n` +
+    `💬 Ask me any tax-related questions\n\n` +
+    `<b>Coming Soon:</b>\n` +
+    `🏦 Bank account connection\n` +
+    `📊 Tax filing reminders\n` +
+    `📈 Monthly insights`
   );
 }
 
@@ -324,10 +419,10 @@ async function handleNINInput(chatId: number, telegramId: string, nin: string) {
     await sendMessage(
       chatId,
       `✅ <b>Verification Successful!</b>\n\n` +
-        `Welcome, ${result.data.firstName} ${result.data.lastName}!\n\n` +
-        `You're all set up. Here's what you can do:\n\n` +
-        `📸 Send a receipt photo to log expenses\n` +
-        `❓ Type /help for more commands`
+      `Welcome, ${result.data.firstName} ${result.data.lastName}!\n\n` +
+      `You're all set up. Here's what you can do:\n\n` +
+      `📸 Send a receipt photo to log expenses\n` +
+      `❓ Type /help for more commands`
     );
   } else {
     await sendMessage(chatId, `❌ NIN verification failed. Please check and try again.`);
@@ -368,11 +463,11 @@ async function handleCACInput(chatId: number, telegramId: string, cac: string) {
     await sendMessage(
       chatId,
       `✅ <b>Verification Successful!</b>\n\n` +
-        `Company: ${result.data.companyName}\n` +
-        `Status: ${result.data.status}\n\n` +
-        `You're all set up! Here's what you can do:\n\n` +
-        `📸 Send a receipt photo to log expenses\n` +
-        `❓ Type /help for more commands`
+      `Company: ${result.data.companyName}\n` +
+      `Status: ${result.data.status}\n\n` +
+      `You're all set up! Here's what you can do:\n\n` +
+      `📸 Send a receipt photo to log expenses\n` +
+      `❓ Type /help for more commands`
     );
   } else {
     await sendMessage(chatId, `❌ CAC verification failed. Please check and try again.`);
@@ -421,12 +516,12 @@ async function handlePhoto(chatId: number, telegramId: string, user: any, fileId
     await sendMessage(
       chatId,
       `${confidenceEmoji} <b>Receipt Extracted</b>\n\n` +
-        `🏪 Merchant: ${extractedData.merchant || "Unknown"}\n` +
-        `💰 Amount: ₦${extractedData.amount?.toLocaleString() || "N/A"}\n` +
-        `📅 Date: ${extractedData.date || "N/A"}\n` +
-        `🏷️ Category: ${extractedData.category || "other"}\n` +
-        `📊 Confidence: ${Math.round((extractedData.confidence || 0) * 100)}%\n\n` +
-        `Is this correct?`,
+      `🏪 Merchant: ${extractedData.merchant || "Unknown"}\n` +
+      `💰 Amount: ₦${extractedData.amount?.toLocaleString() || "N/A"}\n` +
+      `📅 Date: ${extractedData.date || "N/A"}\n` +
+      `🏷️ Category: ${extractedData.category || "other"}\n` +
+      `📊 Confidence: ${Math.round((extractedData.confidence || 0) * 100)}%\n\n` +
+      `Is this correct?`,
       [
         [
           { text: "✅ Confirm", callback_data: `confirm_receipt_${receipt.id}` },
@@ -450,9 +545,9 @@ async function handleGeneralMessage(chatId: number, text: string) {
   await sendMessage(
     chatId,
     `I'm not sure how to help with that yet.\n\n` +
-      `Here's what I can do:\n` +
-      `📸 Send a receipt photo to log expenses\n` +
-      `❓ Type /help for all commands`
+    `Here's what I can do:\n` +
+    `📸 Send a receipt photo to log expenses\n` +
+    `❓ Type /help for all commands`
   );
 }
 
@@ -536,7 +631,7 @@ serve(async (req) => {
           await sendMessage(
             chatId,
             `✏️ To edit, please send the corrected details in this format:\n\n` +
-              `Merchant: [name]\nAmount: [amount]\nDate: [YYYY-MM-DD]\nCategory: [category]`
+            `Merchant: [name]\nAmount: [amount]\nDate: [YYYY-MM-DD]\nCategory: [category]`
           );
         }
 
@@ -550,7 +645,7 @@ serve(async (req) => {
         const telegramId = from.id.toString();
 
         const user = await ensureUser(telegramId, from);
-        
+
         // Check if user is blocked
         if (user.is_blocked) {
           await sendMessage(chatId, "⚠️ Your account has been suspended. Please contact support for assistance.");
