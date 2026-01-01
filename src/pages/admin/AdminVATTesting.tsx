@@ -19,8 +19,7 @@ import {
   Bell
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rjajxabpndmpcgssymxw.supabase.co";
+import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functions";
 
 interface VATResult {
   subtotal: number;
@@ -219,18 +218,11 @@ export default function AdminVATTesting() {
   const handleCalculateVAT = async () => {
     setLoading('calculate');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/vat-calculator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: parseFloat(calcAmount),
-          includesVAT: calcIncludesVAT,
-          itemDescription: calcDescription
-        })
+      const result = await callEdgeFunction<VATResult>('vat-calculator', {
+        amount: parseFloat(calcAmount),
+        includesVAT: calcIncludesVAT,
+        itemDescription: calcDescription
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       setCalcResult(result);
       toast({ title: "VAT calculated successfully" });
@@ -252,17 +244,12 @@ export default function AdminVATTesting() {
     
     try {
       for (const testCase of CLASSIFICATION_TEST_CASES) {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/vat-calculator`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: 10000,
-            itemDescription: testCase.description,
-            category: testCase.category
-          })
+        const result = await callEdgeFunction<{ classification: string }>('vat-calculator', {
+          amount: 10000,
+          itemDescription: testCase.description,
+          category: testCase.category
         });
         
-        const result = await response.json();
         results[testCase.description] = {
           result: result.classification,
           passed: result.classification === testCase.expected
@@ -289,18 +276,11 @@ export default function AdminVATTesting() {
   const handleSeedData = async () => {
     setLoading('seed');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'seed',
-          scenario: selectedScenario,
-          period: reconPeriod
-        })
+      const result = await callEdgeFunction<SeedResult>('seed-test-data', {
+        action: 'seed',
+        scenario: selectedScenario,
+        period: reconPeriod
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       setSeedResult(result);
       setReconUserId(result.user.id);
@@ -319,14 +299,7 @@ export default function AdminVATTesting() {
   const handleClearTestData = async () => {
     setLoading('clear');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear' })
-      });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
+      await callEdgeFunction('seed-test-data', { action: 'clear' });
       
       setSeedResult(null);
       setReconResult(null);
@@ -352,18 +325,11 @@ export default function AdminVATTesting() {
     
     setLoading('reconciliation');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/vat-reconciliation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'calculate',
-          userId: reconUserId,
-          period: reconPeriod
-        })
+      const result = await callEdgeFunction<ReconciliationResult>('vat-reconciliation', {
+        action: 'calculate',
+        userId: reconUserId,
+        period: reconPeriod
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       setReconResult(result);
       toast({ title: "Reconciliation calculated" });
@@ -383,39 +349,23 @@ export default function AdminVATTesting() {
     setLoading('e2e');
     try {
       // Step 1: Clear existing test data
-      await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear' })
-      });
+      await callEdgeFunction('seed-test-data', { action: 'clear' });
       
       // Step 2: Seed test data
-      const seedResponse = await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'seed',
-          scenario: selectedScenario,
-          period: reconPeriod
-        })
+      const seedData = await callEdgeFunction<SeedResult>('seed-test-data', {
+        action: 'seed',
+        scenario: selectedScenario,
+        period: reconPeriod
       });
-      const seedData = await seedResponse.json();
-      if (seedData.error) throw new Error(seedData.error);
       setSeedResult(seedData);
       setReconUserId(seedData.user.id);
       
       // Step 3: Calculate reconciliation
-      const reconResponse = await fetch(`${SUPABASE_URL}/functions/v1/vat-reconciliation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'calculate',
-          userId: seedData.user.id,
-          period: reconPeriod
-        })
+      const reconData = await callEdgeFunction<ReconciliationResult>('vat-reconciliation', {
+        action: 'calculate',
+        userId: seedData.user.id,
+        period: reconPeriod
       });
-      const reconData = await reconResponse.json();
-      if (reconData.error) throw new Error(reconData.error);
       setReconResult(reconData);
       
       // Step 4: Validate results
@@ -444,18 +394,11 @@ export default function AdminVATTesting() {
   const handleCalculateIncomeTax = async () => {
     setLoading('income-tax');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grossIncome: parseFloat(incomeTaxAmount),
-          period: incomeTaxPeriod,
-          includeDeductions: incomeTaxIncludeDeductions
-        })
+      const result = await callEdgeFunction<IncomeTaxResult>('income-tax-calculator', {
+        grossIncome: parseFloat(incomeTaxAmount),
+        period: incomeTaxPeriod,
+        includeDeductions: incomeTaxIncludeDeductions
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       setIncomeTaxResult(result);
       toast({ title: "Income tax calculated successfully" });
@@ -481,24 +424,17 @@ export default function AdminVATTesting() {
     setIncomeTaxAmount(scenario.income.toString());
     setLoading('income-tax');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grossIncome: scenario.income,
-          period: 'annual',
-          incomeType: scenario.incomeType || 'employment',
-          pensionAmount: scenario.pensionAmount || 0,
-          includeDeductions: incomeTaxIncludeDeductions,
-          deductions: {
-            businessExpenses: scenario.businessExpenses || 0,
-            equipmentCosts: scenario.equipmentCosts || 0
-          }
-        })
+      const result = await callEdgeFunction<IncomeTaxResult>('income-tax-calculator', {
+        grossIncome: scenario.income,
+        period: 'annual',
+        incomeType: scenario.incomeType || 'employment',
+        pensionAmount: scenario.pensionAmount || 0,
+        includeDeductions: incomeTaxIncludeDeductions,
+        deductions: {
+          businessExpenses: scenario.businessExpenses || 0,
+          equipmentCosts: scenario.equipmentCosts || 0
+        }
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       setIncomeTaxResult(result);
       toast({ title: "Scenario calculated" });
@@ -521,17 +457,10 @@ export default function AdminVATTesting() {
     }
     setLoading('export-income-tax');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-pdf-report`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          reportType: 'income-tax-computation', 
-          data: incomeTaxResult 
-        })
+      const result = await callPublicEdgeFunction<{ html: string }>('generate-pdf-report', { 
+        reportType: 'income-tax-computation', 
+        data: incomeTaxResult 
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       const printWindow = window.open('', '_blank');
       if (printWindow) {
@@ -550,14 +479,9 @@ export default function AdminVATTesting() {
   const handleSeedBusinesses = async () => {
     setLoading('seed-businesses');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/business-classifier`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'seed-businesses' })
+      const result = await callEdgeFunction<ClassificationSeedResult>('business-classifier', {
+        action: 'seed-businesses'
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       setClassificationSeedResult(result);
       setClassificationJobResult(null);
@@ -577,14 +501,10 @@ export default function AdminVATTesting() {
   const handleRunClassificationJob = async () => {
     setLoading('classification-job');
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/business-classifier`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'classify-all', year: new Date().getFullYear() })
+      const result = await callEdgeFunction<ClassificationJobResult>('business-classifier', {
+        action: 'classify-all',
+        year: new Date().getFullYear()
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       setClassificationJobResult(result);
       
@@ -669,14 +589,10 @@ export default function AdminVATTesting() {
         };
       }
 
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-pdf-report`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportType: type, data: reportData })
+      const result = await callPublicEdgeFunction<{ html: string }>('generate-pdf-report', {
+        reportType: type,
+        data: reportData
       });
-      
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
       
       // Open HTML in new window for printing
       const printWindow = window.open('', '_blank');
@@ -802,17 +718,19 @@ export default function AdminVATTesting() {
                     <p className="font-bold">{formatCurrency(calcResult.vatAmount)}</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between pt-2 border-t border-border">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="text-lg font-bold text-primary">{formatCurrency(calcResult.total)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Act Reference</p>
-                    <p className="text-sm">{calcResult.actReference}</p>
-                    {calcResult.matchedKeyword && (
-                      <p className="text-xs text-muted-foreground">Matched: "{calcResult.matchedKeyword}"</p>
-                    )}
+                <div className="pt-2 border-t border-border">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                      <p className="text-xl font-bold">{formatCurrency(calcResult.total)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Act Reference</p>
+                      <p className="text-sm font-medium">{calcResult.actReference}</p>
+                      <p className={`text-xs ${calcResult.canClaimInputVAT ? 'text-green-500' : 'text-red-500'}`}>
+                        {calcResult.canClaimInputVAT ? '✓ Can claim input VAT' : '✗ Cannot claim input VAT'}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -821,7 +739,7 @@ export default function AdminVATTesting() {
         )}
       </Card>
 
-      {/* Classification Tests Section */}
+      {/* Supply Classification Tests */}
       <Card>
         <CardHeader 
           className="cursor-pointer flex flex-row items-center justify-between"
@@ -831,61 +749,67 @@ export default function AdminVATTesting() {
             <FileText className="w-5 h-5 text-primary" />
             <div>
               <CardTitle>Supply Classification Tests</CardTitle>
-              <CardDescription>Verify Tax Act 2025 Sections 186 & 187 compliance</CardDescription>
+              <CardDescription>Validate zero-rated and exempt supply detection</CardDescription>
             </div>
           </div>
           {expandedSections.classification ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </CardHeader>
         {expandedSections.classification && (
           <CardContent className="space-y-4">
-            <Button 
-              onClick={handleRunClassificationTests}
-              disabled={loading !== null}
-              className="gap-2"
-            >
-              {loading === 'classification' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              Run All Tests
-            </Button>
-
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleRunClassificationTests}
+                disabled={loading !== null}
+                className="gap-2"
+              >
+                {loading === 'classification' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                Run Tests
+              </Button>
+              <Button 
+                onClick={() => handleExportReport('classification')}
+                disabled={loading !== null || Object.keys(classificationResults).length === 0}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {CLASSIFICATION_TEST_CASES.map((testCase) => {
-                const result = classificationResults[testCase.description];
-                return (
-                  <div 
-                    key={testCase.description}
-                    className={`p-3 rounded-lg border ${
-                      result 
-                        ? result.passed 
-                          ? 'bg-green-500/10 border-green-500/30' 
-                          : 'bg-red-500/10 border-red-500/30'
-                        : 'bg-muted border-border'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-sm">{testCase.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Expected: <span className="font-mono">{testCase.expected}</span>
-                          {result && (
-                            <> | Got: <span className="font-mono">{result.result}</span></>
-                          )}
-                        </p>
-                      </div>
-                      {result && (
-                        result.passed 
-                          ? <Check className="w-5 h-5 text-green-500" />
-                          : <X className="w-5 h-5 text-red-500" />
-                      )}
+              {CLASSIFICATION_TEST_CASES.map((testCase) => (
+                <div 
+                  key={testCase.description}
+                  className={`p-3 rounded-lg border ${
+                    classificationResults[testCase.description]?.passed === true ? 'border-green-500 bg-green-500/10' :
+                    classificationResults[testCase.description]?.passed === false ? 'border-red-500 bg-red-500/10' :
+                    'border-border'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{testCase.description}</p>
+                      <p className="text-xs text-muted-foreground">Expected: {testCase.expected}</p>
                     </div>
+                    {classificationResults[testCase.description] && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{classificationResults[testCase.description].result}</span>
+                        {classificationResults[testCase.description].passed ? (
+                          <Check className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <X className="w-4 h-4 text-red-500" />
+                        )}
+                      </div>
+                    )}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </CardContent>
         )}
       </Card>
 
-      {/* Test Data Seeder Section */}
+      {/* Test Data Seeder */}
       <Card>
         <CardHeader 
           className="cursor-pointer flex flex-row items-center justify-between"
@@ -895,7 +819,7 @@ export default function AdminVATTesting() {
             <Database className="w-5 h-5 text-primary" />
             <div>
               <CardTitle>Test Data Seeder</CardTitle>
-              <CardDescription>Generate test invoices and expenses for different scenarios</CardDescription>
+              <CardDescription>Generate test invoices and expenses for reconciliation</CardDescription>
             </div>
           </div>
           {expandedSections.seeder ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -904,14 +828,16 @@ export default function AdminVATTesting() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Test Scenario</label>
+                <label className="text-sm font-medium text-muted-foreground">Scenario</label>
                 <select 
                   value={selectedScenario}
                   onChange={(e) => setSelectedScenario(e.target.value)}
-                  className="w-full mt-1 p-2 bg-background border border-input rounded-md"
+                  className="w-full mt-1 p-2 rounded-md border border-input bg-background"
                 >
-                  {TEST_SCENARIOS.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} - {s.description}</option>
+                  {TEST_SCENARIOS.map(scenario => (
+                    <option key={scenario.id} value={scenario.id}>
+                      {scenario.name} - {scenario.description}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -919,12 +845,12 @@ export default function AdminVATTesting() {
                 <label className="text-sm font-medium text-muted-foreground">Period (YYYY-MM)</label>
                 <Input 
                   type="month" 
-                  value={reconPeriod}
+                  value={reconPeriod} 
                   onChange={(e) => setReconPeriod(e.target.value)}
                 />
               </div>
             </div>
-
+            
             <div className="flex gap-2">
               <Button 
                 onClick={handleSeedData}
@@ -932,12 +858,12 @@ export default function AdminVATTesting() {
                 className="gap-2"
               >
                 {loading === 'seed' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-                Seed Test Data
+                Seed Data
               </Button>
               <Button 
                 onClick={handleClearTestData}
                 disabled={loading !== null}
-                variant="outline"
+                variant="destructive"
                 className="gap-2"
               >
                 {loading === 'clear' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -946,37 +872,25 @@ export default function AdminVATTesting() {
             </div>
 
             {seedResult && (
-              <div className="mt-4 p-4 bg-muted rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">{seedResult.scenario}</p>
-                  <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded">Created</span>
-                </div>
+              <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
+                <p className="font-medium">✓ {seedResult.scenario} - {seedResult.period}</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Invoices</p>
-                    <p className="font-bold">{seedResult.created.invoices}</p>
+                    <p className="text-muted-foreground">Business</p>
+                    <p className="font-medium">{seedResult.business.name}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Expenses</p>
-                    <p className="font-bold">{seedResult.created.expenses}</p>
+                    <p className="text-muted-foreground">Invoices Created</p>
+                    <p className="font-medium">{seedResult.created.invoices}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Output VAT</p>
-                    <p className="font-bold text-blue-500">{formatCurrency(seedResult.summary.outputVAT)}</p>
+                    <p className="text-muted-foreground">Expenses Created</p>
+                    <p className="font-medium">{seedResult.created.expenses}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Input VAT</p>
-                    <p className="font-bold text-green-500">{formatCurrency(seedResult.summary.inputVAT)}</p>
+                    <p className="text-muted-foreground">Expected Net VAT</p>
+                    <p className="font-medium">{formatCurrency(seedResult.summary.netVAT)}</p>
                   </div>
-                </div>
-                <div className="pt-2 border-t border-border">
-                  <p className="text-muted-foreground text-sm">Expected Net VAT</p>
-                  <p className={`text-lg font-bold ${seedResult.summary.netVAT >= 0 ? 'text-primary' : 'text-green-500'}`}>
-                    {formatCurrency(seedResult.summary.netVAT)}
-                    <span className="text-sm font-normal text-muted-foreground ml-2">
-                      ({seedResult.summary.netVAT >= 0 ? 'to remit' : 'credit'})
-                    </span>
-                  </p>
                 </div>
               </div>
             )}
@@ -984,7 +898,7 @@ export default function AdminVATTesting() {
         )}
       </Card>
 
-      {/* VAT Reconciliation Section */}
+      {/* VAT Reconciliation */}
       <Card>
         <CardHeader 
           className="cursor-pointer flex flex-row items-center justify-between"
@@ -994,7 +908,7 @@ export default function AdminVATTesting() {
             <Calculator className="w-5 h-5 text-primary" />
             <div>
               <CardTitle>VAT Reconciliation</CardTitle>
-              <CardDescription>Calculate monthly VAT position from database</CardDescription>
+              <CardDescription>Calculate monthly VAT position from invoices and expenses</CardDescription>
             </div>
           </div>
           {expandedSections.reconciliation ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -1005,72 +919,83 @@ export default function AdminVATTesting() {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">User ID</label>
                 <Input 
-                  value={reconUserId}
+                  value={reconUserId} 
                   onChange={(e) => setReconUserId(e.target.value)}
-                  placeholder="Seed test data to get a user ID"
+                  placeholder="Seed data first to get user ID"
                 />
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Period</label>
                 <Input 
                   type="month" 
-                  value={reconPeriod}
+                  value={reconPeriod} 
                   onChange={(e) => setReconPeriod(e.target.value)}
                 />
               </div>
             </div>
-
-            <Button 
-              onClick={handleCalculateReconciliation}
-              disabled={loading !== null || !reconUserId}
-              className="gap-2"
-            >
-              {loading === 'reconciliation' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
-              Calculate Reconciliation
-            </Button>
+            
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleCalculateReconciliation}
+                disabled={loading !== null || !reconUserId}
+                className="gap-2"
+              >
+                {loading === 'reconciliation' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
+                Calculate
+              </Button>
+              <Button 
+                onClick={() => handleExportReport('reconciliation')}
+                disabled={loading !== null || !reconResult}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+            </div>
 
             {reconResult && (
-              <div className="mt-4 p-4 bg-muted rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">Period: {reconResult.period}</p>
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    reconResult.status === 'remit' 
-                      ? 'bg-blue-500/20 text-blue-500' 
-                      : 'bg-green-500/20 text-green-500'
-                  }`}>
-                    {reconResult.status.toUpperCase()}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              <div className="mt-4 p-4 bg-muted rounded-lg space-y-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-muted-foreground">Output VAT</p>
-                    <p className="font-bold">{formatCurrency(reconResult.outputVAT)}</p>
-                    <p className="text-xs text-muted-foreground">{reconResult.outputVATInvoicesCount} invoices</p>
+                    <p className="text-xs text-muted-foreground">Period</p>
+                    <p className="font-bold">{reconResult.period}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Input VAT</p>
-                    <p className="font-bold">{formatCurrency(reconResult.inputVAT)}</p>
-                    <p className="text-xs text-muted-foreground">{reconResult.inputVATExpensesCount} expenses</p>
+                    <p className="text-xs text-muted-foreground">Output VAT ({reconResult.outputVATInvoicesCount} invoices)</p>
+                    <p className="font-bold text-red-500">{formatCurrency(reconResult.outputVAT)}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Credit B/F</p>
+                    <p className="text-xs text-muted-foreground">Input VAT ({reconResult.inputVATExpensesCount} expenses)</p>
+                    <p className="font-bold text-green-500">{formatCurrency(reconResult.inputVAT)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Credit B/F</p>
                     <p className="font-bold">{formatCurrency(reconResult.creditBroughtForward)}</p>
                   </div>
                 </div>
-                
-                <div className="pt-3 border-t border-border grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-muted-foreground text-sm">Net VAT Position</p>
-                    <p className={`text-xl font-bold ${reconResult.netVAT > 0 ? 'text-primary' : 'text-green-500'}`}>
-                      {formatCurrency(reconResult.netVAT)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-sm">Credit C/F</p>
-                    <p className="text-xl font-bold text-green-500">
-                      {formatCurrency(reconResult.creditCarriedForward)}
-                    </p>
+                <div className="pt-2 border-t border-border">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Net VAT Payable</p>
+                      <p className={`text-xl font-bold ${reconResult.netVAT > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                        {formatCurrency(reconResult.netVAT)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <p className={`font-medium ${
+                        reconResult.status === 'remit' ? 'text-yellow-500' :
+                        reconResult.status === 'credit' ? 'text-green-500' : 'text-blue-500'
+                      }`}>
+                        {reconResult.status.toUpperCase()}
+                      </p>
+                      {reconResult.creditCarriedForward > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Credit C/F: {formatCurrency(reconResult.creditCarriedForward)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1079,7 +1004,7 @@ export default function AdminVATTesting() {
         )}
       </Card>
 
-      {/* Income Tax Simulator Section */}
+      {/* Income Tax Calculator Section */}
       <Card>
         <CardHeader 
           className="cursor-pointer flex flex-row items-center justify-between"
@@ -1088,17 +1013,17 @@ export default function AdminVATTesting() {
           <div className="flex items-center gap-3">
             <Wallet className="w-5 h-5 text-primary" />
             <div>
-              <CardTitle>Income Tax Simulator</CardTitle>
-              <CardDescription>Tax Act 2025 Section 58 - Personal Income Tax Calculator</CardDescription>
+              <CardTitle>Personal Income Tax (PIT)</CardTitle>
+              <CardDescription>Test income tax calculations with Section 58 bands</CardDescription>
             </div>
           </div>
           {expandedSections.incomeTax ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </CardHeader>
         {expandedSections.incomeTax && (
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Income Amount (₦)</label>
+                <label className="text-sm font-medium text-muted-foreground">Gross Income (₦)</label>
                 <Input 
                   type="number" 
                   value={incomeTaxAmount} 
@@ -1111,13 +1036,13 @@ export default function AdminVATTesting() {
                 <select 
                   value={incomeTaxPeriod}
                   onChange={(e) => setIncomeTaxPeriod(e.target.value as 'annual' | 'monthly')}
-                  className="w-full mt-1 p-2 bg-background border border-input rounded-md h-10"
+                  className="w-full mt-1 p-2 rounded-md border border-input bg-background"
                 >
                   <option value="annual">Annual</option>
                   <option value="monthly">Monthly</option>
                 </select>
               </div>
-              <div className="flex items-end gap-2">
+              <div className="flex items-end">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input 
                     type="checkbox" 
@@ -1125,45 +1050,43 @@ export default function AdminVATTesting() {
                     onChange={(e) => setIncomeTaxIncludeDeductions(e.target.checked)}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm">Include standard deductions</span>
+                  <span className="text-sm">Include CRA Deductions</span>
                 </label>
               </div>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              <Button 
-                onClick={handleCalculateIncomeTax}
-                disabled={loading !== null}
-                className="gap-2"
-              >
-                {loading === 'income-tax' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
-                Calculate
-              </Button>
-              <Button 
-                onClick={handleExportIncomeTaxReport}
-                disabled={loading !== null || !incomeTaxResult}
-                variant="outline"
-                className="gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Export Report
-              </Button>
+              <div className="flex items-end gap-2">
+                <Button 
+                  onClick={handleCalculateIncomeTax}
+                  disabled={loading !== null}
+                  className="gap-2"
+                >
+                  {loading === 'income-tax' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
+                  Calculate
+                </Button>
+                <Button 
+                  onClick={handleExportIncomeTaxReport}
+                  disabled={loading !== null || !incomeTaxResult}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
-            {/* Quick Scenarios */}
-            <div className="pt-4 border-t border-border">
-              <p className="text-sm font-medium text-muted-foreground mb-2">Test Scenarios</p>
+            {/* Quick Scenario Buttons */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Quick Scenarios</p>
               <div className="flex flex-wrap gap-2">
-                {INCOME_TAX_SCENARIOS.map(scenario => (
+                {INCOME_TAX_SCENARIOS.map((scenario) => (
                   <Button
                     key={scenario.id}
                     variant="outline"
                     size="sm"
                     onClick={() => handleRunIncomeTaxScenario(scenario)}
                     disabled={loading !== null}
-                    className={`text-xs ${scenario.incomeType === 'pension' ? 'border-green-500' : scenario.incomeType === 'mixed' ? 'border-yellow-500' : ''}`}
+                    className="text-xs"
                   >
-                    {scenario.incomeType === 'pension' ? '🏛️ ' : scenario.incomeType === 'mixed' ? '📊 ' : ''}{scenario.name}
+                    {scenario.name}
                   </Button>
                 ))}
               </div>
@@ -1171,21 +1094,41 @@ export default function AdminVATTesting() {
 
             {incomeTaxResult && (
               <div className="mt-4 p-4 bg-muted rounded-lg space-y-4">
-                {incomeTaxResult.isMinimumWageExempt && (
-                  <div className="bg-blue-500/20 text-blue-600 dark:text-blue-400 px-3 py-2 rounded-md text-sm">
-                    ✓ Minimum Wage Exempt - No income tax applicable
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Special Status Badges */}
+                <div className="flex gap-2 flex-wrap">
+                  {incomeTaxResult.isMinimumWageExempt && (
+                    <span className="px-2 py-1 bg-green-500/20 text-green-600 text-xs rounded-full">
+                      ✓ Minimum Wage Exempt
+                    </span>
+                  )}
+                  {incomeTaxResult.isPensionExempt && (
+                    <span className="px-2 py-1 bg-blue-500/20 text-blue-600 text-xs rounded-full">
+                      ✓ Section 163 Pension Exempt
+                    </span>
+                  )}
+                  {incomeTaxResult.incomeType && (
+                    <span className="px-2 py-1 bg-purple-500/20 text-purple-600 text-xs rounded-full">
+                      {incomeTaxResult.incomeType.charAt(0).toUpperCase() + incomeTaxResult.incomeType.slice(1)} Income
+                    </span>
+                  )}
+                </div>
+
+                {/* Income Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Gross Income</p>
                     <p className="font-bold">{formatCurrency(incomeTaxResult.grossIncome)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Total Deductions</p>
-                    <p className="font-bold">{formatCurrency(incomeTaxResult.deductions.total)}</p>
+                    <p className="font-bold text-green-500">-{formatCurrency(incomeTaxResult.deductions.total)}</p>
                   </div>
+                  {incomeTaxResult.pensionExemption !== undefined && incomeTaxResult.pensionExemption > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Pension Exemption</p>
+                      <p className="font-bold text-blue-500">-{formatCurrency(incomeTaxResult.pensionExemption)}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">Chargeable Income</p>
                     <p className="font-bold">{formatCurrency(incomeTaxResult.chargeableIncome)}</p>
@@ -1196,51 +1139,46 @@ export default function AdminVATTesting() {
                   </div>
                 </div>
 
-                {/* Tax Breakdown Table */}
-                <div className="pt-3 border-t border-border">
-                  <p className="text-sm font-medium mb-2">Progressive Tax Breakdown</p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-2 text-muted-foreground font-medium">Band</th>
-                          <th className="text-right py-2 text-muted-foreground font-medium">Amount</th>
-                          <th className="text-center py-2 text-muted-foreground font-medium">Rate</th>
-                          <th className="text-right py-2 text-muted-foreground font-medium">Tax</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {incomeTaxResult.taxBreakdown.map((band, idx) => (
-                          <tr key={idx} className="border-b border-border/50">
-                            <td className="py-2">{band.band}</td>
-                            <td className="text-right py-2 font-mono">{formatCurrency(band.taxableInBand)}</td>
-                            <td className="text-center py-2">{(band.rate * 100).toFixed(0)}%</td>
-                            <td className="text-right py-2 font-mono">{formatCurrency(band.taxInBand)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {/* Tax Breakdown */}
+                {incomeTaxResult.taxBreakdown.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Tax Breakdown (Section 58)</p>
+                    <div className="space-y-1">
+                      {incomeTaxResult.taxBreakdown.map((band, idx) => (
+                        <div key={idx} className="flex justify-between text-sm p-2 rounded bg-background/50">
+                          <span>{band.band} @ {(band.rate * 100).toFixed(0)}%</span>
+                          <span className="font-medium">{formatCurrency(band.taxInBand)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Results Summary */}
+                <div className="pt-2 border-t border-border">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Annual Tax</p>
+                      <p className="text-xl font-bold text-red-500">{formatCurrency(incomeTaxResult.totalTax)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Monthly Tax</p>
+                      <p className="text-lg font-bold text-red-500">{formatCurrency(incomeTaxResult.monthlyTax)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Annual Net Income</p>
+                      <p className="text-xl font-bold text-green-500">{formatCurrency(incomeTaxResult.netIncome)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Monthly Net Income</p>
+                      <p className="text-lg font-bold text-green-500">{formatCurrency(incomeTaxResult.monthlyNetIncome)}</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Summary */}
-                <div className="pt-3 border-t border-border grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-muted-foreground text-sm">Annual Tax</p>
-                    <p className="text-xl font-bold text-primary">{formatCurrency(incomeTaxResult.totalTax)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-sm">Monthly PAYE</p>
-                    <p className="text-xl font-bold">{formatCurrency(incomeTaxResult.monthlyTax)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-sm">Monthly Net Income</p>
-                    <p className="text-xl font-bold text-green-500">{formatCurrency(incomeTaxResult.monthlyNetIncome)}</p>
-                  </div>
-                </div>
-
-                <div className="pt-2 text-xs text-muted-foreground">
-                  {incomeTaxResult.actReference}
+                {/* Act Reference */}
+                <div className="pt-2 border-t border-border text-xs text-muted-foreground">
+                  Reference: {incomeTaxResult.actReference}
                 </div>
               </div>
             )}
@@ -1257,8 +1195,8 @@ export default function AdminVATTesting() {
           <div className="flex items-center gap-3">
             <Building2 className="w-5 h-5 text-primary" />
             <div>
-              <CardTitle>Business Classification Tests</CardTitle>
-              <CardDescription>Tax Act 2025 Section 56 - Small Company Status (0% tax)</CardDescription>
+              <CardTitle>Business Classification</CardTitle>
+              <CardDescription>Test company size classification (small/medium/large) per Schedule 8</CardDescription>
             </div>
           </div>
           {expandedSections.businessClassification ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -1276,7 +1214,7 @@ export default function AdminVATTesting() {
               </Button>
               <Button 
                 onClick={handleRunClassificationJob}
-                disabled={loading !== null}
+                disabled={loading !== null || !classificationSeedResult}
                 className="gap-2"
               >
                 {loading === 'classification-job' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
@@ -1284,95 +1222,77 @@ export default function AdminVATTesting() {
               </Button>
             </div>
 
-            {/* Test Cases */}
             {classificationSeedResult && (
-              <div className="p-4 bg-muted rounded-lg space-y-3">
-                <p className="font-medium flex items-center gap-2">
-                  <Database className="w-4 h-4" />
-                  Seeded Test Businesses
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {classificationSeedResult.testCases.map((testCase, idx) => {
-                    const actualResult = classificationJobResult?.results.find(
-                      r => classificationSeedResult.businesses[idx]?.id === r.businessId
-                    );
-                    const passed = actualResult?.classification === testCase.expectedClassification;
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <p className="font-medium">✓ Seeded {classificationSeedResult.businesses.length} test businesses</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                  {classificationSeedResult.businesses.map((biz) => (
+                    <div key={biz.id} className="p-2 rounded bg-background/50">
+                      <p className="font-medium">{biz.name}</p>
+                      <p className="text-xs text-muted-foreground">Expected: {biz.expected}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {classificationJobResult && (
+              <div className="p-4 bg-muted rounded-lg space-y-4">
+                <div className="flex justify-between items-center">
+                  <p className="font-medium">Classification Results ({classificationJobResult.year})</p>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-green-500">Small: {classificationJobResult.summary.small}</span>
+                    <span className="text-yellow-500">Medium: {classificationJobResult.summary.medium}</span>
+                    <span className="text-red-500">Large: {classificationJobResult.summary.large}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  {classificationJobResult.results.map((result) => {
+                    const expected = classificationSeedResult?.businesses.find(b => b.id === result.businessId)?.expected;
+                    const passed = !expected || expected === result.classification;
                     
                     return (
                       <div 
-                        key={testCase.name}
-                        className={`p-3 rounded-lg border ${
-                          actualResult 
-                            ? passed 
-                              ? 'bg-green-500/10 border-green-500/30' 
-                              : 'bg-red-500/10 border-red-500/30'
-                            : 'bg-background border-border'
-                        }`}
+                        key={result.businessId}
+                        className={`p-3 rounded border ${passed ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'}`}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex justify-between items-start">
                           <div>
-                            <p className="font-medium text-sm">{testCase.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Turnover: ₦{(testCase.turnover / 1_000_000).toFixed(0)}M | Assets: ₦{(testCase.assets / 1_000_000).toFixed(0)}M
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {testCase.isProfessionalServices && '⚖️ Professional Services | '}
-                              Expected: <span className="font-mono">{testCase.expectedClassification}</span>
-                              {actualResult && (
-                                <> | Got: <span className={`font-mono ${passed ? 'text-green-500' : 'text-red-500'}`}>{actualResult.classification}</span></>
-                              )}
-                            </p>
+                            <p className="font-medium">{result.businessName}</p>
+                            <p className="text-xs text-muted-foreground">{result.reason}</p>
                           </div>
-                          {actualResult && (
-                            passed 
-                              ? <Check className="w-5 h-5 text-green-500" />
-                              : <X className="w-5 h-5 text-red-500" />
-                          )}
+                          <div className="text-right">
+                            <p className={`font-bold ${
+                              result.classification === 'small' ? 'text-green-500' :
+                              result.classification === 'medium' ? 'text-yellow-500' : 'text-red-500'
+                            }`}>
+                              {result.classification.toUpperCase()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Tax Rate: {result.taxRate}%</p>
+                            {expected && (
+                              <p className={`text-xs ${passed ? 'text-green-500' : 'text-red-500'}`}>
+                                {passed ? '✓ Expected' : `✗ Expected: ${expected}`}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            )}
 
-            {/* Classification Results Summary */}
-            {classificationJobResult && (
-              <div className="p-4 bg-muted rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">Classification Summary - {classificationJobResult.year}</p>
-                  <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded">
-                    {classificationJobResult.summary.total} businesses
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 bg-green-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-green-500">{classificationJobResult.summary.small}</p>
-                    <p className="text-xs text-muted-foreground">Small (0% tax)</p>
-                  </div>
-                  <div className="text-center p-3 bg-blue-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-500">{classificationJobResult.summary.medium}</p>
-                    <p className="text-xs text-muted-foreground">Medium (30% tax)</p>
-                  </div>
-                  <div className="text-center p-3 bg-purple-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-purple-500">{classificationJobResult.summary.large}</p>
-                    <p className="text-xs text-muted-foreground">Large (30% tax)</p>
-                  </div>
-                </div>
-
-                {/* Notifications Preview */}
+                {/* Notifications */}
                 {classificationJobResult.notifications.length > 0 && (
-                  <div className="pt-3 border-t border-border">
-                    <p className="text-sm font-medium flex items-center gap-2 mb-2">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium flex items-center gap-2">
                       <Bell className="w-4 h-4" />
-                      Small Company Notifications ({classificationJobResult.notifications.length})
+                      Notifications Sent
                     </p>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                    <div className="space-y-1">
                       {classificationJobResult.notifications.map((notif, idx) => (
-                        <div key={idx} className="p-3 bg-green-500/5 border border-green-500/20 rounded-lg text-xs">
-                          <p className="font-medium text-green-600 dark:text-green-400 mb-1">{notif.businessName}</p>
-                          <pre className="whitespace-pre-wrap text-muted-foreground font-mono">{notif.message}</pre>
+                        <div key={idx} className="p-2 rounded bg-background/50 text-sm">
+                          <span className="font-medium">{notif.businessName}:</span> {notif.message}
                         </div>
                       ))}
                     </div>

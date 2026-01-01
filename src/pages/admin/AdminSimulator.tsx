@@ -5,8 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rjajxabpndmpcgssymxw.supabase.co";
+import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functions";
 
 interface Message {
   id: string;
@@ -58,6 +57,10 @@ Examples:
 • contractor 10000000
 • profile
 • summary`;
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+};
 
 const AdminSimulator = () => {
   const { toast } = useToast();
@@ -112,19 +115,19 @@ const AdminSimulator = () => {
     ]);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
-  };
-
   // Call VAT Calculator API
   const callVATCalculator = async (amount: number, description: string) => {
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/vat-calculator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, itemDescription: description })
-      });
-      return await response.json();
+      return await callEdgeFunction<{
+        classification: string;
+        actReference: string;
+        subtotal: number;
+        vatRate: number;
+        vatAmount: number;
+        total: number;
+        canClaimInputVAT: boolean;
+        error?: string;
+      }>('vat-calculator', { amount, itemDescription: description });
     } catch (error) {
       console.error('VAT Calculator error:', error);
       return null;
@@ -134,12 +137,16 @@ const AdminSimulator = () => {
   // Call VAT Reconciliation API
   const callReconciliation = async (userId: string, period: string) => {
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/vat-reconciliation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'calculate', userId, period })
-      });
-      return await response.json();
+      return await callEdgeFunction<{
+        period: string;
+        outputVAT: number;
+        outputVATInvoicesCount: number;
+        inputVAT: number;
+        inputVATExpensesCount: number;
+        netVAT: number;
+        status: string;
+        error?: string;
+      }>('vat-reconciliation', { action: 'calculate', userId, period });
     } catch (error) {
       console.error('Reconciliation error:', error);
       return null;
@@ -149,12 +156,17 @@ const AdminSimulator = () => {
   // Call Invoice Processor API
   const callInvoiceProcessor = async (action: string, data: Record<string, unknown>) => {
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/invoice-processor`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ...data })
-      });
-      return await response.json();
+      return await callEdgeFunction<{
+        success: boolean;
+        invoiceNumber?: string;
+        customerName?: string;
+        items?: Array<{ description: string; quantity: number; unitPrice: number; vatAmount: number }>;
+        subtotal?: number;
+        vatAmount?: number;
+        total?: number;
+        confidence?: number;
+        error?: string;
+      }>('invoice-processor', { action, ...data });
     } catch (error) {
       console.error('Invoice Processor error:', error);
       return null;
@@ -171,22 +183,34 @@ const AdminSimulator = () => {
     equipmentCosts: number = 0
   ) => {
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/income-tax-calculator`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          grossIncome, 
-          period, 
-          incomeType, 
-          pensionAmount, 
-          includeDeductions: true,
-          deductions: {
-            businessExpenses,
-            equipmentCosts
-          }
-        })
+      return await callEdgeFunction<{
+        grossIncome: number;
+        chargeableIncome: number;
+        totalTax: number;
+        effectiveRate: number;
+        monthlyTax: number;
+        monthlyNetIncome: number;
+        netBusinessIncome?: number;
+        taxBreakdown: Array<{ band: string; rate: number; taxInBand: number }>;
+        businessExpensesBreakdown?: { total: number };
+        freelancerTips?: string[];
+        pensionExemption?: number;
+        taxableIncome?: number;
+        isMinimumWageExempt?: boolean;
+        isPensionExempt?: boolean;
+        actReference: string;
+        error?: string;
+      }>('income-tax-calculator', { 
+        grossIncome, 
+        period, 
+        incomeType, 
+        pensionAmount, 
+        includeDeductions: true,
+        deductions: {
+          businessExpenses,
+          equipmentCosts
+        }
       });
-      return await response.json();
     } catch (error) {
       console.error('Income Tax Calculator error:', error);
       return null;
@@ -196,16 +220,17 @@ const AdminSimulator = () => {
   // Seed test user
   const seedTestUser = async () => {
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'seed',
-          scenario: 'standard-retail',
-          period: new Date().toISOString().substring(0, 7)
-        })
+      const result = await callEdgeFunction<{
+        user: { id: string };
+        business: { id: string; name: string };
+        created: { invoices: number; expenses: number };
+        error?: string;
+      }>('seed-test-data', {
+        action: 'seed',
+        scenario: 'standard-retail',
+        period: new Date().toISOString().substring(0, 7)
       });
-      const result = await response.json();
+      
       if (result.user && result.business) {
         setUserData({
           id: result.user.id,
@@ -467,9 +492,7 @@ const AdminSimulator = () => {
             `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
             `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
             `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
-            `References:\n` +
-            `- Section 163 (Pension Exemption)\n` +
-            `- Section 58 (Progressive Rates)`
+            `Reference: ${result.actReference}`
           );
         } else {
           addBotMessage("❌ Failed to calculate mixed income tax. Please try again.");
@@ -478,7 +501,7 @@ const AdminSimulator = () => {
       }
 
       // Income tax calculation: "tax 10000000" or "monthly tax 500000"
-      const taxMatch = lowerMessage.match(/^(?:calculate\s+)?(?:my\s+)?(?:(monthly)\s+)?tax(?:\s+on)?\s+[₦n]?(\d[\d,]*)/i);
+      const taxMatch = lowerMessage.match(/^(?:(monthly)\s+)?tax\s+[₦n]?(\d[\d,]*)/i);
       if (taxMatch) {
         const isMonthly = !!taxMatch[1];
         const amount = parseInt(taxMatch[2].replace(/,/g, ""));
@@ -486,40 +509,47 @@ const AdminSimulator = () => {
         setIsTyping(true);
         addBotMessageImmediate("🔄 Calculating income tax...");
         
-        const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual', 'employment');
+        const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual');
         setIsTyping(false);
         
         if (result && !result.error) {
-          const breakdown = result.taxBreakdown
-            .filter((band: { taxInBand: number }) => band.taxInBand > 0)
-            .map((band: { band: string; rate: number; taxInBand: number }) => 
-              `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
-            )
-            .join('\n');
-          
+          // Check for special exemptions
           if (result.isMinimumWageExempt) {
             addBotMessage(
-              `📊 Personal Income Tax Calculation\n` +
+              `💰 Income Tax Calculation\n` +
               `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `Gross Income: ${formatCurrency(result.grossIncome)}\n\n` +
-              `✅ EXEMPT FROM TAX\n\n` +
-              `Your income is at or below minimum wage threshold.\n` +
+              `${isMonthly ? 'Monthly' : 'Annual'} Income: ${formatCurrency(result.grossIncome)}\n\n` +
+              `✅ MINIMUM WAGE EXEMPTION\n\n` +
+              `Earners of national minimum wage (₦70,000/month\n` +
+              `or ₦840,000/year) or below are exempt from\n` +
+              `personal income tax under the Nigeria Tax Act 2025.\n\n` +
+              `📊 Summary:\n` +
+              `├─ Gross Income: ${formatCurrency(result.grossIncome)}\n` +
+              `├─ Tax Payable: ₦0\n` +
+              `├─ Effective Rate: 0%\n` +
+              `└─ Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
               `Reference: ${result.actReference}`
             );
           } else {
+            const breakdown = result.taxBreakdown
+              .filter((band: { taxInBand: number }) => band.taxInBand > 0)
+              .map((band: { band: string; rate: number; taxInBand: number }) => 
+                `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
+              )
+              .join('\n');
+            
             addBotMessage(
-              `📊 Personal Income Tax Calculation\n` +
+              `💰 Income Tax Calculation\n` +
               `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `Gross Income: ${formatCurrency(result.grossIncome)}\n` +
-              `Deductions: ${formatCurrency(result.deductions.total)}\n` +
+              `${isMonthly ? 'Monthly' : 'Annual'} Income: ${formatCurrency(result.grossIncome)}\n` +
               `Chargeable Income: ${formatCurrency(result.chargeableIncome)}\n\n` +
-              `📋 Tax Breakdown (Section 58):\n` +
-              `${breakdown}\n` +
+              (breakdown ? `📋 Tax Breakdown (Section 58):\n${breakdown}\n` : '') +
               `━━━━━━━━━━━━━━━━━━━━━━━\n` +
               `💰 Total Tax: ${formatCurrency(result.totalTax)}\n` +
               `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
               `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
-              `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}`
+              `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+              `Reference: ${result.actReference}`
             );
           }
         } else {
@@ -528,138 +558,31 @@ const AdminSimulator = () => {
         return;
       }
 
-      // Just a number - assume VAT calculation
-      if (/^\d+$/.test(lowerMessage.replace(/,/g, ""))) {
-        const amount = parseInt(lowerMessage.replace(/,/g, ""));
-        
-        setIsTyping(true);
-        addBotMessageImmediate("🔄 Calculating VAT...");
-        
-        const result = await callVATCalculator(amount, "general goods");
-        setIsTyping(false);
-        
-        if (result && !result.error) {
-          addBotMessage(
-            `📊 VAT Calculation:\n\n` +
-            `Amount: ${formatCurrency(result.subtotal)}\n` +
-            `VAT (${(result.vatRate * 100).toFixed(1)}%): ${formatCurrency(result.vatAmount)}\n` +
-            `Total: ${formatCurrency(result.total)}\n\n` +
-            `💡 Tip: Add a description for accurate classification:\n` +
-            `Example: *vat ${amount} electronics*`
-          );
-        } else {
-          addBotMessage("❌ Failed to calculate VAT. Please try again.");
-        }
-        return;
-      }
-
-      // Profile command: "profile" - show detected tax profile
-      if (lowerMessage === "profile" || lowerMessage === "my profile" || lowerMessage === "tax profile") {
-        if (!userData.id) {
-          addBotMessage(
-            "❌ No user data found. Please seed test data first by typing *hi*."
-          );
-          return;
-        }
-
-        setIsTyping(true);
-        addBotMessageImmediate("🔄 Fetching your tax profile...");
-
-        try {
-          // Use Supabase client instead of direct REST API call for security
-          const { data: profile, error } = await supabase
-            .from('user_tax_profiles')
-            .select('*')
-            .eq('user_id', userData.id)
-            .maybeSingle();
-          
-          if (error) {
-            console.error('Error fetching tax profile:', error);
-          }
-
-          setIsTyping(false);
-
-          if (profile) {
-            const exemptions: string[] = [];
-            if (profile.is_pensioner) exemptions.push('🏛️ Pension Exemption (Section 163)');
-            if (profile.is_senior_citizen) exemptions.push('👴 Senior Citizen Allowance');
-            if (profile.is_disabled) exemptions.push('♿ Disability Allowance');
-            if (profile.has_diplomatic_immunity) exemptions.push('🛡️ Diplomatic Immunity (Full Exemption)');
-
-            const exemptionsList = exemptions.length > 0 
-              ? exemptions.join('\n') 
-              : 'None detected';
-
-            const confidenceEmoji = profile.ai_confidence >= 0.9 ? '🟢' : profile.ai_confidence >= 0.7 ? '🟡' : '🔴';
-            const confirmedStatus = profile.user_confirmed ? '✅ Confirmed' : '⏳ Pending Confirmation';
-
-            addBotMessage(
-              `👤 Your Tax Profile\n` +
-              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `📋 Classification:\n` +
-              `├─ User Type: ${profile.user_type || 'Individual'}\n` +
-              `├─ Employment: ${profile.employment_status?.replace('_', ' ') || 'Unknown'}\n` +
-              `└─ Industry: ${profile.industry_type || 'General'}\n\n` +
-              `🎯 Applicable Exemptions:\n${exemptionsList}\n\n` +
-              `📊 AI Detection:\n` +
-              `├─ ${confidenceEmoji} Confidence: ${((profile.ai_confidence || 0) * 100).toFixed(0)}%\n` +
-              `└─ Status: ${confirmedStatus}\n\n` +
-              `💡 These exemptions are automatically applied\n` +
-              `when you calculate your taxes.\n\n` +
-              `To update your profile, contact support or\n` +
-              `visit the admin dashboard.`
-            );
-          } else {
-            addBotMessage(
-              `👤 No Tax Profile Found\n` +
-              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `We haven't detected a tax profile for you yet.\n\n` +
-              `Your profile is automatically created when:\n` +
-              `• You calculate your income tax\n` +
-              `• You upload pension-related documents\n` +
-              `• You provide age or employment information\n\n` +
-              `Try running a tax calculation first:\n` +
-              `*tax 5000000*`
-            );
-          }
-        } catch (error) {
-          setIsTyping(false);
-          addBotMessage("❌ Failed to fetch profile. Please try again.");
-        }
-        return;
-      }
-
+      // Summary command
       if (lowerMessage === "summary") {
         if (!userData.id) {
-          addBotMessage(
-            "❌ No user data found. Please seed test data first by typing *hi*."
-          );
+          addBotMessage("Please register first by typing *hi* or *help*.");
           return;
         }
-
+        
         setIsTyping(true);
-        addBotMessageImmediate("🔄 Fetching VAT summary...");
+        addBotMessageImmediate("🔄 Fetching summary...");
         
         const period = new Date().toISOString().substring(0, 7);
         const result = await callReconciliation(userData.id, period);
         setIsTyping(false);
         
         if (result && !result.error) {
-          const statusEmoji = result.status === 'remit' ? '💵' : '💰';
-          
           addBotMessage(
-            `📊 VAT Filing Summary for *${userData.businessName}*\n\n` +
-            `Period: ${result.period}\n\n` +
-            `📥 Input VAT: ${formatCurrency(result.inputVAT)}\n` +
-            `   (${result.inputVATExpensesCount} expenses)\n\n` +
-            `📤 Output VAT: ${formatCurrency(result.outputVAT)}\n` +
-            `   (${result.outputVATInvoicesCount} invoices)\n\n` +
-            `${statusEmoji} Net ${result.status === 'remit' ? 'Payable' : 'Credit'}: ${formatCurrency(Math.abs(result.netVAT))}\n\n` +
-            `Status: ${result.status === 'remit' ? '⏳ Pending Payment' : '✅ Credit Available'}`,
-            result.status === 'remit' ? [
-              { id: "pay_now", title: "Pay Now" },
-              { id: "view_details", title: "View Details" },
-            ] : undefined
+            `📊 VAT Summary for ${result.period}\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `📤 Output VAT (${result.outputVATInvoicesCount} invoices): ${formatCurrency(result.outputVAT)}\n` +
+            `📥 Input VAT (${result.inputVATExpensesCount} expenses): ${formatCurrency(result.inputVAT)}\n\n` +
+            `💰 Net VAT: ${formatCurrency(result.netVAT)}\n` +
+            `Status: ${result.status.toUpperCase()}\n\n` +
+            (result.netVAT > 0 ? 
+              `To pay, use Remita with RRR or type *paid* after payment.` : 
+              `You have a credit to carry forward.`)
           );
         } else {
           addBotMessage("❌ Failed to fetch summary. Please try again.");
@@ -667,428 +590,350 @@ const AdminSimulator = () => {
         return;
       }
 
-      if (lowerMessage === "paid" || lowerMessage === "pay_now") {
+      // Profile command
+      if (lowerMessage === "profile") {
         addBotMessage(
-          `💳 Payment Confirmation\n\n` +
-            `Generate Remita RRR for VAT payment?`,
-          [
-            { id: "generate_rrr", title: "Generate RRR" },
-            { id: "cancel", title: "Cancel" },
-          ]
+          `👤 Your Profile\n` +
+          `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `Business: ${userData.businessName || 'Not set'}\n` +
+          `TIN: ${userData.tin || 'Not set'}\n` +
+          `User ID: ${userData.id?.substring(0, 8) || 'Not set'}...\n` +
+          `Phone: ${phoneNumber}\n\n` +
+          `Type *help* to see available commands.`
         );
         return;
       }
 
-      if (lowerMessage === "generate_rrr") {
-        const rrr = Math.floor(Math.random() * 900000000000) + 100000000000;
-        addBotMessage(
-          `✅ RRR Generated Successfully!\n\n` +
-            `RRR: *${rrr}*\n\n` +
-            `Pay via:\n` +
-            `🏦 Bank Transfer\n` +
-            `💳 Card Payment\n` +
-            `📱 USSD: *322*${rrr}#\n\n` +
-            `Reply *paid* once payment is complete.`
-        );
-        return;
-      }
-
+      // Upload command
       if (lowerMessage === "upload") {
         addBotMessage(
-          "📤 Invoice Upload\n\nPlease send an image of your invoice and I'll extract the details using OCR."
+          "📤 Invoice Upload\n\n" +
+          "Please send a photo of your invoice. I'll use OCR to extract:\n" +
+          "• Invoice number\n" +
+          "• Customer details\n" +
+          "• Line items\n" +
+          "• VAT amounts\n\n" +
+          "Click the 📎 button to attach an image."
         );
         setUserState("awaiting_invoice");
         return;
       }
 
-      // Default response
+      // Paid command
+      if (lowerMessage === "paid") {
+        addBotMessage(
+          "💰 Payment Confirmation\n\n" +
+          "To confirm your VAT payment, please provide:\n" +
+          "• Remita RRR number, or\n" +
+          "• Bank transfer reference\n\n" +
+          "Example: RRR123456789"
+        );
+        return;
+      }
+
+      // Default response for unrecognized commands
       addBotMessage(
-        `I didn't understand that command.\n\n${HELP_MESSAGE}`
+        "I didn't understand that command. Type *help* to see available options."
       );
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: `📎 Uploaded: ${file.name}`,
-      sender: "user",
-      timestamp: new Date(),
-      type: "image",
-    };
-    setMessages((prev) => [...prev, userMessage]);
+    // Add user message showing upload
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        text: `📎 Uploaded: ${file.name}`,
+        sender: "user",
+        timestamp: new Date(),
+        type: "image",
+      },
+    ]);
 
     setIsTyping(true);
     addBotMessageImmediate("🔄 Processing invoice with OCR...");
 
-    // Call invoice processor API
-    const result = await callInvoiceProcessor('process-ocr', { imageUrl: file.name });
+    // Simulate OCR processing
+    const result = await callInvoiceProcessor('process-ocr', { 
+      imageUrl: URL.createObjectURL(file),
+      userId: userData.id 
+    });
+
     setIsTyping(false);
 
     if (result && !result.error) {
-      setPendingInvoice(result);
-      
-      const itemsList = result.items.map((item: { description: string; quantity: number; unitPrice: number }) => 
-        `• ${item.description} x${item.quantity}: ${formatCurrency(item.unitPrice * item.quantity)}`
-      ).join('\n');
+      setPendingInvoice({
+        invoiceNumber: result.invoiceNumber || 'INV-001',
+        customerName: result.customerName || 'Customer',
+        items: result.items || [],
+        subtotal: result.subtotal || 0,
+        vatAmount: result.vatAmount || 0,
+        total: result.total || 0,
+        confidence: result.confidence || 0.85
+      });
+
+      const itemsList = (result.items || [])
+        .map((item: { description: string; quantity: number; unitPrice: number }) => 
+          `• ${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice)}`
+        )
+        .join('\n');
 
       addBotMessage(
-        `✅ Invoice Extracted! (${(result.confidence * 100).toFixed(0)}% confidence)\n\n` +
-        `📋 Invoice Details:\n` +
-        `━━━━━━━━━━━━━━━━━\n` +
-        `Invoice #: ${result.invoiceNumber}\n` +
-        `Customer: ${result.customerName}\n\n` +
-        `Items:\n${itemsList}\n\n` +
-        `Subtotal: ${formatCurrency(result.subtotal)}\n` +
-        `VAT (7.5%): ${formatCurrency(result.vatAmount)}\n` +
-        `Total: ${formatCurrency(result.total)}\n\n` +
-        (result.confidence < 0.85 ? '⚠️ Low confidence - please verify details\n\n' : '') +
-        `Classification: *Output VAT* 📤`,
+        `✅ Invoice Extracted (${Math.round((result.confidence || 0.85) * 100)}% confidence)\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Invoice #: ${result.invoiceNumber || 'INV-001'}\n` +
+        `Customer: ${result.customerName || 'Customer'}\n\n` +
+        `Items:\n${itemsList || 'No items'}\n\n` +
+        `Subtotal: ${formatCurrency(result.subtotal || 0)}\n` +
+        `VAT (7.5%): ${formatCurrency(result.vatAmount || 0)}\n` +
+        `Total: ${formatCurrency(result.total || 0)}\n\n` +
+        `Is this correct?`,
         [
           { id: "confirm", title: "✓ Confirm" },
-          { id: "edit", title: "✎ Edit" },
+          { id: "edit", title: "✎ Edit" }
         ]
       );
       setUserState("awaiting_confirm");
     } else {
-      addBotMessage("❌ Failed to process invoice. Please try again with a clearer image.");
+      addBotMessage(
+        "❌ Failed to process invoice. Please try again with a clearer image."
+      );
     }
 
+    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
   const handleButtonClick = async (buttonId: string) => {
-    const fakeMessage: Message = {
-      id: Date.now().toString(),
-      text: buttonId,
-      sender: "user",
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, fakeMessage]);
-
     if (buttonId === "confirm" && pendingInvoice) {
       setIsTyping(true);
       addBotMessageImmediate("🔄 Saving invoice...");
 
-      // Save invoice to database
       const result = await callInvoiceProcessor('create-invoice', {
         userId: userData.id,
         businessId: userData.businessId,
-        invoiceNumber: pendingInvoice.invoiceNumber,
-        customerName: pendingInvoice.customerName,
-        items: pendingInvoice.items,
-        subtotal: pendingInvoice.subtotal,
-        vatAmount: pendingInvoice.vatAmount,
-        total: pendingInvoice.total,
-        confidence: pendingInvoice.confidence
+        ...pendingInvoice,
+        period: new Date().toISOString().substring(0, 7)
       });
 
       setIsTyping(false);
 
-      if (result && result.invoice) {
+      if (result && result.success) {
         addBotMessage(
-          `✅ Invoice saved to database!\n\n` +
-          `Invoice ID: ${result.invoice.id.substring(0, 8)}...\n` +
-          (result.review ? `⚠️ Added to review queue (${result.review.priority} priority)\n` : '') +
-          `\nYour Output VAT has been updated.\n` +
+          `✅ Invoice saved successfully!\n\n` +
+          `Invoice #${pendingInvoice.invoiceNumber} has been added to your records.\n` +
+          `VAT of ${formatCurrency(pendingInvoice.vatAmount)} will be included in your next filing.\n\n` +
           `Type *summary* to see your updated VAT position.`
         );
-        setPendingInvoice(null);
-        setUserState("registered");
       } else {
         addBotMessage("❌ Failed to save invoice. Please try again.");
       }
+      
+      setPendingInvoice(null);
+      setUserState("registered");
     } else if (buttonId === "edit") {
       addBotMessage(
-        "✏️ Edit Mode\n\n" +
-          "Please specify what to edit:\n" +
-          "1. Customer name\n" +
-          "2. Amount\n" +
-          "3. Items\n" +
-          "4. Classification"
+        "Please re-upload the invoice with a clearer image, or type the details manually:\n\n" +
+        "Format: invoice [number] [customer] [amount]"
       );
+      setPendingInvoice(null);
       setUserState("registered");
-    } else if (buttonId === "view_details") {
-      if (userData.id) {
-        setIsTyping(true);
-        const period = new Date().toISOString().substring(0, 7);
-        const result = await callReconciliation(userData.id, period);
-        setIsTyping(false);
-
-        if (result) {
-          addBotMessage(
-            `📋 Detailed Filing Report\n\n` +
-            `Period: ${result.period}\n\n` +
-            `Output Invoices: ${result.outputVATInvoicesCount}\n` +
-            `Output VAT: ${formatCurrency(result.outputVAT)}\n\n` +
-            `Input Expenses: ${result.inputVATExpensesCount}\n` +
-            `Input VAT: ${formatCurrency(result.inputVAT)}\n\n` +
-            `Credit Brought Forward: ${formatCurrency(result.creditBroughtForward)}\n` +
-            `Credit Carried Forward: ${formatCurrency(result.creditCarriedForward)}`
-          );
-        }
-      }
-    } else if (buttonId === "pay_now") {
-      handleSendMessage();
-    } else if (buttonId === "generate_rrr") {
-      const rrr = Math.floor(Math.random() * 900000000000) + 100000000000;
-      addBotMessage(
-        `✅ RRR Generated Successfully!\n\n` +
-        `RRR: *${rrr}*\n\n` +
-        `Pay via:\n` +
-        `🏦 Bank Transfer\n` +
-        `💳 Card Payment\n` +
-        `📱 USSD: *322*${rrr}#\n\n` +
-        `Reply *paid* once payment is complete.`
-      );
-    } else if (buttonId === "cancel") {
-      addBotMessage("Payment cancelled. Type *summary* to view your filing status.");
     }
   };
 
-  const resetSimulator = async () => {
-    // Clear test data
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/seed-test-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear' })
-      });
-    } catch (e) {
-      console.error('Failed to clear test data:', e);
-    }
-    
+  const resetSimulator = () => {
     setMessages([]);
     setUserState("new");
     setUserData({});
-    setInputMessage("");
     setPendingInvoice(null);
     toast({ title: "Simulator reset" });
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">WhatsApp Simulator</h2>
-          <p className="text-muted-foreground">
-            Test chatbot with live VAT edge functions
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={resetSimulator}>
-            Reset Conversation
+    <div className="flex h-[calc(100vh-8rem)] gap-4">
+      {/* Config Panel */}
+      <Card className="w-80 flex-shrink-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Phone className="w-5 h-5" />
+            Simulator Config
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Phone Number</label>
+            <Input
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="+234..."
+            />
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="testMode"
+              checked={testMode}
+              onChange={(e) => setTestMode(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <label htmlFor="testMode" className="text-sm">
+              Test Mode (auto-seed data)
+            </label>
+          </div>
+
+          <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+            <p className="font-medium">User State: {userState}</p>
+            {userData.businessName && <p>Business: {userData.businessName}</p>}
+            {userData.tin && <p>TIN: {userData.tin}</p>}
+            {userData.id && <p>ID: {userData.id.substring(0, 8)}...</p>}
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetSimulator}
+              className="flex-1"
+            >
+              Reset
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const result = await seedTestUser();
+                if (result) {
+                  toast({ title: "Test data seeded" });
+                }
+              }}
+              className="flex-1 gap-1"
+            >
+              <Database className="w-3 h-3" />
+              Seed
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Chat Window */}
+      <Card className="flex-1 flex flex-col">
+        <CardHeader className="border-b flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+              <Bot className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">PRISM Tax Bot</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {isTyping ? "typing..." : "Online"}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.length === 0 && (
+            <div className="text-center text-muted-foreground py-8">
+              <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Start a conversation by typing "hi" or "help"</p>
+            </div>
+          )}
+          
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[80%] rounded-lg p-3 ${
+                  message.sender === "user"
+                    ? "bg-green-500 text-white"
+                    : "bg-muted"
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {message.sender === "bot" && (
+                    <Bot className="w-4 h-4 mt-1 flex-shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <p className="whitespace-pre-wrap text-sm">
+                      {message.text.split('*').map((part, i) => 
+                        i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                      )}
+                    </p>
+                    {message.buttons && (
+                      <div className="flex gap-2 mt-3">
+                        {message.buttons.map((btn) => (
+                          <Button
+                            key={btn.id}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleButtonClick(btn.id)}
+                          >
+                            {btn.title}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {message.sender === "user" && (
+                    <User className="w-4 h-4 mt-1 flex-shrink-0" />
+                  )}
+                </div>
+                <p className="text-xs opacity-60 mt-1">
+                  {message.timestamp.toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+          ))}
+          
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="bg-muted rounded-lg p-3 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">typing...</span>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </CardContent>
+
+        {/* Input Area */}
+        <div className="border-t p-4 flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="image/*"
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-4 h-4" />
+          </Button>
+          <Input
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            placeholder="Type a message..."
+            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+            className="flex-1"
+          />
+          <Button onClick={handleSendMessage} disabled={!inputMessage.trim()}>
+            <Send className="w-4 h-4" />
           </Button>
         </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Config Panel */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Phone className="h-5 w-5" />
-              Test Configuration
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Phone Number</label>
-              <Input
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="+234..."
-                className="mt-1"
-              />
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={testMode}
-                  onChange={(e) => setTestMode(e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm font-medium flex items-center gap-1">
-                  <Zap className="w-4 h-4 text-yellow-500" />
-                  Test Mode
-                </span>
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Auto-seeds test data on first message
-            </p>
-
-            <div>
-              <label className="text-sm font-medium">User State</label>
-              <div className="mt-1 rounded-md bg-muted px-3 py-2 text-sm">
-                {userState === "new" && "🆕 New User"}
-                {userState === "awaiting_tin" && "📝 Awaiting TIN"}
-                {userState === "awaiting_business_name" && "🏢 Awaiting Business Name"}
-                {userState === "registered" && "✅ Registered"}
-                {userState === "awaiting_invoice" && "📤 Awaiting Invoice"}
-                {userState === "awaiting_confirm" && "⏳ Awaiting Confirmation"}
-              </div>
-            </div>
-
-            {userData.id && (
-              <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg space-y-2">
-                <div className="flex items-center gap-2 text-green-500 text-sm font-medium">
-                  <Database className="w-4 h-4" />
-                  Live Database Connected
-                </div>
-                <div className="text-xs space-y-1">
-                  <p><span className="text-muted-foreground">User:</span> {userData.id.substring(0, 8)}...</p>
-                  <p><span className="text-muted-foreground">Business:</span> {userData.businessName}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="pt-2 border-t">
-              <p className="text-xs text-muted-foreground mb-2">Try these commands:</p>
-              <div className="space-y-1 text-xs">
-                <code className="block bg-muted px-2 py-1 rounded">vat 50000 electronics</code>
-                <code className="block bg-muted px-2 py-1 rounded">tax 10000000</code>
-                <code className="block bg-muted px-2 py-1 rounded">monthly tax 500000</code>
-                <code className="block bg-muted px-2 py-1 rounded">summary</code>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Chat Interface */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="border-b bg-[#075E54] text-white rounded-t-lg">
-            <CardTitle className="flex items-center gap-2 text-lg font-normal">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
-                <Bot className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="font-medium">PRISM Bot</div>
-                <div className="text-xs opacity-80">
-                  {isTyping ? "typing..." : testMode ? "🔴 LIVE API" : "online"}
-                </div>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {/* Messages Area */}
-            <div
-              className="h-[400px] overflow-y-auto bg-[#ECE5DD] p-4 space-y-3"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4cdc4' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              }}
-            >
-              {messages.length === 0 && (
-                <div className="flex h-full items-center justify-center text-center text-muted-foreground">
-                  <div>
-                    <Bot className="mx-auto h-12 w-12 opacity-50" />
-                    <p className="mt-2">Start a conversation</p>
-                    <p className="text-sm">Type "hi" to begin with live API testing</p>
-                  </div>
-                </div>
-              )}
-
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 shadow-sm ${
-                      msg.sender === "user"
-                        ? "bg-[#DCF8C6] text-gray-900"
-                        : "bg-white text-gray-900"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      {msg.sender === "bot" && (
-                        <Bot className="mt-0.5 h-4 w-4 shrink-0 text-[#075E54]" />
-                      )}
-                      <div className="flex-1">
-                        <p className="whitespace-pre-wrap text-sm">{msg.text}</p>
-                        {msg.buttons && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {msg.buttons.map((btn) => (
-                              <Button
-                                key={btn.id}
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => handleButtonClick(btn.id)}
-                              >
-                                {btn.title}
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-                        <p className="mt-1 text-right text-[10px] text-gray-500">
-                          {msg.timestamp.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
-                      {msg.sender === "user" && (
-                        <User className="mt-0.5 h-4 w-4 shrink-0 text-green-700" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {isTyping && (
-                <div className="flex justify-start">
-                  <div className="rounded-lg bg-white px-4 py-2 shadow-sm">
-                    <Loader2 className="h-5 w-5 animate-spin text-[#075E54]" />
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <div className="flex items-center gap-2 border-t bg-[#F0F0F0] p-3">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept="image/*,.pdf"
-                className="hidden"
-              />
-              <Button
-                size="icon"
-                variant="ghost"
-                className="shrink-0"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-5 w-5 text-gray-600" />
-              </Button>
-              <Input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Type a message..."
-                className="flex-1 border-0 bg-white"
-              />
-              <Button
-                size="icon"
-                className="shrink-0 bg-[#075E54] hover:bg-[#064e46]"
-                onClick={handleSendMessage}
-              >
-                <Send className="h-5 w-5" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      </Card>
     </div>
   );
 };
