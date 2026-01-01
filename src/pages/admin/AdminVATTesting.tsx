@@ -16,10 +16,13 @@ import {
   Download,
   Wallet,
   Building2,
-  Bell
+  Bell,
+  Crown,
+  BarChart3
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functions";
+import TaxComparisonDashboard from "@/components/admin/TaxComparisonDashboard";
 
 interface VATResult {
   subtotal: number;
@@ -324,6 +327,87 @@ const PROJECT_SCENARIOS = [
 ];
 
 // Startup & Cross-Border Scenarios - Section 56, 151, 79
+// HNI Income Source interface
+interface HNIIncomeSource {
+  type: 'employment' | 'investment' | 'rental' | 'dividend' | 'capital_gains';
+  amount: number;
+  description: string;
+  taxRate?: number;
+  isFinal?: boolean; // Final WHT (no further assessment)
+}
+
+interface HNIScenario {
+  id: string;
+  name: string;
+  persona: string;
+  incomeSources: HNIIncomeSource[];
+  expectedTotalIncome: number;
+  expectedTotalTax: number;
+  expectedEffectiveRate: number;
+  notes: string[];
+}
+
+const HNI_SCENARIOS: HNIScenario[] = [
+  {
+    id: 'hni-diversified',
+    name: "Chief Okonkwo: Diversified HNI",
+    persona: 'High Net Worth Individual with employment, investments, and rental income',
+    incomeSources: [
+      { type: 'employment', amount: 36000000, description: 'CEO Salary (₦3M/month)' },
+      { type: 'dividend', amount: 12000000, description: 'Dividend from portfolio (₦12M)', taxRate: 10, isFinal: true },
+      { type: 'rental', amount: 8000000, description: 'Rental income from 4 properties' },
+      { type: 'capital_gains', amount: 5000000, description: 'Share sales gains', taxRate: 10, isFinal: true },
+    ],
+    expectedTotalIncome: 61000000,
+    expectedTotalTax: 12568000, // Employment PIT + final WHTs
+    expectedEffectiveRate: 20.6,
+    notes: [
+      'Dividends: 10% final WHT (Section 72)',
+      'Capital Gains: 10% CGT (Section 29)',
+      'Rental: Consolidated with employment for PIT',
+      'Consider investment in tax-exempt instruments',
+    ],
+  },
+  {
+    id: 'hni-property-mogul',
+    name: "Alhaji Musa: Property Investor",
+    persona: 'Property-focused investor with significant rental income',
+    incomeSources: [
+      { type: 'employment', amount: 18000000, description: 'Board positions (₦1.5M/month)' },
+      { type: 'rental', amount: 48000000, description: 'Commercial property rentals' },
+      { type: 'dividend', amount: 6000000, description: 'REIT dividends', taxRate: 10, isFinal: true },
+    ],
+    expectedTotalIncome: 72000000,
+    expectedTotalTax: 16440000,
+    expectedEffectiveRate: 22.8,
+    notes: [
+      'Rental income consolidated with employment',
+      'Can deduct property maintenance expenses',
+      'REIT dividends attract final 10% WHT',
+      'Consider incorporating for properties',
+    ],
+  },
+  {
+    id: 'hni-tech-founder',
+    name: "Ada: Tech Founder Exit",
+    persona: 'Startup founder with employment + capital gains from equity sale',
+    incomeSources: [
+      { type: 'employment', amount: 24000000, description: 'Founder salary (₦2M/month)' },
+      { type: 'capital_gains', amount: 150000000, description: 'Startup equity sale', taxRate: 10, isFinal: true },
+      { type: 'dividend', amount: 4000000, description: 'Angel investment returns', taxRate: 10, isFinal: true },
+    ],
+    expectedTotalIncome: 178000000,
+    expectedTotalTax: 20776000,
+    expectedEffectiveRate: 11.7,
+    notes: [
+      'CGT on equity sale: 10% final (Section 29)',
+      'Low effective rate due to CGT vs. PIT',
+      'Consider Labelled Startup CGT exemptions',
+      'Dividend WHT is final - no further assessment',
+    ],
+  },
+];
+
 const STARTUP_SCENARIOS: StartupScenario[] = [
   {
     id: 'tunde-startup',
@@ -453,6 +537,16 @@ export default function AdminVATTesting() {
   const [selectedStartupScenario, setSelectedStartupScenario] = useState(STARTUP_SCENARIOS[0].id);
   const [crossBorderResult, setCrossBorderResult] = useState<CrossBorderResult | null>(null);
   
+  // HNI Testing state
+  const [selectedHNIScenario, setSelectedHNIScenario] = useState(HNI_SCENARIOS[0].id);
+  const [hniResult, setHniResult] = useState<{
+    totalIncome: number;
+    taxBreakdown: Array<{ source: string; income: number; tax: number; rate: number; isFinal: boolean }>;
+    totalTax: number;
+    effectiveRate: number;
+    passed: boolean;
+  } | null>(null);
+  
   // Expanded sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     calculator: true,
@@ -462,7 +556,9 @@ export default function AdminVATTesting() {
     incomeTax: true,
     businessClassification: true,
     projectFunds: true,
-    startupCrossBorder: true
+    startupCrossBorder: true,
+    hniTesting: true,
+    taxComparison: true
   });
 
   const toggleSection = (section: string) => {
@@ -1016,6 +1112,107 @@ export default function AdminVATTesting() {
       });
     } catch (error) {
       console.error('[startup-scenario] Error:', error);
+      toast({ 
+        title: "Scenario failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // HNI Multi-Income Scenario
+  const handleRunHNIScenario = async (scenarioId: string) => {
+    setLoading('hni-scenario');
+    try {
+      const scenario = HNI_SCENARIOS.find(s => s.id === scenarioId);
+      if (!scenario) throw new Error('Scenario not found');
+
+      // Progressive PIT bands
+      const PIT_BANDS = [
+        { min: 0, max: 800000, rate: 0 },
+        { min: 800000, max: 2400000, rate: 0.15 },
+        { min: 2400000, max: 4000000, rate: 0.19 },
+        { min: 4000000, max: 6400000, rate: 0.21 },
+        { min: 6400000, max: 11200000, rate: 0.23 },
+        { min: 11200000, max: Infinity, rate: 0.24 },
+      ];
+
+      const calculateProgressiveTax = (income: number): number => {
+        let tax = 0;
+        let remaining = income;
+        for (const band of PIT_BANDS) {
+          if (remaining <= 0) break;
+          const bandWidth = band.max - band.min;
+          const taxableInBand = Math.min(remaining, bandWidth);
+          tax += taxableInBand * band.rate;
+          remaining -= taxableInBand;
+        }
+        return tax;
+      };
+
+      // Calculate tax for each income source
+      const taxBreakdown: Array<{ source: string; income: number; tax: number; rate: number; isFinal: boolean }> = [];
+      let consolidatedIncome = 0;
+
+      for (const source of scenario.incomeSources) {
+        if (source.isFinal) {
+          // Final WHT - no further assessment
+          const tax = source.amount * (source.taxRate! / 100);
+          taxBreakdown.push({
+            source: source.description,
+            income: source.amount,
+            tax,
+            rate: source.taxRate!,
+            isFinal: true
+          });
+        } else {
+          // Consolidate for progressive tax
+          consolidatedIncome += source.amount;
+        }
+      }
+
+      // Calculate progressive tax on consolidated income
+      if (consolidatedIncome > 0) {
+        const progressiveTax = calculateProgressiveTax(consolidatedIncome);
+        const consolidatedSources = scenario.incomeSources
+          .filter(s => !s.isFinal)
+          .map(s => s.type)
+          .join(' + ');
+        
+        taxBreakdown.push({
+          source: `Consolidated (${consolidatedSources})`,
+          income: consolidatedIncome,
+          tax: progressiveTax,
+          rate: (progressiveTax / consolidatedIncome) * 100,
+          isFinal: false
+        });
+      }
+
+      const totalIncome = scenario.incomeSources.reduce((sum, s) => sum + s.amount, 0);
+      const totalTax = taxBreakdown.reduce((sum, t) => sum + t.tax, 0);
+      const effectiveRate = (totalTax / totalIncome) * 100;
+
+      // Check if results match expectations
+      const taxTolerance = scenario.expectedTotalTax * 0.05; // 5% tolerance
+      const passed = Math.abs(totalTax - scenario.expectedTotalTax) < taxTolerance;
+
+      setHniResult({
+        totalIncome,
+        taxBreakdown,
+        totalTax,
+        effectiveRate,
+        passed
+      });
+
+      toast({
+        title: passed ? "HNI Scenario PASSED ✓" : "HNI Scenario completed with variations",
+        description: `Total Tax: ${formatCurrency(totalTax)} (${effectiveRate.toFixed(1)}% effective)`,
+        variant: passed ? "default" : "destructive"
+      });
+    } catch (error) {
+      console.error('[hni-scenario] Error:', error);
       toast({ 
         title: "Scenario failed", 
         description: error instanceof Error ? error.message : "Unknown error",
@@ -2070,6 +2267,161 @@ export default function AdminVATTesting() {
                 </div>
               </div>
             )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* HNI Multi-Income Testing Section */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer flex flex-row items-center justify-between"
+          onClick={() => toggleSection('hniTesting')}
+        >
+          <div className="flex items-center gap-3">
+            <Crown className="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>HNI Multi-Income Scenarios</CardTitle>
+              <CardDescription>Test High Net Worth Individual tax calculations with multiple income sources</CardDescription>
+            </div>
+          </div>
+          {expandedSections.hniTesting ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </CardHeader>
+        {expandedSections.hniTesting && (
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {HNI_SCENARIOS.map((scenario) => (
+                <Button
+                  key={scenario.id}
+                  variant={selectedHNIScenario === scenario.id ? "default" : "outline"}
+                  className="h-auto py-3 px-4 flex flex-col items-start justify-start text-left"
+                  onClick={() => {
+                    setSelectedHNIScenario(scenario.id);
+                    handleRunHNIScenario(scenario.id);
+                  }}
+                  disabled={loading !== null}
+                >
+                  <span className="font-medium text-sm">{scenario.name}</span>
+                  <span className="text-xs text-muted-foreground mt-1">{scenario.persona}</span>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {scenario.incomeSources.map((source, idx) => (
+                      <span key={idx} className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                        {source.type}
+                      </span>
+                    ))}
+                  </div>
+                </Button>
+              ))}
+            </div>
+
+            {loading === 'hni-scenario' && (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+                <span className="ml-2">Calculating HNI taxes...</span>
+              </div>
+            )}
+
+            {hniResult && (
+              <div className="p-4 bg-muted rounded-lg space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Tax Breakdown by Source</h4>
+                  <span className={`text-sm font-bold ${hniResult.passed ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {hniResult.passed ? '✓ PASSED' : '⚠ Variation'}
+                  </span>
+                </div>
+
+                {/* Income Sources Table */}
+                <div className="rounded border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-background">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Income Source</th>
+                        <th className="text-right p-2 font-medium">Amount</th>
+                        <th className="text-right p-2 font-medium">Tax Rate</th>
+                        <th className="text-right p-2 font-medium">Tax</th>
+                        <th className="text-center p-2 font-medium">Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hniResult.taxBreakdown.map((item, idx) => (
+                        <tr key={idx} className="border-t">
+                          <td className="p-2">{item.source}</td>
+                          <td className="p-2 text-right font-mono">{formatCurrency(item.income)}</td>
+                          <td className="p-2 text-right font-mono">{item.rate.toFixed(1)}%</td>
+                          <td className="p-2 text-right font-mono text-red-500">{formatCurrency(item.tax)}</td>
+                          <td className="p-2 text-center">
+                            <span className={`text-xs px-2 py-0.5 rounded ${item.isFinal ? 'bg-blue-500/20 text-blue-600' : 'bg-green-500/20 text-green-600'}`}>
+                              {item.isFinal ? 'Final WHT' : 'Progressive'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-background font-medium">
+                      <tr className="border-t-2">
+                        <td className="p-2">Total</td>
+                        <td className="p-2 text-right font-mono">{formatCurrency(hniResult.totalIncome)}</td>
+                        <td className="p-2 text-right font-mono">{hniResult.effectiveRate.toFixed(1)}%</td>
+                        <td className="p-2 text-right font-mono text-red-600">{formatCurrency(hniResult.totalTax)}</td>
+                        <td className="p-2 text-center text-xs text-muted-foreground">Effective</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Scenario Notes */}
+                {(() => {
+                  const scenario = HNI_SCENARIOS.find(s => s.id === selectedHNIScenario);
+                  return scenario && scenario.notes.length > 0 && (
+                    <div className="p-3 bg-background rounded">
+                      <p className="text-xs font-medium mb-2">📝 Tax Planning Notes:</p>
+                      <ul className="text-xs text-muted-foreground space-y-1">
+                        {scenario.notes.map((note, idx) => (
+                          <li key={idx}>• {note}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
+
+                {/* Summary Cards */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-3 bg-background rounded text-center">
+                    <p className="text-xs text-muted-foreground">Total Income</p>
+                    <p className="font-mono font-bold text-lg">{formatCurrency(hniResult.totalIncome)}</p>
+                  </div>
+                  <div className="p-3 bg-background rounded text-center">
+                    <p className="text-xs text-muted-foreground">Total Tax</p>
+                    <p className="font-mono font-bold text-lg text-red-500">{formatCurrency(hniResult.totalTax)}</p>
+                  </div>
+                  <div className="p-3 bg-background rounded text-center">
+                    <p className="text-xs text-muted-foreground">Net Income</p>
+                    <p className="font-mono font-bold text-lg text-green-500">{formatCurrency(hniResult.totalIncome - hniResult.totalTax)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Tax Comparison Dashboard Section */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer flex flex-row items-center justify-between"
+          onClick={() => toggleSection('taxComparison')}
+        >
+          <div className="flex items-center gap-3">
+            <BarChart3 className="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>Business Structure Comparison</CardTitle>
+              <CardDescription>Compare tax obligations: Sole Proprietor vs Limited Company vs Partnership</CardDescription>
+            </div>
+          </div>
+          {expandedSections.taxComparison ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </CardHeader>
+        {expandedSections.taxComparison && (
+          <CardContent>
+            <TaxComparisonDashboard />
           </CardContent>
         )}
       </Card>
