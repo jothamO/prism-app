@@ -119,6 +119,78 @@ function sanitizeAmount(amount: string): number | null {
   return isNaN(parsed) || parsed < 0 || parsed > 999999999 ? null : parsed;
 }
 
+// Enhanced business name validation
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  sanitized?: string;
+}
+
+function validateBusinessName(name: string): ValidationResult {
+  if (!name) {
+    return { valid: false, error: "Business name is required" };
+  }
+  
+  const trimmed = name.trim();
+  
+  if (trimmed.length < 2) {
+    return { valid: false, error: "Business name must be at least 2 characters" };
+  }
+  
+  if (trimmed.length > 200) {
+    return { valid: false, error: "Business name must be less than 200 characters" };
+  }
+  
+  // Allow alphanumeric, spaces, and common business punctuation (international characters allowed)
+  // Block obvious injection patterns
+  const dangerousPatterns = [
+    /<script/i,
+    /javascript:/i,
+    /on\w+\s*=/i,  // onclick=, onerror=, etc.
+    /data:/i,
+    /vbscript:/i,
+  ];
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(trimmed)) {
+      return { valid: false, error: "Business name contains invalid characters" };
+    }
+  }
+  
+  // Sanitize and return
+  const sanitized = sanitizeInput(trimmed, 200);
+  return { valid: true, sanitized };
+}
+
+// ============= PII Masking for Logs =============
+
+function maskNIN(nin: string | null | undefined): string {
+  if (!nin || nin.length < 6) return "***";
+  return `${nin.substring(0, 3)}****${nin.substring(nin.length - 3)}`;
+}
+
+function maskTIN(tin: string | null | undefined): string {
+  if (!tin || tin.length < 6) return "***";
+  return `${tin.substring(0, 3)}****${tin.substring(tin.length - 3)}`;
+}
+
+function maskBVN(bvn: string | null | undefined): string {
+  if (!bvn || bvn.length < 6) return "***";
+  return `${bvn.substring(0, 3)}****${bvn.substring(bvn.length - 3)}`;
+}
+
+function maskEmail(email: string | null | undefined): string {
+  if (!email || !email.includes("@")) return "***";
+  const [local, domain] = email.split("@");
+  if (local.length <= 2) return `**@${domain}`;
+  return `${local.substring(0, 2)}***@${domain}`;
+}
+
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone || phone.length < 6) return "***";
+  return `${phone.substring(0, 4)}****${phone.substring(phone.length - 2)}`;
+}
+
 // ============= Bot Status Check =============
 
 async function isBotEnabled(): Promise<boolean> {
@@ -272,7 +344,7 @@ async function verifyNIN(nin: string) {
   }
 
   try {
-    console.log(`[NIN Verification] Verifying NIN: ${nin.substring(0, 3)}***`);
+    console.log(`[NIN Verification] Verifying NIN: ${maskNIN(nin)}`);
 
     const response = await fetch("https://api.withmono.com/v3/lookup/nin", {
       method: "POST",
@@ -541,12 +613,16 @@ async function handleNINInput(chatId: number, telegramId: string, nin: string) {
 }
 
 async function handleBusinessNameInput(chatId: number, telegramId: string, businessName: string) {
-  const sanitizedName = sanitizeInput(businessName, 200);
-  if (!sanitizedName) {
-    await sendMessage(chatId, `❌ Please enter a valid business name.`);
+  const validation = validateBusinessName(businessName);
+  
+  if (!validation.valid) {
+    await sendMessage(chatId, `❌ ${validation.error}\n\nPlease enter a valid business name (2-200 characters).`);
     return;
   }
-  await updateUser(telegramId, { business_name: sanitizedName });
+  
+  console.log(`[Business Name] Setting business name for user ${telegramId.substring(0, 4)}***`);
+  
+  await updateUser(telegramId, { business_name: validation.sanitized });
   await setConversationState(telegramId, "cac");
   await sendMessage(
     chatId,
