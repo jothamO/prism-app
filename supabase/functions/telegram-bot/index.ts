@@ -19,15 +19,25 @@ interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   resetIn: number; // seconds
+  reason?: string;
 }
 
+// User-based rate limiting
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
 const RATE_LIMIT_MAX_REQUESTS = 30; // max 30 requests per minute per user
 const RATE_LIMIT_BURST_MAX = 10; // max 10 requests in 5 seconds (burst protection)
 const RATE_LIMIT_BURST_WINDOW_MS = 5 * 1000;
 
-// In-memory rate limit store (reset on cold start, but good enough for most cases)
+// IP-based rate limiting (stricter - covers multiple accounts on same IP)
+const IP_RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
+const IP_RATE_LIMIT_MAX_REQUESTS = 60; // max 60 requests per minute per IP (allows ~2 users per IP)
+const IP_RATE_LIMIT_BURST_MAX = 20; // max 20 requests in 5 seconds
+const IP_RATE_LIMIT_BURST_WINDOW_MS = 5 * 1000;
+const IP_BLOCK_DURATION_MS = 60 * 1000; // Block IP for 1 minute on abuse
+
+// In-memory rate limit stores
 const rateLimitStore = new Map<string, { requests: number[]; blocked_until?: number }>();
+const ipRateLimitStore = new Map<string, { requests: number[]; blocked_until?: number; user_count: Set<string> }>();
 
 function checkRateLimit(telegramId: string): RateLimitResult {
   const now = Date.now();
@@ -44,7 +54,7 @@ function checkRateLimit(telegramId: string): RateLimitResult {
   if (entry.blocked_until && now < entry.blocked_until) {
     const resetIn = Math.ceil((entry.blocked_until - now) / 1000);
     console.log(`[Rate Limit] User ${telegramId} blocked for ${resetIn}s more`);
-    return { allowed: false, remaining: 0, resetIn };
+    return { allowed: false, remaining: 0, resetIn, reason: "user_blocked" };
   }
   
   // Clear expired block
@@ -62,7 +72,7 @@ function checkRateLimit(telegramId: string): RateLimitResult {
     // Block for 30 seconds on burst detection
     entry.blocked_until = now + 30 * 1000;
     console.warn(`[Rate Limit] User ${telegramId} BURST BLOCKED (${burstRequests.length} requests in 5s)`);
-    return { allowed: false, remaining: 0, resetIn: 30 };
+    return { allowed: false, remaining: 0, resetIn: 30, reason: "user_burst" };
   }
   
   // Check main rate limit
@@ -70,7 +80,7 @@ function checkRateLimit(telegramId: string): RateLimitResult {
     const oldestRequest = Math.min(...entry.requests);
     const resetIn = Math.ceil((oldestRequest + RATE_LIMIT_WINDOW_MS - now) / 1000);
     console.warn(`[Rate Limit] User ${telegramId} exceeded limit (${entry.requests.length}/${RATE_LIMIT_MAX_REQUESTS})`);
-    return { allowed: false, remaining: 0, resetIn };
+    return { allowed: false, remaining: 0, resetIn, reason: "user_limit" };
   }
   
   // Add current request
@@ -80,13 +90,111 @@ function checkRateLimit(telegramId: string): RateLimitResult {
   return { allowed: true, remaining, resetIn: 60 };
 }
 
+function checkIpRateLimit(ip: string, telegramId?: string): RateLimitResult {
+  const now = Date.now();
+  const key = `ip:${ip}`;
+  
+  // Get or create IP rate limit entry
+  let entry = ipRateLimitStore.get(key);
+  if (!entry) {
+    entry = { requests: [], user_count: new Set() };
+    ipRateLimitStore.set(key, entry);
+  }
+  
+  // Track unique users per IP
+  if (telegramId) {
+    entry.user_count.add(telegramId);
+  }
+  
+  // Check if IP is temporarily blocked
+  if (entry.blocked_until && now < entry.blocked_until) {
+    const resetIn = Math.ceil((entry.blocked_until - now) / 1000);
+    console.log(`[IP Rate Limit] IP ${maskIp(ip)} blocked for ${resetIn}s more`);
+    return { allowed: false, remaining: 0, resetIn, reason: "ip_blocked" };
+  }
+  
+  // Clear expired block
+  if (entry.blocked_until && now >= entry.blocked_until) {
+    entry.blocked_until = undefined;
+    entry.requests = [];
+    entry.user_count.clear();
+  }
+  
+  // Remove expired requests outside the window
+  entry.requests = entry.requests.filter(ts => ts > now - IP_RATE_LIMIT_WINDOW_MS);
+  
+  // Check burst limit
+  const burstRequests = entry.requests.filter(ts => ts > now - IP_RATE_LIMIT_BURST_WINDOW_MS);
+  if (burstRequests.length >= IP_RATE_LIMIT_BURST_MAX) {
+    entry.blocked_until = now + IP_BLOCK_DURATION_MS;
+    console.warn(`[IP Rate Limit] IP ${maskIp(ip)} BURST BLOCKED (${burstRequests.length} requests in 5s, ${entry.user_count.size} users)`);
+    return { allowed: false, remaining: 0, resetIn: 60, reason: "ip_burst" };
+  }
+  
+  // Check main rate limit
+  if (entry.requests.length >= IP_RATE_LIMIT_MAX_REQUESTS) {
+    const oldestRequest = Math.min(...entry.requests);
+    const resetIn = Math.ceil((oldestRequest + IP_RATE_LIMIT_WINDOW_MS - now) / 1000);
+    console.warn(`[IP Rate Limit] IP ${maskIp(ip)} exceeded limit (${entry.requests.length}/${IP_RATE_LIMIT_MAX_REQUESTS}, ${entry.user_count.size} users)`);
+    return { allowed: false, remaining: 0, resetIn, reason: "ip_limit" };
+  }
+  
+  // Suspicious: Many unique users from same IP in short time
+  if (entry.user_count.size > 5) {
+    console.warn(`[IP Rate Limit] IP ${maskIp(ip)} has ${entry.user_count.size} unique users - potential abuse`);
+    // Don't block but log for monitoring
+  }
+  
+  // Add current request
+  entry.requests.push(now);
+  const remaining = IP_RATE_LIMIT_MAX_REQUESTS - entry.requests.length;
+  
+  return { allowed: true, remaining, resetIn: 60 };
+}
+
+// Mask IP for logging (privacy)
+function maskIp(ip: string): string {
+  if (!ip) return "unknown";
+  // IPv4: show first two octets
+  if (ip.includes(".")) {
+    const parts = ip.split(".");
+    return `${parts[0]}.${parts[1]}.*.*`;
+  }
+  // IPv6: show first segment
+  if (ip.includes(":")) {
+    const parts = ip.split(":");
+    return `${parts[0]}:${parts[1]}:****`;
+  }
+  return ip.substring(0, 6) + "***";
+}
+
+// Extract client IP from request headers
+function getClientIp(req: Request): string {
+  // Telegram sends webhooks from their servers, so we check forwarded headers
+  // Priority: X-Forwarded-For > X-Real-IP > CF-Connecting-IP > direct connection
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    // X-Forwarded-For can contain multiple IPs, take the first (original client)
+    return forwardedFor.split(",")[0].trim();
+  }
+  
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
+  
+  const cfIp = req.headers.get("cf-connecting-ip");
+  if (cfIp) return cfIp.trim();
+  
+  // Fallback - this might not be reliable in all environments
+  return "unknown";
+}
+
 // Cleanup old entries periodically to prevent memory leaks
 function cleanupRateLimitStore() {
   const now = Date.now();
   const cutoff = now - RATE_LIMIT_WINDOW_MS * 2;
   
+  // Cleanup user rate limits
   for (const [key, entry] of rateLimitStore.entries()) {
-    // Remove entries with no recent requests and no active block
     const hasRecentRequests = entry.requests.some(ts => ts > cutoff);
     const hasActiveBlock = entry.blocked_until && entry.blocked_until > now;
     
@@ -94,6 +202,19 @@ function cleanupRateLimitStore() {
       rateLimitStore.delete(key);
     }
   }
+  
+  // Cleanup IP rate limits
+  const ipCutoff = now - IP_RATE_LIMIT_WINDOW_MS * 2;
+  for (const [key, entry] of ipRateLimitStore.entries()) {
+    const hasRecentRequests = entry.requests.some(ts => ts > ipCutoff);
+    const hasActiveBlock = entry.blocked_until && entry.blocked_until > now;
+    
+    if (!hasRecentRequests && !hasActiveBlock) {
+      ipRateLimitStore.delete(key);
+    }
+  }
+  
+  console.log(`[Rate Limit Cleanup] User entries: ${rateLimitStore.size}, IP entries: ${ipRateLimitStore.size}`);
 }
 
 // Run cleanup every 5 minutes
@@ -836,21 +957,38 @@ serve(async (req) => {
       const update = await req.json();
       console.log("Received update:", JSON.stringify(update, null, 2));
 
-      // Extract telegram ID for rate limiting (before full processing)
+      // Extract client IP and telegram ID for rate limiting
+      const clientIp = getClientIp(req);
       const rateLimitTelegramId = 
         update.callback_query?.from?.id?.toString() || 
         update.message?.from?.id?.toString();
+      const chatId = update.callback_query?.message?.chat?.id || update.message?.chat?.id;
+
+      // IP-based rate limiting (first layer - catches multi-account abuse)
+      const ipRateLimit = checkIpRateLimit(clientIp, rateLimitTelegramId);
+      if (!ipRateLimit.allowed) {
+        console.warn(`[IP Rate Limit] Rejecting request from IP ${maskIp(clientIp)}, reason: ${ipRateLimit.reason}`);
+        
+        // Send warning only on initial block
+        if (chatId && ipRateLimit.resetIn >= 55) {
+          await sendMessage(
+            chatId,
+            `⚠️ <b>Too many requests!</b>\n\nThis connection is sending too many messages. Please wait ${ipRateLimit.resetIn} seconds.`
+          );
+        }
+        
+        return new Response("OK", { headers: corsHeaders });
+      }
       
+      // User-based rate limiting (second layer - per-user limits)
       if (rateLimitTelegramId) {
         const rateLimit = checkRateLimit(rateLimitTelegramId);
         
         if (!rateLimit.allowed) {
-          console.warn(`[Rate Limit] Rejecting request from ${rateLimitTelegramId}`);
+          console.warn(`[User Rate Limit] Rejecting request from ${rateLimitTelegramId}, reason: ${rateLimit.reason}`);
           
-          // Get chat ID to send warning (only on first rejection)
-          const chatId = update.callback_query?.message?.chat?.id || update.message?.chat?.id;
+          // Send warning only on first rejection
           if (chatId && rateLimit.resetIn > 25) {
-            // Only warn once at the start of a block (when resetIn is high)
             await sendMessage(
               chatId,
               `⚠️ <b>Slow down!</b>\n\nYou're sending messages too quickly. Please wait ${rateLimit.resetIn} seconds before trying again.`
