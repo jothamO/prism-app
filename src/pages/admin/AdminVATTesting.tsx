@@ -190,8 +190,8 @@ const PROJECT_SCENARIOS = [
     expectedExcess: 300000,
     expectedTax: 0,
     expectedFlags: [
-      'Multiple large cash-based expenses (₦1.5M total labor)',
-      'Vague "miscellaneous" description needs specifics',
+      'cash-based expenses',
+      'miscellaneous',
     ],
   },
   {
@@ -233,7 +233,7 @@ const PROJECT_SCENARIOS = [
     expectedTotalSpent: 8500000,
     expectedExcess: -500000,
     expectedTax: 0,
-    expectedFlags: ['Project is over budget by ₦500,000'],
+    expectedFlags: ['over budget'],
   }
 ];
 
@@ -297,6 +297,17 @@ export default function AdminVATTesting() {
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Helper function for flexible flag matching using substring/keyword matching
+  const allExpectedFlagsFound = (generatedFlags: string[], expectedKeywords: string[]): boolean => {
+    if (expectedKeywords.length === 0) return true;
+    
+    return expectedKeywords.every(keyword => 
+      generatedFlags.some(flag => 
+        flag.toLowerCase().includes(keyword.toLowerCase())
+      )
+    );
   };
 
   const formatCurrency = (amount: number) => {
@@ -766,7 +777,8 @@ export default function AdminVATTesting() {
         passed: 
           totalSpent === scenario.expectedTotalSpent &&
           excess === scenario.expectedExcess &&
-          taxAmount === scenario.expectedTax
+          taxAmount === scenario.expectedTax &&
+          allExpectedFlagsFound(flags, scenario.expectedFlags)
       };
 
       setProjectScenarioResult(result);
