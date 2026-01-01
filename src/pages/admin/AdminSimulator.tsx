@@ -35,6 +35,15 @@ interface PendingInvoice {
   confidence: number;
 }
 
+interface ActiveProject {
+  id: string;
+  name: string;
+  budget: number;
+  spent: number;
+  source_person: string;
+  source_relationship: string;
+}
+
 const HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
 
 Available commands:
@@ -46,6 +55,13 @@ Available commands:
 📊 *summary* - Get your VAT filing summary
 💰 *paid* - Confirm payment for a filing
 📤 *upload* - Upload an invoice for processing
+
+📁 Project Funds:
+• *new project [name] [budget] from [source]* - Create project
+• *project expense [amount] [description]* - Record expense
+• *project balance* - Check project status
+• *complete project* - Close and calculate tax
+
 ❓ *help* - Show this menu
 
 Examples:
@@ -55,8 +71,10 @@ Examples:
 • pension 2400000
 • freelance 7200000 expenses 1800000
 • contractor 10000000
-• profile
-• summary`;
+• new project Uncle Building 5000000 from Uncle Chukwu
+• project expense 150000 cement and blocks
+• project balance
+• complete project`;
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -72,6 +90,7 @@ const AdminSimulator = () => {
   const [userData, setUserData] = useState<TestUserData>({});
   const [testMode, setTestMode] = useState(true);
   const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
+  const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -628,6 +647,303 @@ const AdminSimulator = () => {
           "• Bank transfer reference\n\n" +
           "Example: RRR123456789"
         );
+        return;
+      }
+
+      // PROJECT FUND COMMANDS
+      
+      // New project command: "new project Uncle Building 5000000 from Uncle Chukwu"
+      const newProjectMatch = lowerMessage.match(/^new\s+project\s+(.+?)\s+(\d[\d,]*)\s+from\s+(.+)$/i);
+      if (newProjectMatch) {
+        const projectName = newProjectMatch[1];
+        const budget = parseInt(newProjectMatch[2].replace(/,/g, ""));
+        const sourcePerson = newProjectMatch[3];
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Creating project fund...");
+        
+        try {
+          const result = await callEdgeFunction<{
+            success: boolean;
+            project: ActiveProject;
+            error?: string;
+          }>('project-funds', {
+            action: 'create',
+            name: projectName,
+            budget: budget,
+            source_person: sourcePerson,
+            source_relationship: 'family', // Default for simulation
+          });
+          
+          setIsTyping(false);
+          
+          if (result && result.success && result.project) {
+            setActiveProject({
+              id: result.project.id,
+              name: projectName,
+              budget: budget,
+              spent: 0,
+              source_person: sourcePerson,
+              source_relationship: 'family'
+            });
+            
+            addBotMessage(
+              `✅ Project Created!\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📁 *${projectName}*\n` +
+              `💰 Budget: ${formatCurrency(budget)}\n` +
+              `👤 Source: ${sourcePerson}\n\n` +
+              `📋 Tax Treatment: NON-TAXABLE\n` +
+              `(Section 5 - Agency Fund)\n\n` +
+              `Available commands:\n` +
+              `• *project expense [amount] [description]*\n` +
+              `• *project balance*\n` +
+              `• *complete project*`
+            );
+          } else {
+            addBotMessage("❌ Failed to create project. Please try again.");
+          }
+        } catch (error) {
+          setIsTyping(false);
+          addBotMessage("❌ Failed to create project. Please log in first.");
+        }
+        return;
+      }
+
+      // Project expense command: "project expense 150000 cement and blocks"
+      const projectExpenseMatch = lowerMessage.match(/^project\s+expense\s+(\d[\d,]*)\s+(.+)$/i);
+      if (projectExpenseMatch) {
+        if (!activeProject) {
+          addBotMessage(
+            "❌ No active project!\n\n" +
+            "Create a project first:\n" +
+            "*new project [name] [budget] from [source]*"
+          );
+          return;
+        }
+        
+        const amount = parseInt(projectExpenseMatch[1].replace(/,/g, ""));
+        const description = projectExpenseMatch[2];
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Recording expense...");
+        
+        try {
+          const result = await callEdgeFunction<{
+            success: boolean;
+            expense: { id: string; amount: number; description: string };
+            project: { spent: number; budget: number };
+            warning?: string;
+            error?: string;
+          }>('project-funds', {
+            action: 'expense',
+            project_id: activeProject.id,
+            amount: amount,
+            description: description,
+          });
+          
+          setIsTyping(false);
+          
+          if (result && result.success) {
+            const newSpent = result.project?.spent || (activeProject.spent + amount);
+            const balance = activeProject.budget - newSpent;
+            const isOverBudget = balance < 0;
+            
+            // Update local state
+            setActiveProject(prev => prev ? { ...prev, spent: newSpent } : null);
+            
+            // Check for risk indicators
+            let warningMessage = '';
+            
+            // Rapid cash withdrawal check (mock - in real scenario would check DB)
+            const lowerDesc = description.toLowerCase();
+            if (lowerDesc.includes('labor') || lowerDesc.includes('cash') || lowerDesc.includes('worker')) {
+              if (amount >= 500000) {
+                warningMessage += `\n\n⚠️ SECTION 191 ALERT\n` +
+                  `Large cash-based expense detected.\n` +
+                  `Ensure you retain receipts and payment records.`;
+              }
+            }
+            
+            // Vague description check
+            const vagueTerms = ['misc', 'sundry', 'various', 'other', 'general'];
+            if (vagueTerms.some(term => lowerDesc.includes(term))) {
+              warningMessage += `\n\n⚠️ DOCUMENTATION WARNING\n` +
+                `Vague description may be flagged for review.\n` +
+                `Section 32 requires specific documentation.`;
+            }
+            
+            addBotMessage(
+              `${isOverBudget ? '⚠️' : '✅'} Expense Recorded\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📁 ${activeProject.name}\n` +
+              `📝 ${description}\n` +
+              `💸 Amount: ${formatCurrency(amount)}\n\n` +
+              `📊 Project Status:\n` +
+              `├─ Budget: ${formatCurrency(activeProject.budget)}\n` +
+              `├─ Spent: ${formatCurrency(newSpent)}\n` +
+              `└─ Balance: ${formatCurrency(balance)}\n` +
+              `${isOverBudget ? '\n⚠️ PROJECT IS OVER BUDGET!' : ''}` +
+              warningMessage
+            );
+          } else {
+            addBotMessage("❌ Failed to record expense: " + (result?.error || 'Unknown error'));
+          }
+        } catch (error) {
+          setIsTyping(false);
+          addBotMessage("❌ Failed to record expense. Please log in first.");
+        }
+        return;
+      }
+
+      // Project balance command
+      if (lowerMessage === "project balance" || lowerMessage === "project status") {
+        if (!activeProject) {
+          addBotMessage(
+            "❌ No active project!\n\n" +
+            "Create a project first:\n" +
+            "*new project [name] [budget] from [source]*"
+          );
+          return;
+        }
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Fetching project status...");
+        
+        try {
+          const result = await callEdgeFunction<{
+            success: boolean;
+            summary: {
+              budget: number;
+              spent: number;
+              balance: number;
+              balancePercentage: string;
+              expenseCount: number;
+              receiptCount: number;
+              verifiedReceiptCount: number;
+            };
+            error?: string;
+          }>('project-funds', {
+            action: 'summary',
+            project_id: activeProject.id,
+          });
+          
+          setIsTyping(false);
+          
+          if (result && result.success) {
+            const s = result.summary;
+            const balance = s.budget - s.spent;
+            const isOverBudget = balance < 0;
+            
+            addBotMessage(
+              `📁 Project Balance\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `*${activeProject.name}*\n` +
+              `Source: ${activeProject.source_person}\n\n` +
+              `📊 Financial Status:\n` +
+              `├─ Budget: ${formatCurrency(s.budget)}\n` +
+              `├─ Spent: ${formatCurrency(s.spent)}\n` +
+              `├─ Balance: ${formatCurrency(balance)} (${s.balancePercentage}%)\n` +
+              `└─ Status: ${isOverBudget ? '🔴 OVER BUDGET' : '🟢 WITHIN BUDGET'}\n\n` +
+              `📋 Records:\n` +
+              `├─ Expenses: ${s.expenseCount}\n` +
+              `├─ Receipts: ${s.receiptCount}\n` +
+              `└─ Verified: ${s.verifiedReceiptCount}\n\n` +
+              `💡 Tip: Send receipt photos to verify expenses.`
+            );
+            
+            // Update local state
+            setActiveProject(prev => prev ? { ...prev, spent: s.spent } : null);
+          } else {
+            addBotMessage("❌ Failed to fetch project status.");
+          }
+        } catch (error) {
+          setIsTyping(false);
+          addBotMessage("❌ Failed to fetch project status. Please log in first.");
+        }
+        return;
+      }
+
+      // Complete project command
+      if (lowerMessage === "complete project" || lowerMessage === "finish project") {
+        if (!activeProject) {
+          addBotMessage(
+            "❌ No active project!\n\n" +
+            "Create a project first:\n" +
+            "*new project [name] [budget] from [source]*"
+          );
+          return;
+        }
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Completing project and calculating tax...");
+        
+        try {
+          const result = await callEdgeFunction<{
+            success: boolean;
+            completion: {
+              budget: number;
+              spent: number;
+              excess: number;
+              taxCalculation: {
+                totalTax: number;
+                bands: Array<{ band: string; taxableAmount: number; rate: number; tax: number }>;
+              };
+            };
+            error?: string;
+          }>('project-funds', {
+            action: 'complete',
+            project_id: activeProject.id,
+          });
+          
+          setIsTyping(false);
+          
+          if (result && result.success) {
+            const c = result.completion;
+            const hasExcess = c.excess > 0;
+            
+            let taxBreakdown = '';
+            if (hasExcess && c.taxCalculation.bands.length > 0) {
+              taxBreakdown = c.taxCalculation.bands
+                .filter(b => b.tax > 0)
+                .map(b => `├─ ${b.band} @ ${(b.rate * 100).toFixed(0)}%: ${formatCurrency(b.tax)}`)
+                .join('\n');
+            }
+            
+            addBotMessage(
+              `🎉 Project Completed!\n` +
+              `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `📁 *${activeProject.name}*\n\n` +
+              `📊 Final Summary:\n` +
+              `├─ Budget Received: ${formatCurrency(c.budget)}\n` +
+              `├─ Total Spent: ${formatCurrency(c.spent)}\n` +
+              `└─ Excess Retained: ${formatCurrency(c.excess)}\n\n` +
+              (hasExcess ? 
+                `⚠️ TAX TREATMENT\n` +
+                `Excess of ${formatCurrency(c.excess)} is taxable income\n` +
+                `under Section 4(1)(k) of the Tax Act 2025.\n\n` +
+                `📋 PIT Calculation (Section 58):\n` +
+                (taxBreakdown || `All within 0% band (₦0 - ₦800,000)`) +
+                `\n━━━━━━━━━━━━━━━━━━━━━\n` +
+                `💰 Total Tax Due: ${formatCurrency(c.taxCalculation.totalTax)}` +
+                (c.taxCalculation.totalTax === 0 ? `\n\n✅ Excess falls within tax-free band!` : '')
+                :
+                `✅ NO TAXABLE EXCESS\n` +
+                `All funds were properly expended on the project.\n` +
+                `No Personal Income Tax liability.`
+              ) +
+              `\n\n📄 Type *project statement* to generate a PDF report.`
+            );
+            
+            // Clear active project
+            setActiveProject(null);
+          } else {
+            addBotMessage("❌ Failed to complete project: " + (result?.error || 'Unknown error'));
+          }
+        } catch (error) {
+          setIsTyping(false);
+          addBotMessage("❌ Failed to complete project. Please log in first.");
+        }
         return;
       }
 
