@@ -13,6 +13,92 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// ============= Rate Limiting =============
+
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetIn: number; // seconds
+}
+
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
+const RATE_LIMIT_MAX_REQUESTS = 30; // max 30 requests per minute per user
+const RATE_LIMIT_BURST_MAX = 10; // max 10 requests in 5 seconds (burst protection)
+const RATE_LIMIT_BURST_WINDOW_MS = 5 * 1000;
+
+// In-memory rate limit store (reset on cold start, but good enough for most cases)
+const rateLimitStore = new Map<string, { requests: number[]; blocked_until?: number }>();
+
+function checkRateLimit(telegramId: string): RateLimitResult {
+  const now = Date.now();
+  const key = `telegram:${telegramId}`;
+  
+  // Get or create rate limit entry
+  let entry = rateLimitStore.get(key);
+  if (!entry) {
+    entry = { requests: [] };
+    rateLimitStore.set(key, entry);
+  }
+  
+  // Check if user is temporarily blocked
+  if (entry.blocked_until && now < entry.blocked_until) {
+    const resetIn = Math.ceil((entry.blocked_until - now) / 1000);
+    console.log(`[Rate Limit] User ${telegramId} blocked for ${resetIn}s more`);
+    return { allowed: false, remaining: 0, resetIn };
+  }
+  
+  // Clear expired block
+  if (entry.blocked_until && now >= entry.blocked_until) {
+    entry.blocked_until = undefined;
+    entry.requests = [];
+  }
+  
+  // Remove expired requests outside the window
+  entry.requests = entry.requests.filter(ts => ts > now - RATE_LIMIT_WINDOW_MS);
+  
+  // Check burst limit (short window)
+  const burstRequests = entry.requests.filter(ts => ts > now - RATE_LIMIT_BURST_WINDOW_MS);
+  if (burstRequests.length >= RATE_LIMIT_BURST_MAX) {
+    // Block for 30 seconds on burst detection
+    entry.blocked_until = now + 30 * 1000;
+    console.warn(`[Rate Limit] User ${telegramId} BURST BLOCKED (${burstRequests.length} requests in 5s)`);
+    return { allowed: false, remaining: 0, resetIn: 30 };
+  }
+  
+  // Check main rate limit
+  if (entry.requests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    const oldestRequest = Math.min(...entry.requests);
+    const resetIn = Math.ceil((oldestRequest + RATE_LIMIT_WINDOW_MS - now) / 1000);
+    console.warn(`[Rate Limit] User ${telegramId} exceeded limit (${entry.requests.length}/${RATE_LIMIT_MAX_REQUESTS})`);
+    return { allowed: false, remaining: 0, resetIn };
+  }
+  
+  // Add current request
+  entry.requests.push(now);
+  const remaining = RATE_LIMIT_MAX_REQUESTS - entry.requests.length;
+  
+  return { allowed: true, remaining, resetIn: 60 };
+}
+
+// Cleanup old entries periodically to prevent memory leaks
+function cleanupRateLimitStore() {
+  const now = Date.now();
+  const cutoff = now - RATE_LIMIT_WINDOW_MS * 2;
+  
+  for (const [key, entry] of rateLimitStore.entries()) {
+    // Remove entries with no recent requests and no active block
+    const hasRecentRequests = entry.requests.some(ts => ts > cutoff);
+    const hasActiveBlock = entry.blocked_until && entry.blocked_until > now;
+    
+    if (!hasRecentRequests && !hasActiveBlock) {
+      rateLimitStore.delete(key);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupRateLimitStore, 5 * 60 * 1000);
+
 // ============= Input Sanitization =============
 
 function sanitizeInput(input: string, maxLength: number = 500): string {
@@ -673,6 +759,31 @@ serve(async (req) => {
 
       const update = await req.json();
       console.log("Received update:", JSON.stringify(update, null, 2));
+
+      // Extract telegram ID for rate limiting (before full processing)
+      const rateLimitTelegramId = 
+        update.callback_query?.from?.id?.toString() || 
+        update.message?.from?.id?.toString();
+      
+      if (rateLimitTelegramId) {
+        const rateLimit = checkRateLimit(rateLimitTelegramId);
+        
+        if (!rateLimit.allowed) {
+          console.warn(`[Rate Limit] Rejecting request from ${rateLimitTelegramId}`);
+          
+          // Get chat ID to send warning (only on first rejection)
+          const chatId = update.callback_query?.message?.chat?.id || update.message?.chat?.id;
+          if (chatId && rateLimit.resetIn > 25) {
+            // Only warn once at the start of a block (when resetIn is high)
+            await sendMessage(
+              chatId,
+              `⚠️ <b>Slow down!</b>\n\nYou're sending messages too quickly. Please wait ${rateLimit.resetIn} seconds before trying again.`
+            );
+          }
+          
+          return new Response("OK", { headers: corsHeaders });
+        }
+      }
 
       // Handle callback queries (button clicks)
       if (update.callback_query) {
