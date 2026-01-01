@@ -35,15 +35,30 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
+    console.log("[admin-bot-messaging] Request received");
+    
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
     const telegramToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const whatsappApiKey = Deno.env.get("WHATSAPP_360DIALOG_API_KEY");
+
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      console.error("[admin-bot-messaging] Missing required env vars:", {
+        url: !!supabaseUrl,
+        serviceKey: !!supabaseServiceKey,
+        anonKey: !!supabaseAnonKey
+      });
+      return new Response(JSON.stringify({ error: "Server configuration error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Verify admin authentication
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      console.log("[admin-bot-messaging] No authorization header");
       return new Response(JSON.stringify({ error: "No authorization header" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -52,6 +67,8 @@ Deno.serve(async (req) => {
 
     // Use anon client with user's token for auth validation
     const token = authHeader.replace("Bearer ", "");
+    console.log("[admin-bot-messaging] Validating user token...");
+    
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
@@ -65,6 +82,8 @@ Deno.serve(async (req) => {
       });
     }
 
+    console.log(`[admin-bot-messaging] User authenticated: ${user.id}`);
+
     // Use service role client for admin operations
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -77,16 +96,19 @@ Deno.serve(async (req) => {
       .single();
 
     if (!roleData) {
+      console.log(`[admin-bot-messaging] User ${user.id} is not an admin`);
       return new Response(JSON.stringify({ error: "Admin access required" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    console.log("[admin-bot-messaging] Admin verified");
+
     const body: BotRequest = await req.json();
     const { action, message, platform, userId, filters, enabled, clearOption } = body;
 
-    console.log(`[admin-bot-messaging] Action: ${action}, Platform: ${platform}`);
+    console.log(`[admin-bot-messaging] Processing action: ${action}, Platform: ${platform}`);
 
     // ==================== HEALTH CHECK ====================
     if (action === "health") {
