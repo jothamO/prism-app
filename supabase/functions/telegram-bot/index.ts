@@ -13,6 +13,26 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// ============= Input Sanitization =============
+
+function sanitizeInput(input: string, maxLength: number = 500): string {
+  if (!input) return "";
+  return input
+    .replace(/<[^>]*>/g, "") // Strip HTML tags
+    .replace(/[<>&'"]/g, (c) => 
+      ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&#39;', '"': '&quot;' }[c] || c)
+    )
+    .trim()
+    .slice(0, maxLength);
+}
+
+function sanitizeAmount(amount: string): number | null {
+  if (!amount) return null;
+  const cleaned = String(amount).replace(/[^0-9.]/g, "");
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) || parsed < 0 || parsed > 999999999 ? null : parsed;
+}
+
 // ============= Bot Status Check =============
 
 async function isBotEnabled(): Promise<boolean> {
@@ -435,7 +455,12 @@ async function handleNINInput(chatId: number, telegramId: string, nin: string) {
 }
 
 async function handleBusinessNameInput(chatId: number, telegramId: string, businessName: string) {
-  await updateUser(telegramId, { business_name: businessName });
+  const sanitizedName = sanitizeInput(businessName, 200);
+  if (!sanitizedName) {
+    await sendMessage(chatId, `❌ Please enter a valid business name.`);
+    return;
+  }
+  await updateUser(telegramId, { business_name: sanitizedName });
   await setConversationState(telegramId, "cac");
   await sendMessage(
     chatId,
@@ -500,15 +525,20 @@ async function handlePhoto(chatId: number, telegramId: string, user: any, fileId
       return;
     }
 
+    // Sanitize extracted data before saving
+    const sanitizedMerchant = sanitizeInput(extractedData.merchant, 200);
+    const sanitizedAmount = sanitizeAmount(extractedData.amount);
+    const sanitizedCategory = sanitizeInput(extractedData.category, 50) || "other";
+    
     // Save to receipts table
     const { data: receipt, error } = await supabase
       .from("receipts")
       .insert({
         user_id: user.id,
-        merchant: extractedData.merchant,
-        amount: extractedData.amount,
+        merchant: sanitizedMerchant || "Unknown",
+        amount: sanitizedAmount,
         date: extractedData.date,
-        category: extractedData.category,
+        category: sanitizedCategory,
         confidence: extractedData.confidence,
         image_url: fileUrl,
         confirmed: false,
@@ -579,12 +609,22 @@ serve(async (req) => {
     }
 
     const webhookUrl = `${SUPABASE_URL}/functions/v1/telegram-bot`;
+    const TELEGRAM_WEBHOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");
+    
+    const webhookPayload: { url: string; secret_token?: string } = { url: webhookUrl };
+    if (TELEGRAM_WEBHOOK_SECRET) {
+      webhookPayload.secret_token = TELEGRAM_WEBHOOK_SECRET;
+      console.log("[Webhook Setup] Including secret_token for signature verification");
+    } else {
+      console.warn("[Webhook Setup] No TELEGRAM_WEBHOOK_SECRET set - webhook will be unprotected!");
+    }
+    
     const response = await fetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: webhookUrl }),
+        body: JSON.stringify(webhookPayload),
       }
     );
 
