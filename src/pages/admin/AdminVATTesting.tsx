@@ -248,7 +248,7 @@ interface ProjectScenarioResult {
   passed: boolean;
 }
 
-
+export default function AdminVATTesting() {
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
   
