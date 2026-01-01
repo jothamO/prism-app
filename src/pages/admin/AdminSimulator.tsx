@@ -6,7 +6,7 @@ import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database } from "lucide-r
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rjajxabpndmpcgssymxw.supabase.co";
 
 interface Message {
   id: string;
