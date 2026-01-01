@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { timingSafeEqual, createHmac } from "crypto";
 import { whatsappService } from "../services/whatsapp.service";
 import { ocrService } from "../services/ocr.service";
 import { supabase } from "../config/database";
@@ -9,6 +10,26 @@ import { analyticsService } from "../services/analytics.service";
 import { websocketService } from "../services/websocket.service";
 import { antiAvoidanceService } from "../services/anti-avoidance.service";
 import { projectController } from "./project.controller";
+
+/**
+ * Performs a constant-time comparison of two strings to prevent timing attacks.
+ * Returns true if the strings are equal, false otherwise.
+ */
+function safeCompare(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false;
+  
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  
+  // If lengths differ, still perform comparison to maintain constant time
+  if (bufA.length !== bufB.length) {
+    // Compare against itself to maintain timing, then return false
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  
+  return timingSafeEqual(bufA, bufB);
+}
 
 export class WebhookController {
   async handleWhatsApp(req: Request, res: Response) {
@@ -25,8 +46,12 @@ export class WebhookController {
 
   async handleMonoWebhook(req: Request, res: Response) {
     try {
-      const secret = req.headers["x-mono-webhook-secret"];
-      if (secret !== process.env.MONO_WEBHOOK_SECRET) {
+      const secret = req.headers["x-mono-webhook-secret"] as string | undefined;
+      const expectedSecret = process.env.MONO_WEBHOOK_SECRET;
+      
+      // Use constant-time comparison to prevent timing attacks
+      if (!safeCompare(secret, expectedSecret)) {
+        console.warn("Mono webhook: Invalid secret received");
         return res.status(401).send("Unauthorized");
       }
 
