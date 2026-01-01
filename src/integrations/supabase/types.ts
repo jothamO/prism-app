@@ -193,6 +193,45 @@ export type Database = {
           },
         ]
       }
+      bot_commands: {
+        Row: {
+          command: string
+          created_at: string | null
+          description: string
+          id: string
+          is_enabled: boolean | null
+          is_standard: boolean | null
+          platform: string
+          response_text: string | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          command: string
+          created_at?: string | null
+          description: string
+          id?: string
+          is_enabled?: boolean | null
+          is_standard?: boolean | null
+          platform?: string
+          response_text?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          command?: string
+          created_at?: string | null
+          description?: string
+          id?: string
+          is_enabled?: boolean | null
+          is_standard?: boolean | null
+          platform?: string
+          response_text?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       broadcast_messages: {
         Row: {
           admin_user_id: string
@@ -1276,30 +1315,36 @@ export type Database = {
           default_tax_year: number | null
           filing_reminder_days: number | null
           id: string
+          telegram_enabled: boolean | null
           updated_at: string | null
           updated_by: string | null
           welcome_message_telegram: string | null
           welcome_message_whatsapp: string | null
+          whatsapp_enabled: boolean | null
         }
         Insert: {
           auto_verification_enabled?: boolean | null
           default_tax_year?: number | null
           filing_reminder_days?: number | null
           id?: string
+          telegram_enabled?: boolean | null
           updated_at?: string | null
           updated_by?: string | null
           welcome_message_telegram?: string | null
           welcome_message_whatsapp?: string | null
+          whatsapp_enabled?: boolean | null
         }
         Update: {
           auto_verification_enabled?: boolean | null
           default_tax_year?: number | null
           filing_reminder_days?: number | null
           id?: string
+          telegram_enabled?: boolean | null
           updated_at?: string | null
           updated_by?: string | null
           welcome_message_telegram?: string | null
           welcome_message_whatsapp?: string | null
+          whatsapp_enabled?: boolean | null
         }
         Relationships: []
       }
@@ -1552,6 +1597,8 @@ export type Database = {
       users: {
         Row: {
           age: number | null
+          blocked_at: string | null
+          blocked_reason: string | null
           business_name: string | null
           business_type: string | null
           cac_number: string | null
@@ -1563,6 +1610,7 @@ export type Database = {
           full_name: string | null
           has_active_vat: boolean | null
           id: string
+          is_blocked: boolean | null
           last_name: string | null
           nin: string | null
           onboarding_completed: boolean | null
@@ -1585,6 +1633,8 @@ export type Database = {
         }
         Insert: {
           age?: number | null
+          blocked_at?: string | null
+          blocked_reason?: string | null
           business_name?: string | null
           business_type?: string | null
           cac_number?: string | null
@@ -1596,6 +1646,7 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          is_blocked?: boolean | null
           last_name?: string | null
           nin?: string | null
           onboarding_completed?: boolean | null
@@ -1618,6 +1669,8 @@ export type Database = {
         }
         Update: {
           age?: number | null
+          blocked_at?: string | null
+          blocked_reason?: string | null
           business_name?: string | null
           business_type?: string | null
           cac_number?: string | null
@@ -1629,6 +1682,7 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          is_blocked?: boolean | null
           last_name?: string | null
           nin?: string | null
           onboarding_completed?: boolean | null

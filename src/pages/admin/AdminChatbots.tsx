@@ -7,19 +7,22 @@ import {
   Radio,
   RefreshCw,
   Search,
-  Filter,
-  MoreHorizontal,
-  Eye,
-  Trash2,
   CheckCircle2,
-  XCircle,
   Clock,
   Smartphone,
-  MessagesSquare
+  MessagesSquare,
+  ToggleLeft,
+  ToggleRight,
+  AlertTriangle,
+  Trash2,
+  Terminal,
+  Ban,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { BotCommandsManager } from "@/components/admin/BotCommandsManager";
+import { UserActionMenu } from "@/components/admin/UserActionMenu";
 
 type Tab = "overview" | "users" | "conversations" | "broadcast";
 
@@ -36,6 +39,7 @@ interface BotUser {
   entity_type: string | null;
   onboarding_completed: boolean | null;
   verification_status: string | null;
+  is_blocked: boolean | null;
   created_at: string | null;
 }
 
@@ -59,7 +63,6 @@ interface ConversationState {
 
 export default function AdminChatbots() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const { toast } = useToast();
 
   const tabs = [
     { id: "overview" as Tab, name: "Overview", icon: Radio },
@@ -116,9 +119,15 @@ function OverviewTab() {
     totalReceipts: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [showCommands, setShowCommands] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchStats();
+    fetchSettings();
   }, []);
 
   async function fetchStats() {
@@ -144,6 +153,52 @@ function OverviewTab() {
       console.error("Error fetching stats:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchSettings() {
+    const { data } = await supabase.from("system_settings").select("telegram_enabled, whatsapp_enabled").single();
+    if (data) {
+      setTelegramEnabled(data.telegram_enabled ?? true);
+      setWhatsappEnabled(data.whatsapp_enabled ?? true);
+    }
+  }
+
+  async function toggleBot(platform: "telegram" | "whatsapp") {
+    const newEnabled = platform === "telegram" ? !telegramEnabled : !whatsappEnabled;
+    setToggling(platform);
+    try {
+      const response = await supabase.functions.invoke("admin-bot-messaging", {
+        body: { action: "toggle-bot", platform, enabled: newEnabled },
+      });
+      if (response.error) throw response.error;
+      if (platform === "telegram") setTelegramEnabled(newEnabled);
+      else setWhatsappEnabled(newEnabled);
+      toast({ title: "Success", description: `${platform} bot ${newEnabled ? "enabled" : "disabled"}` });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to toggle bot", variant: "destructive" });
+    } finally {
+      setToggling(null);
+    }
+  }
+
+  async function testWebhook() {
+    try {
+      const response = await supabase.functions.invoke("admin-bot-messaging", { body: { action: "health" } });
+      if (response.error) throw response.error;
+      toast({ title: "Webhook Status", description: `Telegram: ${response.data.telegram}, WhatsApp: ${response.data.whatsapp}` });
+    } catch {
+      toast({ title: "Error", description: "Webhook test failed", variant: "destructive" });
+    }
+  }
+
+  async function clearAllStates() {
+    if (!confirm("Clear all conversation states? This will unstick all users.")) return;
+    try {
+      await supabase.functions.invoke("admin-bot-messaging", { body: { action: "clear-all-states" } });
+      toast({ title: "Success", description: "All conversation states cleared" });
+    } catch {
+      toast({ title: "Error", description: "Failed to clear states", variant: "destructive" });
     }
   }
 
@@ -181,8 +236,8 @@ function OverviewTab() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Platform Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Platform Status with Toggles */}
         <div className="bg-card border border-border rounded-xl p-6">
           <h3 className="text-lg font-medium text-foreground mb-4">Platform Status</h3>
           <div className="space-y-4">
@@ -191,20 +246,30 @@ function OverviewTab() {
                 <Bot className="w-5 h-5 text-sky-500" />
                 <span className="text-foreground">Telegram Bot</span>
               </div>
-              <span className="flex items-center gap-2 text-sm text-green-500">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                Online
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={cn("flex items-center gap-2 text-sm", telegramEnabled ? "text-green-500" : "text-muted-foreground")}>
+                  <span className={cn("w-2 h-2 rounded-full", telegramEnabled ? "bg-green-500 animate-pulse" : "bg-muted-foreground")} />
+                  {telegramEnabled ? "Online" : "Disabled"}
+                </span>
+                <button onClick={() => toggleBot("telegram")} disabled={toggling === "telegram"} className="p-1 hover:bg-accent rounded">
+                  {toggling === "telegram" ? <RefreshCw className="w-5 h-5 animate-spin" /> : telegramEnabled ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6 text-muted-foreground" />}
+                </button>
+              </div>
             </div>
             <div className="flex items-center justify-between p-3 bg-background rounded-lg">
               <div className="flex items-center gap-3">
                 <Smartphone className="w-5 h-5 text-green-500" />
                 <span className="text-foreground">WhatsApp (360dialog)</span>
               </div>
-              <span className="flex items-center gap-2 text-sm text-green-500">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                Online
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={cn("flex items-center gap-2 text-sm", whatsappEnabled ? "text-green-500" : "text-muted-foreground")}>
+                  <span className={cn("w-2 h-2 rounded-full", whatsappEnabled ? "bg-green-500 animate-pulse" : "bg-muted-foreground")} />
+                  {whatsappEnabled ? "Online" : "Disabled"}
+                </span>
+                <button onClick={() => toggleBot("whatsapp")} disabled={toggling === "whatsapp"} className="p-1 hover:bg-accent rounded">
+                  {toggling === "whatsapp" ? <RefreshCw className="w-5 h-5 animate-spin" /> : whatsappEnabled ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6 text-muted-foreground" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -213,21 +278,29 @@ function OverviewTab() {
         <div className="bg-card border border-border rounded-xl p-6">
           <h3 className="text-lg font-medium text-foreground mb-4">Quick Actions</h3>
           <div className="space-y-3">
-            <button className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
-              <Send className="w-4 h-4 text-primary" />
-              <span className="text-foreground">Send Broadcast Message</span>
-            </button>
-            <button className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+            <button onClick={testWebhook} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
               <RefreshCw className="w-4 h-4 text-primary" />
               <span className="text-foreground">Test Webhook Connection</span>
             </button>
-            <button className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
-              <Eye className="w-4 h-4 text-primary" />
-              <span className="text-foreground">View Recent Errors</span>
+            <button onClick={() => setShowCommands(!showCommands)} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+              <Terminal className="w-4 h-4 text-primary" />
+              <span className="text-foreground">Manage Bot Commands</span>
+            </button>
+            <button onClick={clearAllStates} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+              <Trash2 className="w-4 h-4 text-destructive" />
+              <span className="text-foreground">Clear All Conversation States</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* Bot Commands Section */}
+      {showCommands && (
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h3 className="text-lg font-medium text-foreground mb-4">Telegram Menu Commands</h3>
+          <BotCommandsManager platform="telegram" />
+        </div>
+      )}
     </div>
   );
 }
@@ -248,7 +321,7 @@ function UsersTab() {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("id, full_name, first_name, last_name, platform, telegram_id, telegram_username, whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, created_at")
+        .select("id, full_name, first_name, last_name, platform, telegram_id, telegram_username, whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, is_blocked, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -330,58 +403,43 @@ function UsersTab() {
               </tr>
             ) : (
               filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-accent/30 transition-colors">
+                <tr key={user.id} className={cn("hover:bg-accent/30 transition-colors", user.is_blocked && "opacity-60")}>
                   <td className="px-4 py-3">
-                    <div>
-                      <p className="text-foreground font-medium">
-                        {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Unknown"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {user.telegram_username ? `@${user.telegram_username}` : user.whatsapp_number || "N/A"}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <p className="text-foreground font-medium">
+                          {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Unknown"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {user.telegram_username ? `@${user.telegram_username}` : user.whatsapp_number || "N/A"}
+                        </p>
+                      </div>
+                      {user.is_blocked && <Ban className="w-4 h-4 text-destructive" />}
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
-                        user.platform === "telegram"
-                          ? "bg-sky-500/20 text-sky-500"
-                          : "bg-green-500/20 text-green-500"
-                      )}
-                    >
+                    <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium", user.platform === "telegram" ? "bg-sky-500/20 text-sky-500" : "bg-green-500/20 text-green-500")}>
                       {user.platform === "telegram" ? <Bot className="w-3 h-3" /> : <Smartphone className="w-3 h-3" />}
                       {user.platform || "Unknown"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-foreground capitalize">
-                    {user.entity_type || "—"}
+                  <td className="px-4 py-3 text-foreground capitalize">{user.entity_type || "—"}</td>
+                  <td className="px-4 py-3">
+                    {user.onboarding_completed ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Clock className="w-5 h-5 text-yellow-500" />}
                   </td>
                   <td className="px-4 py-3">
-                    {user.onboarding_completed ? (
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    ) : (
-                      <Clock className="w-5 h-5 text-yellow-500" />
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium",
-                        user.verification_status === "verified"
-                          ? "bg-green-500/20 text-green-500"
-                          : user.verification_status === "pending"
-                          ? "bg-yellow-500/20 text-yellow-500"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
+                    <span className={cn("px-2 py-1 rounded-full text-xs font-medium", user.verification_status === "verified" ? "bg-green-500/20 text-green-500" : user.verification_status === "pending" ? "bg-yellow-500/20 text-yellow-500" : "bg-muted text-muted-foreground")}>
                       {user.verification_status || "none"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <button className="p-2 hover:bg-accent rounded-lg transition-colors">
-                      <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                    </button>
+                    <UserActionMenu
+                      userId={user.id}
+                      userName={user.full_name || user.first_name || "User"}
+                      platform={user.platform}
+                      isBlocked={user.is_blocked}
+                      onUpdate={fetchUsers}
+                    />
                   </td>
                 </tr>
               ))
