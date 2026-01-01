@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -565,12 +566,16 @@ const AdminSimulator = () => {
         addBotMessageImmediate("🔄 Fetching your tax profile...");
 
         try {
-          const { data: profile } = await fetch(`${SUPABASE_URL}/rest/v1/user_tax_profiles?user_id=eq.${userData.id}&select=*`, {
-            headers: {
-              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              'Content-Type': 'application/json'
-            }
-          }).then(r => r.json()).then(data => ({ data: data[0] }));
+          // Use Supabase client instead of direct REST API call for security
+          const { data: profile, error } = await supabase
+            .from('user_tax_profiles')
+            .select('*')
+            .eq('user_id', userData.id)
+            .maybeSingle();
+          
+          if (error) {
+            console.error('Error fetching tax profile:', error);
+          }
 
           setIsTyping(false);
 
