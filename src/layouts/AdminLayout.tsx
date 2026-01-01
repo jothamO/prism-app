@@ -15,7 +15,8 @@ import {
   FlaskConical,
   Link2,
   Brain,
-  FolderKanban
+  FolderKanban,
+  Bot
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -35,6 +36,7 @@ export default function AdminLayout() {
     { name: "Invoices", path: "/admin/invoices", icon: FileText },
     { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
     { name: "Messaging", path: "/admin/messaging", icon: MessageSquare },
+    { name: "Chatbots", path: "/admin/chatbots", icon: Bot },
     { name: "Payments", path: "/admin/payments", icon: CreditCard },
     { name: "Simulator", path: "/admin/simulator", icon: Smartphone },
     { name: "VAT Testing", path: "/admin/vat-testing", icon: FlaskConical },

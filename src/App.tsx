@@ -18,6 +18,7 @@ import AdminMessaging from "./pages/admin/AdminMessaging";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminSimulator from "./pages/admin/AdminSimulator";
+import AdminChatbots from "./pages/admin/AdminChatbots";
 import AdminVATTesting from "./pages/admin/AdminVATTesting";
 import AdminRelatedParties from "./pages/admin/AdminRelatedParties";
 import AdminFeedback from "./pages/admin/AdminFeedback";
@@ -63,6 +64,7 @@ function App() {
               <Route path="invoices" element={<AdminInvoices />} />
               <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="messaging" element={<AdminMessaging />} />
+              <Route path="chatbots" element={<AdminChatbots />} />
               <Route path="payments" element={<AdminPayments />} />
               <Route path="simulator" element={<AdminSimulator />} />
               <Route path="vat-testing" element={<AdminVATTesting />} />

@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_preferences: {
+        Row: {
+          created_at: string | null
+          email_daily_summary: boolean | null
+          email_on_failed_verification: boolean | null
+          email_on_new_user: boolean | null
+          email_on_receipt_error: boolean | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_daily_summary?: boolean | null
+          email_on_failed_verification?: boolean | null
+          email_on_new_user?: boolean | null
+          email_on_receipt_error?: boolean | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_daily_summary?: boolean | null
+          email_on_failed_verification?: boolean | null
+          email_on_new_user?: boolean | null
+          email_on_receipt_error?: boolean | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_feedback: {
         Row: {
           ai_model_version: string | null
@@ -159,6 +192,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      broadcast_messages: {
+        Row: {
+          admin_user_id: string
+          completed_at: string | null
+          created_at: string | null
+          delivered_count: number | null
+          failed_count: number | null
+          filters: Json | null
+          id: string
+          message_text: string
+          platform: string
+          sent_count: number | null
+          status: string | null
+          total_recipients: number | null
+        }
+        Insert: {
+          admin_user_id: string
+          completed_at?: string | null
+          created_at?: string | null
+          delivered_count?: number | null
+          failed_count?: number | null
+          filters?: Json | null
+          id?: string
+          message_text: string
+          platform: string
+          sent_count?: number | null
+          status?: string | null
+          total_recipients?: number | null
+        }
+        Update: {
+          admin_user_id?: string
+          completed_at?: string | null
+          created_at?: string | null
+          delivered_count?: number | null
+          failed_count?: number | null
+          filters?: Json | null
+          id?: string
+          message_text?: string
+          platform?: string
+          sent_count?: number | null
+          status?: string | null
+          total_recipients?: number | null
+        }
+        Relationships: []
       }
       business_classification_patterns: {
         Row: {
@@ -1191,6 +1269,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      system_settings: {
+        Row: {
+          auto_verification_enabled: boolean | null
+          default_tax_year: number | null
+          filing_reminder_days: number | null
+          id: string
+          updated_at: string | null
+          updated_by: string | null
+          welcome_message_telegram: string | null
+          welcome_message_whatsapp: string | null
+        }
+        Insert: {
+          auto_verification_enabled?: boolean | null
+          default_tax_year?: number | null
+          filing_reminder_days?: number | null
+          id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          welcome_message_telegram?: string | null
+          welcome_message_whatsapp?: string | null
+        }
+        Update: {
+          auto_verification_enabled?: boolean | null
+          default_tax_year?: number | null
+          filing_reminder_days?: number | null
+          id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          welcome_message_telegram?: string | null
+          welcome_message_whatsapp?: string | null
+        }
+        Relationships: []
       }
       user_accounts: {
         Row: {
