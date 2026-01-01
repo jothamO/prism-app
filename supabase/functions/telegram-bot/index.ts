@@ -13,6 +13,31 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// ============= Bot Status Check =============
+
+async function isBotEnabled(): Promise<boolean> {
+  const { data } = await supabase
+    .from("system_settings")
+    .select("telegram_enabled")
+    .maybeSingle();
+  return data?.telegram_enabled ?? true;
+}
+
+// ============= Custom Commands =============
+
+async function getCustomCommandResponse(command: string): Promise<string | null> {
+  const normalizedCommand = command.startsWith("/") ? command : `/${command}`;
+  const { data } = await supabase
+    .from("bot_commands")
+    .select("response_text, is_enabled")
+    .eq("platform", "telegram")
+    .eq("command", normalizedCommand)
+    .eq("is_enabled", true)
+    .maybeSingle();
+
+  return data?.response_text || null;
+}
+
 // ============= Telegram API Helpers =============
 
 async function sendMessage(chatId: number, text: string, buttons?: { text: string; callback_data: string }[][]) {
@@ -477,6 +502,13 @@ serve(async (req) => {
   // Handle Telegram webhook
   if (req.method === "POST") {
     try {
+      // Check if bot is enabled
+      const botEnabled = await isBotEnabled();
+      if (!botEnabled) {
+        console.log("[telegram-bot] Bot is disabled, ignoring update");
+        return new Response("OK", { headers: corsHeaders });
+      }
+
       const update = await req.json();
       console.log("Received update:", JSON.stringify(update, null, 2));
 
@@ -487,7 +519,13 @@ serve(async (req) => {
         const telegramId = from.id.toString();
 
         await answerCallbackQuery(id);
-        await ensureUser(telegramId, from);
+        const user = await ensureUser(telegramId, from);
+
+        // Check if user is blocked
+        if (user.is_blocked) {
+          await sendMessage(chatId, "⚠️ Your account has been suspended. Please contact support for assistance.");
+          return new Response("OK", { headers: corsHeaders });
+        }
 
         if (data.startsWith("entity_")) {
           await handleEntitySelection(chatId, telegramId, data);
@@ -512,16 +550,37 @@ serve(async (req) => {
         const telegramId = from.id.toString();
 
         const user = await ensureUser(telegramId, from);
+        
+        // Check if user is blocked
+        if (user.is_blocked) {
+          await sendMessage(chatId, "⚠️ Your account has been suspended. Please contact support for assistance.");
+          return new Response("OK", { headers: corsHeaders });
+        }
+
         const state = await getConversationState(telegramId);
 
-        // Handle commands
-        if (text === "/start") {
-          await handleStart(chatId, telegramId, user);
-        } else if (text === "/help") {
-          await handleHelp(chatId);
+        // Handle commands - check standard commands first, then custom
+        if (text?.startsWith("/")) {
+          const command = text.split(" ")[0].toLowerCase();
+
+          if (command === "/start") {
+            await handleStart(chatId, telegramId, user);
+            return new Response("OK", { headers: corsHeaders });
+          } else if (command === "/help") {
+            await handleHelp(chatId);
+            return new Response("OK", { headers: corsHeaders });
+          } else {
+            // Check for custom commands from bot_commands table
+            const customResponse = await getCustomCommandResponse(command);
+            if (customResponse) {
+              await sendMessage(chatId, customResponse);
+              return new Response("OK", { headers: corsHeaders });
+            }
+          }
         }
+
         // Handle conversation states
-        else if (state?.expecting === "nin" && text) {
+        if (state?.expecting === "nin" && text) {
           await handleNINInput(chatId, telegramId, text);
         } else if (state?.expecting === "business_name" && text) {
           await handleBusinessNameInput(chatId, telegramId, text);
@@ -534,7 +593,7 @@ serve(async (req) => {
           await handlePhoto(chatId, telegramId, user, largestPhoto.file_id);
         }
         // Handle unknown text
-        else if (text) {
+        else if (text && !text.startsWith("/")) {
           await handleGeneralMessage(chatId, text);
         }
       }
