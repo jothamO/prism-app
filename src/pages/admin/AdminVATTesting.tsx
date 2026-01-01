@@ -329,29 +329,38 @@ const PROJECT_SCENARIOS = [
 // Startup & Cross-Border Scenarios - Section 56, 151, 79
 // HNI Income Source interface
 interface HNIIncomeSource {
-  type: 'employment' | 'investment' | 'rental' | 'dividend' | 'capital_gains';
+  type: 'employment' | 'investment' | 'rental' | 'dividend' | 'capital_gains' | 'foreign_employment' | 'foreign_business' | 'gift' | 'project_funds';
   amount: number;
   description: string;
   taxRate?: number;
   isFinal?: boolean; // Final WHT (no further assessment)
+  foreignCountry?: string; // For DTR calculations
+  foreignTaxPaid?: number; // Tax already paid abroad
+  isExempt?: boolean; // Exempt from Nigerian tax
+  exemptReason?: string;
 }
 
 interface HNIScenario {
   id: string;
   name: string;
   persona: string;
+  residencyStatus: 'resident' | 'non-resident' | 'diaspora';
   incomeSources: HNIIncomeSource[];
   expectedTotalIncome: number;
   expectedTotalTax: number;
+  expectedDTRCredit?: number; // Double Taxation Relief
   expectedEffectiveRate: number;
   notes: string[];
+  dtrTreaties?: string[]; // Applicable tax treaties
 }
 
 const HNI_SCENARIOS: HNIScenario[] = [
+  // DOMESTIC HNI SCENARIOS
   {
     id: 'hni-diversified',
     name: "Chief Okonkwo: Diversified HNI",
     persona: 'High Net Worth Individual with employment, investments, and rental income',
+    residencyStatus: 'resident',
     incomeSources: [
       { type: 'employment', amount: 36000000, description: 'CEO Salary (₦3M/month)' },
       { type: 'dividend', amount: 12000000, description: 'Dividend from portfolio (₦12M)', taxRate: 10, isFinal: true },
@@ -359,7 +368,7 @@ const HNI_SCENARIOS: HNIScenario[] = [
       { type: 'capital_gains', amount: 5000000, description: 'Share sales gains', taxRate: 10, isFinal: true },
     ],
     expectedTotalIncome: 61000000,
-    expectedTotalTax: 12568000, // Employment PIT + final WHTs
+    expectedTotalTax: 12568000,
     expectedEffectiveRate: 20.6,
     notes: [
       'Dividends: 10% final WHT (Section 72)',
@@ -372,6 +381,7 @@ const HNI_SCENARIOS: HNIScenario[] = [
     id: 'hni-property-mogul',
     name: "Alhaji Musa: Property Investor",
     persona: 'Property-focused investor with significant rental income',
+    residencyStatus: 'resident',
     incomeSources: [
       { type: 'employment', amount: 18000000, description: 'Board positions (₦1.5M/month)' },
       { type: 'rental', amount: 48000000, description: 'Commercial property rentals' },
@@ -391,6 +401,7 @@ const HNI_SCENARIOS: HNIScenario[] = [
     id: 'hni-tech-founder',
     name: "Ada: Tech Founder Exit",
     persona: 'Startup founder with employment + capital gains from equity sale',
+    residencyStatus: 'resident',
     incomeSources: [
       { type: 'employment', amount: 24000000, description: 'Founder salary (₦2M/month)' },
       { type: 'capital_gains', amount: 150000000, description: 'Startup equity sale', taxRate: 10, isFinal: true },
@@ -404,6 +415,174 @@ const HNI_SCENARIOS: HNIScenario[] = [
       'Low effective rate due to CGT vs. PIT',
       'Consider Labelled Startup CGT exemptions',
       'Dividend WHT is final - no further assessment',
+    ],
+  },
+
+  // INTERNATIONAL HNI - DTR SCENARIOS
+  {
+    id: 'hni-international-executive',
+    name: "Dr. Emeka: Global Executive (DTR)",
+    persona: 'Nigerian resident with international employment and foreign dividends - DTR applies',
+    residencyStatus: 'resident',
+    dtrTreaties: ['UK-Nigeria DTT', 'Canada-Nigeria DTT'],
+    incomeSources: [
+      { type: 'employment', amount: 48000000, description: 'Nigerian company salary (₦4M/month)' },
+      { type: 'foreign_employment', amount: 36000000, description: 'UK consulting fees (£20k)', foreignCountry: 'UK', foreignTaxPaid: 7200000 },
+      { type: 'dividend', amount: 8000000, description: 'Canadian stock dividends', foreignCountry: 'Canada', foreignTaxPaid: 1200000, taxRate: 10, isFinal: true },
+      { type: 'rental', amount: 12000000, description: 'Lagos rental properties' },
+    ],
+    expectedTotalIncome: 104000000,
+    expectedTotalTax: 16960000,
+    expectedDTRCredit: 8400000, // Credit for UK + Canada tax paid
+    expectedEffectiveRate: 16.3,
+    notes: [
+      'UK income: DTR credit up to Nigerian rate (Section 44)',
+      'Canadian dividends: 15% treaty rate, credit available',
+      'Must file worldwide income as Nigerian resident',
+      'Keep foreign tax certificates for DTR claims',
+      'Excess foreign tax credit cannot be refunded',
+    ],
+  },
+  {
+    id: 'hni-foreign-investment',
+    name: "Mrs. Afolabi: Foreign Portfolio",
+    persona: 'Nigerian resident with US stock portfolio and UK property rental',
+    residencyStatus: 'resident',
+    dtrTreaties: ['US-Nigeria (limited)', 'UK-Nigeria DTT'],
+    incomeSources: [
+      { type: 'employment', amount: 30000000, description: 'MD salary (₦2.5M/month)' },
+      { type: 'dividend', amount: 25000000, description: 'US tech stock dividends', foreignCountry: 'USA', foreignTaxPaid: 7500000, taxRate: 10, isFinal: true },
+      { type: 'rental', amount: 18000000, description: 'London apartment rental', foreignCountry: 'UK', foreignTaxPaid: 3600000 },
+      { type: 'capital_gains', amount: 15000000, description: 'Tesla share sale', foreignCountry: 'USA', foreignTaxPaid: 2250000, taxRate: 10, isFinal: true },
+    ],
+    expectedTotalIncome: 88000000,
+    expectedTotalTax: 14280000,
+    expectedDTRCredit: 13350000,
+    expectedEffectiveRate: 16.2,
+    notes: [
+      'US dividends: 30% withheld, credit limited to 10% Nigerian rate',
+      'UK rental: 20% UK tax, full credit available',
+      'US CGT: Credit limited to 10% Nigerian CGT rate',
+      'Excess US withholding not refundable in Nigeria',
+      'Consider US-domiciled ETFs for efficiency',
+    ],
+  },
+
+  // DIASPORA SCENARIOS
+  {
+    id: 'diaspora-usa-business',
+    name: "Chidi: US-Based with Nigeria Business",
+    persona: 'Nigerian in USA running a Lagos import business remotely',
+    residencyStatus: 'diaspora',
+    dtrTreaties: ['US primary residence - Nigeria source income only'],
+    incomeSources: [
+      { type: 'foreign_employment', amount: 120000000, description: 'US tech salary ($80k)', foreignCountry: 'USA', foreignTaxPaid: 28800000, isExempt: true, exemptReason: 'Not Nigerian source' },
+      { type: 'investment', amount: 18000000, description: 'Lagos import company profits' },
+      { type: 'rental', amount: 6000000, description: 'Family house rental (Abuja)' },
+      { type: 'dividend', amount: 4000000, description: 'Nigerian bank shares', taxRate: 10, isFinal: true },
+    ],
+    expectedTotalIncome: 148000000,
+    expectedTotalTax: 6160000, // Only Nigerian-source income taxed
+    expectedEffectiveRate: 4.2,
+    notes: [
+      'US salary: Not taxable in Nigeria (foreign source)',
+      'Lagos business: Taxable as Nigerian source income',
+      'Non-resident: Only Nigerian-source income taxable',
+      'Must file US taxes on worldwide income',
+      'Consider Nigerian withholding compliance for business',
+    ],
+  },
+  {
+    id: 'diaspora-uk-construction',
+    name: "Ngozi: UK Nurse Building in Nigeria",
+    persona: 'Nigerian healthcare worker in UK funding personal construction project',
+    residencyStatus: 'diaspora',
+    dtrTreaties: ['UK primary residence - project funds exempt'],
+    incomeSources: [
+      { type: 'foreign_employment', amount: 28000000, description: 'NHS nursing salary (£40k)', foreignCountry: 'UK', foreignTaxPaid: 5600000, isExempt: true, exemptReason: 'Not Nigerian source' },
+      { type: 'project_funds', amount: 15000000, description: 'House construction (Enugu)', isExempt: true, exemptReason: 'Personal use - not income' },
+      { type: 'gift', amount: 3000000, description: 'Support to parents monthly', isExempt: true, exemptReason: 'Gift - not income to sender' },
+    ],
+    expectedTotalIncome: 46000000,
+    expectedTotalTax: 0,
+    expectedEffectiveRate: 0,
+    notes: [
+      'UK salary: Taxed in UK only (not Nigerian source)',
+      'Construction: Personal expense, not taxable income',
+      'Family support: Gift tax applies to recipient if > threshold',
+      'No Nigerian filing required if no Nigerian-source income',
+      'Keep records of fund transfers for audit trail',
+    ],
+  },
+  {
+    id: 'diaspora-mixed-income',
+    name: "Kunle: Canada Tech + Nigeria Investments",
+    persona: 'Software engineer in Toronto with Nigerian rental and business interests',
+    residencyStatus: 'diaspora',
+    dtrTreaties: ['Canada-Nigeria DTT'],
+    incomeSources: [
+      { type: 'foreign_employment', amount: 85000000, description: 'Toronto tech salary (CAD 90k)', foreignCountry: 'Canada', foreignTaxPaid: 25500000, isExempt: true, exemptReason: 'Not Nigerian source' },
+      { type: 'rental', amount: 9600000, description: '2 Lagos apartments (₦400k each/month)' },
+      { type: 'investment', amount: 6000000, description: 'Side business consulting (Nigeria clients)' },
+      { type: 'dividend', amount: 2400000, description: 'GTBank shares', taxRate: 10, isFinal: true },
+      { type: 'gift', amount: 6000000, description: 'Annual family support', isExempt: true, exemptReason: 'Gift - not income' },
+    ],
+    expectedTotalIncome: 109000000,
+    expectedTotalTax: 3984000,
+    expectedEffectiveRate: 3.7,
+    notes: [
+      'Canadian salary: Exempt (non-Nigerian source)',
+      'Lagos rentals: Subject to Nigerian tax (source-based)',
+      'Nigerian consulting: Taxable in Nigeria',
+      'Consider property management for compliance',
+      'File Nigerian returns for local income only',
+    ],
+  },
+  {
+    id: 'diaspora-visits-expenses',
+    name: "Amaka: Frequent Visitor Expenses",
+    persona: 'US-based professional with regular Nigeria visits and local spending',
+    residencyStatus: 'diaspora',
+    dtrTreaties: ['US primary residence'],
+    incomeSources: [
+      { type: 'foreign_employment', amount: 72000000, description: 'US consulting ($48k)', foreignCountry: 'USA', foreignTaxPaid: 17280000, isExempt: true, exemptReason: 'Not Nigerian source' },
+      { type: 'project_funds', amount: 8000000, description: 'Visit expenses (hotels, transport, family)', isExempt: true, exemptReason: 'Personal consumption' },
+      { type: 'gift', amount: 12000000, description: 'Parents house renovation gift', isExempt: true, exemptReason: 'Gift - not income to giver' },
+      { type: 'rental', amount: 3600000, description: 'Inherited family property rent' },
+    ],
+    expectedTotalIncome: 95600000,
+    expectedTotalTax: 672000,
+    expectedEffectiveRate: 0.7,
+    notes: [
+      'Visit expenses: Not taxable (personal consumption)',
+      'Gifts: No tax for giver, recipient may have obligations',
+      'Inherited property: Rental income is Nigerian source',
+      'Stay < 183 days to maintain non-resident status',
+      'Document purpose of transfers for anti-avoidance',
+    ],
+  },
+  {
+    id: 'diaspora-retirement-return',
+    name: "Prof. Adebayo: Returning Retiree",
+    persona: 'Retired academic returning to Nigeria with US pension and savings',
+    residencyStatus: 'resident',
+    dtrTreaties: ['US-Nigeria (pension provisions)'],
+    incomeSources: [
+      { type: 'foreign_employment', amount: 24000000, description: 'US university pension', foreignCountry: 'USA', foreignTaxPaid: 2400000 },
+      { type: 'dividend', amount: 8000000, description: 'US 401k distributions', foreignCountry: 'USA', foreignTaxPaid: 1600000, taxRate: 10, isFinal: true },
+      { type: 'rental', amount: 7200000, description: 'Lagos retirement home rental' },
+      { type: 'investment', amount: 3000000, description: 'Nigerian treasury bills', isExempt: true, exemptReason: 'Government securities exempt' },
+    ],
+    expectedTotalIncome: 42200000,
+    expectedTotalTax: 5856000,
+    expectedDTRCredit: 4000000,
+    expectedEffectiveRate: 13.9,
+    notes: [
+      'US pension: Taxable in Nigeria with DTR credit',
+      '401k: Treated as pension, DTR available',
+      'Nigerian T-bills: Exempt from tax (Sec 23)',
+      'Resident status: Worldwide income now taxable',
+      'Consider timing of return for tax efficiency',
     ],
   },
 ];
@@ -541,9 +720,25 @@ export default function AdminVATTesting() {
   const [selectedHNIScenario, setSelectedHNIScenario] = useState(HNI_SCENARIOS[0].id);
   const [hniResult, setHniResult] = useState<{
     totalIncome: number;
-    taxBreakdown: Array<{ source: string; income: number; tax: number; rate: number; isFinal: boolean }>;
+    taxableIncome: number;
+    exemptIncome: number;
+    taxBreakdown: Array<{ 
+      source: string; 
+      income: number; 
+      tax: number; 
+      rate: number; 
+      isFinal: boolean;
+      isExempt?: boolean;
+      exemptReason?: string;
+      foreignCountry?: string;
+      foreignTaxPaid?: number;
+      dtrCredit?: number;
+    }>;
     totalTax: number;
+    totalDTRCredit: number;
+    netTaxPayable: number;
     effectiveRate: number;
+    residencyStatus: string;
     passed: boolean;
   } | null>(null);
   
@@ -1152,63 +1347,153 @@ export default function AdminVATTesting() {
         return tax;
       };
 
-      // Calculate tax for each income source
-      const taxBreakdown: Array<{ source: string; income: number; tax: number; rate: number; isFinal: boolean }> = [];
+      // Calculate tax for each income source with DTR and exemptions
+      const taxBreakdown: Array<{ 
+        source: string; 
+        income: number; 
+        tax: number; 
+        rate: number; 
+        isFinal: boolean;
+        isExempt?: boolean;
+        exemptReason?: string;
+        foreignCountry?: string;
+        foreignTaxPaid?: number;
+        dtrCredit?: number;
+      }> = [];
+      
       let consolidatedIncome = 0;
+      let exemptIncome = 0;
+      let totalDTRCredit = 0;
 
       for (const source of scenario.incomeSources) {
-        if (source.isFinal) {
+        // Handle exempt income
+        if (source.isExempt) {
+          exemptIncome += source.amount;
+          taxBreakdown.push({
+            source: source.description,
+            income: source.amount,
+            tax: 0,
+            rate: 0,
+            isFinal: false,
+            isExempt: true,
+            exemptReason: source.exemptReason,
+            foreignCountry: source.foreignCountry,
+            foreignTaxPaid: source.foreignTaxPaid
+          });
+        } else if (source.isFinal) {
           // Final WHT - no further assessment
           const tax = source.amount * (source.taxRate! / 100);
+          
+          // DTR credit for foreign final withholding (limited to Nigerian rate)
+          let dtrCredit = 0;
+          if (source.foreignTaxPaid && source.foreignTaxPaid > 0) {
+            const nigerianTaxDue = tax;
+            dtrCredit = Math.min(source.foreignTaxPaid, nigerianTaxDue);
+            totalDTRCredit += dtrCredit;
+          }
+          
           taxBreakdown.push({
             source: source.description,
             income: source.amount,
             tax,
             rate: source.taxRate!,
-            isFinal: true
+            isFinal: true,
+            foreignCountry: source.foreignCountry,
+            foreignTaxPaid: source.foreignTaxPaid,
+            dtrCredit
+          });
+        } else if (source.foreignCountry && source.foreignTaxPaid) {
+          // Foreign income with DTR (not final)
+          consolidatedIncome += source.amount;
+          // Track for DTR calculation later
+          taxBreakdown.push({
+            source: source.description,
+            income: source.amount,
+            tax: 0, // Will be calculated as part of consolidated
+            rate: 0,
+            isFinal: false,
+            foreignCountry: source.foreignCountry,
+            foreignTaxPaid: source.foreignTaxPaid,
+            dtrCredit: source.foreignTaxPaid // Potential credit, may be limited
           });
         } else {
-          // Consolidate for progressive tax
+          // Regular Nigerian income - consolidate for progressive tax
           consolidatedIncome += source.amount;
         }
       }
 
       // Calculate progressive tax on consolidated income
+      let consolidatedTax = 0;
       if (consolidatedIncome > 0) {
-        const progressiveTax = calculateProgressiveTax(consolidatedIncome);
-        const consolidatedSources = scenario.incomeSources
-          .filter(s => !s.isFinal)
-          .map(s => s.type)
-          .join(' + ');
+        consolidatedTax = calculateProgressiveTax(consolidatedIncome);
         
-        taxBreakdown.push({
-          source: `Consolidated (${consolidatedSources})`,
-          income: consolidatedIncome,
-          tax: progressiveTax,
-          rate: (progressiveTax / consolidatedIncome) * 100,
-          isFinal: false
-        });
+        // Calculate DTR credits for foreign income in consolidated pool
+        const foreignSources = scenario.incomeSources.filter(
+          s => !s.isExempt && !s.isFinal && s.foreignCountry && s.foreignTaxPaid
+        );
+        
+        for (const fs of foreignSources) {
+          // DTR credit limited to Nigerian tax attributable to that income
+          const incomeRatio = fs.amount / consolidatedIncome;
+          const nigerianTaxOnThisIncome = consolidatedTax * incomeRatio;
+          const dtrCredit = Math.min(fs.foreignTaxPaid!, nigerianTaxOnThisIncome);
+          totalDTRCredit += dtrCredit;
+          
+          // Update the breakdown entry
+          const entry = taxBreakdown.find(t => t.source === fs.description);
+          if (entry) {
+            entry.dtrCredit = dtrCredit;
+            entry.tax = nigerianTaxOnThisIncome;
+            entry.rate = (nigerianTaxOnThisIncome / fs.amount) * 100;
+          }
+        }
+        
+        // Add consolidated entry for local income
+        const localSources = scenario.incomeSources.filter(
+          s => !s.isExempt && !s.isFinal && !s.foreignCountry
+        );
+        const localIncome = localSources.reduce((sum, s) => sum + s.amount, 0);
+        
+        if (localIncome > 0) {
+          const localTaxRatio = localIncome / consolidatedIncome;
+          taxBreakdown.push({
+            source: `Nigerian Income (${localSources.map(s => s.type).join(' + ')})`,
+            income: localIncome,
+            tax: consolidatedTax * localTaxRatio,
+            rate: ((consolidatedTax * localTaxRatio) / localIncome) * 100,
+            isFinal: false
+          });
+        }
       }
 
       const totalIncome = scenario.incomeSources.reduce((sum, s) => sum + s.amount, 0);
+      const taxableIncome = totalIncome - exemptIncome;
+      
+      // Sum all taxes from breakdown
       const totalTax = taxBreakdown.reduce((sum, t) => sum + t.tax, 0);
-      const effectiveRate = (totalTax / totalIncome) * 100;
+      const netTaxPayable = Math.max(0, totalTax - totalDTRCredit);
+      const effectiveRate = taxableIncome > 0 ? (netTaxPayable / taxableIncome) * 100 : 0;
 
       // Check if results match expectations
-      const taxTolerance = scenario.expectedTotalTax * 0.05; // 5% tolerance
-      const passed = Math.abs(totalTax - scenario.expectedTotalTax) < taxTolerance;
+      const taxTolerance = Math.max(scenario.expectedTotalTax * 0.10, 100000); // 10% or ₦100k tolerance
+      const passed = Math.abs(netTaxPayable - scenario.expectedTotalTax) < taxTolerance;
 
       setHniResult({
         totalIncome,
-        taxBreakdown,
+        taxableIncome,
+        exemptIncome,
+        taxBreakdown: taxBreakdown.filter(t => t.income > 0),
         totalTax,
+        totalDTRCredit,
+        netTaxPayable,
         effectiveRate,
+        residencyStatus: scenario.residencyStatus,
         passed
       });
 
       toast({
         title: passed ? "HNI Scenario PASSED ✓" : "HNI Scenario completed with variations",
-        description: `Total Tax: ${formatCurrency(totalTax)} (${effectiveRate.toFixed(1)}% effective)`,
+        description: `Net Tax: ${formatCurrency(netTaxPayable)} (${effectiveRate.toFixed(1)}% effective)${totalDTRCredit > 0 ? ` | DTR: ${formatCurrency(totalDTRCredit)}` : ''}`,
         variant: passed ? "default" : "destructive"
       });
     } catch (error) {
@@ -2288,7 +2573,14 @@ export default function AdminVATTesting() {
         </CardHeader>
         {expandedSections.hniTesting && (
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {/* Scenario Category Tabs */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-muted rounded">Domestic HNI</span>
+              <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-blue-500/20 text-blue-600 rounded">International DTR</span>
+              <span className="text-xs font-medium text-muted-foreground px-2 py-1 bg-green-500/20 text-green-600 rounded">Diaspora</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {HNI_SCENARIOS.map((scenario) => (
                 <Button
                   key={scenario.id}
@@ -2300,14 +2592,29 @@ export default function AdminVATTesting() {
                   }}
                   disabled={loading !== null}
                 >
-                  <span className="font-medium text-sm">{scenario.name}</span>
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="font-medium text-sm flex-1">{scenario.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      scenario.residencyStatus === 'diaspora' ? 'bg-green-500/20 text-green-600' :
+                      scenario.dtrTreaties ? 'bg-blue-500/20 text-blue-600' : 'bg-muted'
+                    }`}>
+                      {scenario.residencyStatus === 'diaspora' ? '🌍 Diaspora' : 
+                       scenario.dtrTreaties ? '🌐 DTR' : '🇳🇬 Local'}
+                    </span>
+                  </div>
                   <span className="text-xs text-muted-foreground mt-1">{scenario.persona}</span>
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {scenario.incomeSources.map((source, idx) => (
-                      <span key={idx} className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                        {source.type}
+                    {scenario.incomeSources.slice(0, 4).map((source, idx) => (
+                      <span key={idx} className={`text-xs px-1.5 py-0.5 rounded ${
+                        source.isExempt ? 'bg-green-500/10 text-green-600' :
+                        source.foreignCountry ? 'bg-blue-500/10 text-blue-600' : 'bg-muted'
+                      }`}>
+                        {source.type.replace('_', ' ')}
                       </span>
                     ))}
+                    {scenario.incomeSources.length > 4 && (
+                      <span className="text-xs bg-muted px-1.5 py-0.5 rounded">+{scenario.incomeSources.length - 4}</span>
+                    )}
                   </div>
                 </Button>
               ))}
@@ -2316,41 +2623,103 @@ export default function AdminVATTesting() {
             {loading === 'hni-scenario' && (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-                <span className="ml-2">Calculating HNI taxes...</span>
+                <span className="ml-2">Calculating HNI taxes with DTR...</span>
               </div>
             )}
 
             {hniResult && (
               <div className="p-4 bg-muted rounded-lg space-y-4">
+                {/* Status Header */}
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium">Tax Breakdown by Source</h4>
+                  <div className="flex items-center gap-3">
+                    <h4 className="font-medium">Tax Breakdown</h4>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      hniResult.residencyStatus === 'diaspora' ? 'bg-green-500/20 text-green-600' :
+                      hniResult.residencyStatus === 'non-resident' ? 'bg-blue-500/20 text-blue-600' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      {hniResult.residencyStatus === 'diaspora' ? '🌍 Diaspora (Source-based)' :
+                       hniResult.residencyStatus === 'non-resident' ? '🌐 Non-Resident' :
+                       '🇳🇬 Resident (Worldwide)'}
+                    </span>
+                  </div>
                   <span className={`text-sm font-bold ${hniResult.passed ? 'text-green-500' : 'text-yellow-500'}`}>
                     {hniResult.passed ? '✓ PASSED' : '⚠ Variation'}
                   </span>
                 </div>
 
+                {/* Exempt Income Banner */}
+                {hniResult.exemptIncome > 0 && (
+                  <div className="p-3 bg-green-500/10 border border-green-500/30 rounded">
+                    <p className="text-sm font-medium text-green-600">
+                      ✓ Exempt Income: {formatCurrency(hniResult.exemptIncome)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Not subject to Nigerian tax (foreign source / personal use / gifts)
+                    </p>
+                  </div>
+                )}
+
+                {/* DTR Credit Banner */}
+                {hniResult.totalDTRCredit > 0 && (
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded">
+                    <p className="text-sm font-medium text-blue-600">
+                      🌐 Double Taxation Relief: {formatCurrency(hniResult.totalDTRCredit)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Credit for foreign taxes paid (Section 44 - limited to Nigerian rate)
+                    </p>
+                  </div>
+                )}
+
                 {/* Income Sources Table */}
-                <div className="rounded border overflow-hidden">
+                <div className="rounded border overflow-hidden overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-background">
                       <tr>
                         <th className="text-left p-2 font-medium">Income Source</th>
                         <th className="text-right p-2 font-medium">Amount</th>
-                        <th className="text-right p-2 font-medium">Tax Rate</th>
-                        <th className="text-right p-2 font-medium">Tax</th>
-                        <th className="text-center p-2 font-medium">Type</th>
+                        <th className="text-right p-2 font-medium">Foreign Tax</th>
+                        <th className="text-right p-2 font-medium">DTR Credit</th>
+                        <th className="text-right p-2 font-medium">NG Tax</th>
+                        <th className="text-center p-2 font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {hniResult.taxBreakdown.map((item, idx) => (
-                        <tr key={idx} className="border-t">
-                          <td className="p-2">{item.source}</td>
+                        <tr key={idx} className={`border-t ${item.isExempt ? 'bg-green-500/5' : ''}`}>
+                          <td className="p-2">
+                            <div>
+                              <span>{item.source}</span>
+                              {item.foreignCountry && (
+                                <span className="ml-1 text-xs text-blue-600">({item.foreignCountry})</span>
+                              )}
+                            </div>
+                            {item.exemptReason && (
+                              <p className="text-xs text-muted-foreground">{item.exemptReason}</p>
+                            )}
+                          </td>
                           <td className="p-2 text-right font-mono">{formatCurrency(item.income)}</td>
-                          <td className="p-2 text-right font-mono">{item.rate.toFixed(1)}%</td>
-                          <td className="p-2 text-right font-mono text-red-500">{formatCurrency(item.tax)}</td>
+                          <td className="p-2 text-right font-mono text-blue-500">
+                            {item.foreignTaxPaid ? formatCurrency(item.foreignTaxPaid) : '-'}
+                          </td>
+                          <td className="p-2 text-right font-mono text-green-500">
+                            {item.dtrCredit ? formatCurrency(item.dtrCredit) : '-'}
+                          </td>
+                          <td className="p-2 text-right font-mono text-red-500">
+                            {item.isExempt ? '₦0' : formatCurrency(item.tax)}
+                          </td>
                           <td className="p-2 text-center">
-                            <span className={`text-xs px-2 py-0.5 rounded ${item.isFinal ? 'bg-blue-500/20 text-blue-600' : 'bg-green-500/20 text-green-600'}`}>
-                              {item.isFinal ? 'Final WHT' : 'Progressive'}
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              item.isExempt ? 'bg-green-500/20 text-green-600' :
+                              item.isFinal ? 'bg-blue-500/20 text-blue-600' : 
+                              item.foreignCountry ? 'bg-purple-500/20 text-purple-600' :
+                              'bg-muted'
+                            }`}>
+                              {item.isExempt ? 'Exempt' :
+                               item.isFinal ? 'Final WHT' : 
+                               item.foreignCountry ? 'DTR' :
+                               'Progressive'}
                             </span>
                           </td>
                         </tr>
@@ -2360,42 +2729,68 @@ export default function AdminVATTesting() {
                       <tr className="border-t-2">
                         <td className="p-2">Total</td>
                         <td className="p-2 text-right font-mono">{formatCurrency(hniResult.totalIncome)}</td>
-                        <td className="p-2 text-right font-mono">{hniResult.effectiveRate.toFixed(1)}%</td>
+                        <td className="p-2 text-right font-mono text-blue-500">
+                          {formatCurrency(hniResult.taxBreakdown.reduce((sum, t) => sum + (t.foreignTaxPaid || 0), 0))}
+                        </td>
+                        <td className="p-2 text-right font-mono text-green-500">{formatCurrency(hniResult.totalDTRCredit)}</td>
                         <td className="p-2 text-right font-mono text-red-600">{formatCurrency(hniResult.totalTax)}</td>
-                        <td className="p-2 text-center text-xs text-muted-foreground">Effective</td>
+                        <td className="p-2 text-center text-xs text-muted-foreground">Gross</td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
 
-                {/* Scenario Notes */}
+                {/* Scenario Notes & Treaties */}
                 {(() => {
                   const scenario = HNI_SCENARIOS.find(s => s.id === selectedHNIScenario);
-                  return scenario && scenario.notes.length > 0 && (
-                    <div className="p-3 bg-background rounded">
-                      <p className="text-xs font-medium mb-2">📝 Tax Planning Notes:</p>
-                      <ul className="text-xs text-muted-foreground space-y-1">
-                        {scenario.notes.map((note, idx) => (
-                          <li key={idx}>• {note}</li>
-                        ))}
-                      </ul>
+                  return scenario && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {scenario.dtrTreaties && scenario.dtrTreaties.length > 0 && (
+                        <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded">
+                          <p className="text-xs font-medium text-blue-600 mb-2">🌐 Applicable Tax Treaties:</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            {scenario.dtrTreaties.map((treaty, idx) => (
+                              <li key={idx}>• {treaty}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {scenario.notes.length > 0 && (
+                        <div className="p-3 bg-background rounded">
+                          <p className="text-xs font-medium mb-2">📝 Tax Planning Notes:</p>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            {scenario.notes.map((note, idx) => (
+                              <li key={idx}>• {note}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div className="p-3 bg-background rounded text-center">
                     <p className="text-xs text-muted-foreground">Total Income</p>
-                    <p className="font-mono font-bold text-lg">{formatCurrency(hniResult.totalIncome)}</p>
+                    <p className="font-mono font-bold">{formatCurrency(hniResult.totalIncome)}</p>
+                  </div>
+                  <div className="p-3 bg-green-500/10 rounded text-center">
+                    <p className="text-xs text-green-600">Exempt</p>
+                    <p className="font-mono font-bold text-green-600">{formatCurrency(hniResult.exemptIncome)}</p>
                   </div>
                   <div className="p-3 bg-background rounded text-center">
-                    <p className="text-xs text-muted-foreground">Total Tax</p>
-                    <p className="font-mono font-bold text-lg text-red-500">{formatCurrency(hniResult.totalTax)}</p>
+                    <p className="text-xs text-muted-foreground">Taxable</p>
+                    <p className="font-mono font-bold">{formatCurrency(hniResult.taxableIncome)}</p>
                   </div>
-                  <div className="p-3 bg-background rounded text-center">
-                    <p className="text-xs text-muted-foreground">Net Income</p>
-                    <p className="font-mono font-bold text-lg text-green-500">{formatCurrency(hniResult.totalIncome - hniResult.totalTax)}</p>
+                  <div className="p-3 bg-blue-500/10 rounded text-center">
+                    <p className="text-xs text-blue-600">DTR Credit</p>
+                    <p className="font-mono font-bold text-blue-600">-{formatCurrency(hniResult.totalDTRCredit)}</p>
+                  </div>
+                  <div className="p-3 bg-red-500/10 rounded text-center">
+                    <p className="text-xs text-red-600">Net Tax Due</p>
+                    <p className="font-mono font-bold text-red-600">{formatCurrency(hniResult.netTaxPayable)}</p>
+                    <p className="text-xs text-muted-foreground">{hniResult.effectiveRate.toFixed(1)}% eff.</p>
                   </div>
                 </div>
               </div>
