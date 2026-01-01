@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { BotCommandsManager } from "@/components/admin/BotCommandsManager";
 import { UserActionMenu } from "@/components/admin/UserActionMenu";
+import { ConfirmationProgressDialog, ProgressStep } from "@/components/admin/ConfirmationProgressDialog";
 
 type Tab = "overview" | "users" | "conversations" | "broadcast";
 
@@ -125,6 +126,8 @@ function OverviewTab() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [showCommands, setShowCommands] = useState(false);
   const [healthStatus, setHealthStatus] = useState<{ telegram: string; whatsapp: string } | null>(null);
+  const [clearStatesDialogOpen, setClearStatesDialogOpen] = useState(false);
+  const [activeStateCount, setActiveStateCount] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -213,16 +216,31 @@ function OverviewTab() {
     }
   }
 
-  async function clearAllStates() {
-    if (!confirm("Clear all conversation states? This will unstick all users.")) return;
-    try {
-      const response = await supabase.functions.invoke("admin-bot-messaging", { body: { action: "clear-all-states" } });
-      if (response.error) throw response.error;
-      toast({ title: "Success", description: "All conversation states cleared" });
-    } catch (error) {
-      console.error("Clear states error:", error);
-      toast({ title: "Error", description: "Failed to clear states", variant: "destructive" });
+  async function fetchActiveStateCount() {
+    const { count } = await supabase
+      .from("conversation_state")
+      .select("*", { count: "exact", head: true })
+      .or("expecting.not.is.null,context.neq.{}");
+    setActiveStateCount(count || 0);
+  }
+
+  async function handleClearAllStates(): Promise<{ steps: ProgressStep[] }> {
+    const response = await supabase.functions.invoke("admin-bot-messaging", { body: { action: "clear-all-states" } });
+    if (response.error) throw response.error;
+    
+    const result = response.data;
+    if (result.success) {
+      toast({ title: "Success", description: `Cleared ${result.totalCleared} conversation states` });
+    } else {
+      toast({ title: "Warning", description: "Some states may not have been cleared", variant: "destructive" });
     }
+    
+    return { steps: result.steps || [] };
+  }
+
+  function openClearStatesDialog() {
+    fetchActiveStateCount();
+    setClearStatesDialogOpen(true);
   }
 
   const statCards = [
@@ -319,7 +337,7 @@ function OverviewTab() {
                 <Zap className="w-4 h-4 text-primary" />
                 <span className="text-foreground">Test Platform Connections</span>
               </button>
-              <button onClick={clearAllStates} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+              <button onClick={openClearStatesDialog} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
                 <Trash2 className="w-4 h-4 text-destructive" />
                 <span className="text-foreground">Clear All Conversation States</span>
               </button>
@@ -361,6 +379,26 @@ function OverviewTab() {
           <BotCommandsManager platform="telegram" />
         </div>
       )}
+
+      {/* Clear States Confirmation Dialog */}
+      <ConfirmationProgressDialog
+        open={clearStatesDialogOpen}
+        onOpenChange={setClearStatesDialogOpen}
+        title="Clear All Conversation States?"
+        description="This will reset all stuck conversation flows. Users will need to re-enter any in-progress commands."
+        affectedItems={[
+          { label: "Active Conversation States", count: activeStateCount }
+        ]}
+        destructive={true}
+        confirmText="Clear All States"
+        cancelText="Cancel"
+        onConfirm={handleClearAllStates}
+        initialSteps={[
+          { id: "count", label: "Count affected states", status: "pending" },
+          { id: "clear", label: "Clear conversation states", status: "pending" },
+          { id: "verify", label: "Verify cleanup", status: "pending" }
+        ]}
+      />
     </div>
   );
 }

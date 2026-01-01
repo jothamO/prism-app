@@ -319,14 +319,76 @@ Deno.serve(async (req) => {
 
     // ==================== CLEAR ALL STATES ====================
     if (action === "clear-all-states") {
-      await supabaseClient
+      console.log("[admin-bot-messaging] Starting clear-all-states with progress tracking");
+      
+      // Step 1: Count affected states
+      const { count: stateCount, error: countError } = await supabaseClient
+        .from("conversation_state")
+        .select("*", { count: "exact", head: true })
+        .or("expecting.not.is.null,context.neq.{}");
+
+      if (countError) {
+        console.error("[admin-bot-messaging] Count error:", countError);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            steps: [
+              { id: "count", label: "Count affected states", status: "error", detail: "Failed to count states" },
+              { id: "clear", label: "Clear conversation states", status: "pending" },
+              { id: "verify", label: "Verify cleanup", status: "pending" }
+            ]
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const affectedCount = stateCount || 0;
+      console.log(`[admin-bot-messaging] Found ${affectedCount} conversation states to clear`);
+
+      // Step 2: Clear the states
+      const { error: clearError } = await supabaseClient
         .from("conversation_state")
         .update({ expecting: null, context: {} })
         .not("id", "is", null);
 
-      console.log("[admin-bot-messaging] All conversation states cleared");
+      if (clearError) {
+        console.error("[admin-bot-messaging] Clear error:", clearError);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            steps: [
+              { id: "count", label: "Count affected states", status: "completed", detail: `Found ${affectedCount} states` },
+              { id: "clear", label: "Clear conversation states", status: "error", detail: "Failed to clear states" },
+              { id: "verify", label: "Verify cleanup", status: "pending" }
+            ]
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Step 3: Verify cleanup
+      const { count: remainingCount } = await supabaseClient
+        .from("conversation_state")
+        .select("*", { count: "exact", head: true })
+        .or("expecting.not.is.null,context.neq.{}");
+
+      const verifyStatus = (remainingCount || 0) === 0 ? "completed" : "error";
+      const verifyDetail = verifyStatus === "completed" 
+        ? "All states cleared successfully" 
+        : `${remainingCount} states still have data`;
+
+      console.log(`[admin-bot-messaging] Cleanup verified: ${verifyDetail}`);
+
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({
+          success: verifyStatus === "completed",
+          totalCleared: affectedCount,
+          steps: [
+            { id: "count", label: "Count affected states", status: "completed", detail: `Found ${affectedCount} states` },
+            { id: "clear", label: "Clear conversation states", status: "completed", detail: `Cleared ${affectedCount} states` },
+            { id: "verify", label: "Verify cleanup", status: verifyStatus, detail: verifyDetail }
+          ]
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
