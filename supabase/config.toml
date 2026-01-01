@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.mono-lookup-test]
 verify_jwt = false
+
+[functions.admin-bot-messaging]
+verify_jwt = true
