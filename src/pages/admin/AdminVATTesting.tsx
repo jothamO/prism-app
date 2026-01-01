@@ -147,7 +147,8 @@ const CLASSIFICATION_TEST_CASES = [
 ];
 
 const INCOME_TAX_SCENARIOS = [
-  { id: 'minimum-wage', name: 'Minimum Wage', income: 420000, description: 'Exempt from tax', incomeType: 'employment' as const },
+  { id: 'minimum-wage-old', name: 'Old Minimum Wage (₦35k)', income: 420000, description: 'Section 58 exempt', incomeType: 'employment' as const },
+  { id: 'minimum-wage-2024', name: 'Minimum Wage 2024 (₦70k)', income: 840000, description: 'Amina: Civil Servant - Section 58 exempt', incomeType: 'employment' as const },
   { id: 'entry-level', name: 'Entry Level', income: 1440000, description: '₦120k/month', incomeType: 'employment' as const },
   { id: 'mid-career', name: 'Mid-Career', income: 6000000, description: '₦500k/month', incomeType: 'employment' as const },
   { id: 'senior-manager', name: 'Senior Manager', income: 15000000, description: '₦1.25M/month', incomeType: 'employment' as const },

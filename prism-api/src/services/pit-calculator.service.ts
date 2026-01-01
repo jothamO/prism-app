@@ -204,9 +204,10 @@ export class PITCalculatorService {
     /**
      * Check if income qualifies for minimum wage exemption
      * Section 58: National minimum wage earners exempt from income tax
+     * Updated to ₦70,000/month per 2024 National Minimum Wage Act
      */
-    isMinimumWageExempt(annualIncome: number, minimumWage: number = 35_000): boolean {
-        const annualMinimumWage = minimumWage * 12; // ₦35,000/month = ₦420,000/year
+    isMinimumWageExempt(annualIncome: number, minimumWage: number = 70_000): boolean {
+        const annualMinimumWage = minimumWage * 12; // ₦70,000/month = ₦840,000/year
         return annualIncome <= annualMinimumWage;
     }
 

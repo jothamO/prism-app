@@ -20,7 +20,8 @@ const TAX_BANDS = [
 ];
 
 // National Minimum Wage exemption threshold (Section 58)
-const MINIMUM_WAGE_ANNUAL = 420000; // ₦35,000/month × 12
+// Updated to ₦70,000/month as per 2024 National Minimum Wage Act
+const MINIMUM_WAGE_ANNUAL = 840000; // ₦70,000/month × 12
 
 /**
  * Income types for Section 163 exemptions
