@@ -155,7 +155,6 @@ async function verifyNIN(nin: string) {
 
   if (!MONO_SECRET_KEY) {
     console.error("MONO_SECRET_KEY not configured - using mock data");
-    // Fallback to mock for development
     return {
       success: true,
       data: {
@@ -368,15 +367,15 @@ async function handleHelp(chatId: number) {
   await sendMessage(
     chatId,
     `📋 <b>Available Commands</b>\n\n` +
-    `/start - Start over or check status\n` +
-    `/help - Show this help message\n\n` +
-    `<b>Features:</b>\n` +
-    `📸 Send a receipt photo to log expenses\n` +
-    `💬 Ask me any tax-related questions\n\n` +
-    `<b>Coming Soon:</b>\n` +
-    `🏦 Bank account connection\n` +
-    `📊 Tax filing reminders\n` +
-    `📈 Monthly insights`
+      `/start - Start over or check status\n` +
+      `/help - Show this help message\n\n` +
+      `<b>Features:</b>\n` +
+      `📸 Send a receipt photo to log expenses\n` +
+      `💬 Ask me any tax-related questions\n\n` +
+      `<b>Coming Soon:</b>\n` +
+      `🏦 Bank account connection\n` +
+      `📊 Tax filing reminders\n` +
+      `📈 Monthly insights`
   );
 }
 
@@ -404,27 +403,33 @@ async function handleNINInput(chatId: number, telegramId: string, nin: string) {
 
   await sendMessage(chatId, `🔍 Verifying your NIN...`);
 
-  const result = await verifyNIN(nin);
+  try {
+    const result = await verifyNIN(nin);
 
-  if (result.success) {
-    await updateUser(telegramId, {
-      nin: nin,
-      first_name: result.data.firstName,
-      last_name: result.data.lastName,
-      onboarding_completed: true,
-      onboarding_step: 3,
-    });
-    await setConversationState(telegramId, null);
+    if (result.success) {
+      await updateUser(telegramId, {
+        nin: nin,
+        first_name: result.data.firstName,
+        last_name: result.data.lastName,
+        verification_status: "verified",
+        verification_source: "mono_nin",
+        verified_at: new Date().toISOString(),
+        onboarding_completed: true,
+        onboarding_step: 3,
+      });
+      await setConversationState(telegramId, null);
 
-    await sendMessage(
-      chatId,
-      `✅ <b>Verification Successful!</b>\n\n` +
-      `Welcome, ${result.data.firstName} ${result.data.lastName}!\n\n` +
-      `You're all set up. Here's what you can do:\n\n` +
-      `📸 Send a receipt photo to log expenses\n` +
-      `❓ Type /help for more commands`
-    );
-  } else {
+      await sendMessage(
+        chatId,
+        `✅ <b>Verification Successful!</b>\n\n` +
+          `Welcome, ${result.data.firstName} ${result.data.lastName}!\n\n` +
+          `You're all set up. Here's what you can do:\n\n` +
+          `📸 Send a receipt photo to log expenses\n` +
+          `❓ Type /help for more commands`
+      );
+    }
+  } catch (error) {
+    console.error("NIN verification error:", error);
     await sendMessage(chatId, `❌ NIN verification failed. Please check and try again.`);
   }
 }
@@ -449,27 +454,33 @@ async function handleCACInput(chatId: number, telegramId: string, cac: string) {
 
   await sendMessage(chatId, `🔍 Verifying your CAC number...`);
 
-  const result = await verifyCAC(cac);
+  try {
+    const result = await verifyCAC(cac);
 
-  if (result.success) {
-    await updateUser(telegramId, {
-      cac_number: cac.toUpperCase(),
-      company_name: result.data.companyName,
-      onboarding_completed: true,
-      onboarding_step: 3,
-    });
-    await setConversationState(telegramId, null);
+    if (result.success) {
+      await updateUser(telegramId, {
+        cac_number: cac.toUpperCase(),
+        company_name: result.data.companyName,
+        verification_status: "verified",
+        verification_source: "mono_cac",
+        verified_at: new Date().toISOString(),
+        onboarding_completed: true,
+        onboarding_step: 3,
+      });
+      await setConversationState(telegramId, null);
 
-    await sendMessage(
-      chatId,
-      `✅ <b>Verification Successful!</b>\n\n` +
-      `Company: ${result.data.companyName}\n` +
-      `Status: ${result.data.status}\n\n` +
-      `You're all set up! Here's what you can do:\n\n` +
-      `📸 Send a receipt photo to log expenses\n` +
-      `❓ Type /help for more commands`
-    );
-  } else {
+      await sendMessage(
+        chatId,
+        `✅ <b>Verification Successful!</b>\n\n` +
+          `Company: ${result.data.companyName}\n` +
+          `Status: ${result.data.status}\n\n` +
+          `You're all set up! Here's what you can do:\n\n` +
+          `📸 Send a receipt photo to log expenses\n` +
+          `❓ Type /help for more commands`
+      );
+    }
+  } catch (error) {
+    console.error("CAC verification error:", error);
     await sendMessage(chatId, `❌ CAC verification failed. Please check and try again.`);
   }
 }
@@ -516,12 +527,12 @@ async function handlePhoto(chatId: number, telegramId: string, user: any, fileId
     await sendMessage(
       chatId,
       `${confidenceEmoji} <b>Receipt Extracted</b>\n\n` +
-      `🏪 Merchant: ${extractedData.merchant || "Unknown"}\n` +
-      `💰 Amount: ₦${extractedData.amount?.toLocaleString() || "N/A"}\n` +
-      `📅 Date: ${extractedData.date || "N/A"}\n` +
-      `🏷️ Category: ${extractedData.category || "other"}\n` +
-      `📊 Confidence: ${Math.round((extractedData.confidence || 0) * 100)}%\n\n` +
-      `Is this correct?`,
+        `🏪 Merchant: ${extractedData.merchant || "Unknown"}\n` +
+        `💰 Amount: ₦${extractedData.amount?.toLocaleString() || "N/A"}\n` +
+        `📅 Date: ${extractedData.date || "N/A"}\n` +
+        `🏷️ Category: ${extractedData.category || "other"}\n` +
+        `📊 Confidence: ${Math.round((extractedData.confidence || 0) * 100)}%\n\n` +
+        `Is this correct?`,
       [
         [
           { text: "✅ Confirm", callback_data: `confirm_receipt_${receipt.id}` },
@@ -545,9 +556,9 @@ async function handleGeneralMessage(chatId: number, text: string) {
   await sendMessage(
     chatId,
     `I'm not sure how to help with that yet.\n\n` +
-    `Here's what I can do:\n` +
-    `📸 Send a receipt photo to log expenses\n` +
-    `❓ Type /help for all commands`
+      `Here's what I can do:\n` +
+      `📸 Send a receipt photo to log expenses\n` +
+      `❓ Type /help for all commands`
   );
 }
 
@@ -631,7 +642,7 @@ serve(async (req) => {
           await sendMessage(
             chatId,
             `✏️ To edit, please send the corrected details in this format:\n\n` +
-            `Merchant: [name]\nAmount: [amount]\nDate: [YYYY-MM-DD]\nCategory: [category]`
+              `Merchant: [name]\nAmount: [amount]\nDate: [YYYY-MM-DD]\nCategory: [category]`
           );
         }
 
@@ -645,7 +656,7 @@ serve(async (req) => {
         const telegramId = from.id.toString();
 
         const user = await ensureUser(telegramId, from);
-
+        
         // Check if user is blocked
         if (user.is_blocked) {
           await sendMessage(chatId, "⚠️ Your account has been suspended. Please contact support for assistance.");
