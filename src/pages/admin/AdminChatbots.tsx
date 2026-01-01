@@ -39,6 +39,7 @@ interface BotUser {
   entity_type: string | null;
   onboarding_completed: boolean | null;
   verification_status: string | null;
+  subscription_tier: string | null;
   is_blocked: boolean | null;
   created_at: string | null;
 }
@@ -380,7 +381,7 @@ function UsersTab() {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("id, full_name, first_name, last_name, platform, telegram_id, telegram_username, whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, is_blocked, created_at")
+        .select("id, full_name, first_name, last_name, platform, telegram_id, telegram_username, whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, subscription_tier, is_blocked, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -496,7 +497,15 @@ function UsersTab() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <UserActionMenu user={user} onUpdate={fetchUsers} />
+                    <UserActionMenu 
+                      userId={user.id}
+                      userName={user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Unknown"}
+                      platform={user.platform}
+                      isBlocked={user.is_blocked}
+                      verificationStatus={user.verification_status}
+                      subscriptionTier={user.subscription_tier}
+                      onUpdate={fetchUsers} 
+                    />
                   </td>
                 </tr>
               ))
