@@ -21,6 +21,16 @@ export interface PrivateExpenseCheck {
     recommendation: string;
 }
 
+export interface RapidWithdrawalCheck {
+    isHighRisk: boolean;
+    totalCashWithdrawals: number;
+    withdrawalCount: number;
+    daySpan: number;
+    reason: string;
+    recommendation: string;
+    actReference: string;
+}
+
 // Categories that are typically legitimate for construction/building projects
 const CONSTRUCTION_PROJECT_CATEGORIES = [
     'cement', 'sand', 'gravel', 'blocks', 'rods', 'iron', 'steel',
@@ -204,6 +214,59 @@ export class ProjectExpenseValidatorService {
             recommendation: isPrivate 
                 ? `This expense contains private indicators (${indicators.join(', ')}). It should be classified as personal spending, not project expense.`
                 : 'No private expense indicators detected.'
+        };
+    }
+
+    /**
+     * Detect rapid cash withdrawals pattern (Section 191 concern)
+     * Flags when > ₦1M in cash/labor expenses within a short period
+     */
+    async detectRapidCashWithdrawals(
+        projectId: string,
+        recentExpenses: Array<{ amount: number; description: string; date: string; category?: string }>
+    ): Promise<RapidWithdrawalCheck> {
+        const cashKeywords = ['labor', 'cash', 'workers', 'wages', 'payment', 'pay'];
+        
+        // Filter cash-based expenses
+        const cashExpenses = recentExpenses.filter(expense => {
+            const desc = expense.description.toLowerCase();
+            return cashKeywords.some(keyword => desc.includes(keyword));
+        });
+
+        if (cashExpenses.length === 0) {
+            return {
+                isHighRisk: false,
+                totalCashWithdrawals: 0,
+                withdrawalCount: 0,
+                daySpan: 0,
+                reason: 'No cash-based expenses detected',
+                recommendation: 'Continue with normal expense tracking',
+                actReference: ''
+            };
+        }
+
+        const totalCash = cashExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+        
+        // Calculate day span
+        const dates = cashExpenses.map(e => new Date(e.date).getTime());
+        const daySpan = Math.ceil((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24)) || 1;
+
+        const isHighRisk = totalCash >= 1000000 && daySpan <= 7;
+
+        return {
+            isHighRisk,
+            totalCashWithdrawals: totalCash,
+            withdrawalCount: cashExpenses.length,
+            daySpan,
+            reason: isHighRisk 
+                ? `₦${(totalCash / 1000000).toFixed(1)}M in cash payments over ${daySpan} days exceeds threshold`
+                : `Cash payments of ₦${(totalCash / 1000000).toFixed(2)}M within acceptable pattern`,
+            recommendation: isHighRisk
+                ? 'Retain all receipts and payment records. Consider bank transfers for large payments.'
+                : 'Ensure you retain receipts for documentation',
+            actReference: isHighRisk 
+                ? 'Section 191 - Rapid cash withdrawals may indicate artificial transactions'
+                : ''
         };
     }
 

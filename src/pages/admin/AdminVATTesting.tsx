@@ -164,8 +164,91 @@ const INCOME_TAX_SCENARIOS = [
   { id: 'contractor-tech', name: 'Tech Contractor', income: 18000000, description: '₦1.5M/month + equipment', incomeType: 'business' as const, businessExpenses: 4500000, equipmentCosts: 500000 },
 ];
 
+// Project Fund Scenarios - Section 5, 20, 191, 4(1)(k)
+const PROJECT_SCENARIOS = [
+  {
+    id: 'emeka-contractor',
+    name: "Emeka: Uncle's Building Project",
+    persona: 'Informal contractor managing third-party funds',
+    budget: 5000000,
+    source: 'Uncle Chukwu',
+    relationship: 'family',
+    description: 'Tests Section 5 (agency), Section 191 (artificial), Section 4(1)(k) (excess)',
+    expenses: [
+      { amount: 800000, description: 'cement and blocks', category: 'materials', risk: 'low' as const },
+      { amount: 500000, description: 'labor payment week 1', category: 'labor', risk: 'medium' as const },
+      { amount: 500000, description: 'labor payment week 2', category: 'labor', risk: 'medium' as const },
+      { amount: 500000, description: 'labor payment week 3', category: 'labor', risk: 'high' as const },
+      { amount: 600000, description: 'roofing materials', category: 'materials', risk: 'low' as const },
+      { amount: 400000, description: 'electrical fittings', category: 'electrical', risk: 'low' as const },
+      { amount: 350000, description: 'plumbing materials', category: 'plumbing', risk: 'low' as const },
+      { amount: 400000, description: 'windows and doors', category: 'finishing', risk: 'low' as const },
+      { amount: 350000, description: 'paint and finishing', category: 'finishing', risk: 'low' as const },
+      { amount: 300000, description: 'miscellaneous and transport', category: 'misc', risk: 'medium' as const },
+    ],
+    expectedTotalSpent: 4700000,
+    expectedExcess: 300000,
+    expectedTax: 0,
+    expectedFlags: [
+      'Multiple large cash-based expenses (₦1.5M total labor)',
+      'Vague "miscellaneous" description needs specifics',
+    ],
+  },
+  {
+    id: 'chioma-event-planner',
+    name: "Chioma: Client Event Budget",
+    persona: 'Event planner holding client funds',
+    budget: 2000000,
+    source: 'Mrs. Adeyemi',
+    relationship: 'client',
+    description: 'Event planning - mix of legitimate expenses',
+    expenses: [
+      { amount: 500000, description: 'venue rental', category: 'venue', risk: 'low' as const },
+      { amount: 300000, description: 'catering deposit', category: 'food', risk: 'low' as const },
+      { amount: 200000, description: 'decorations', category: 'decor', risk: 'low' as const },
+      { amount: 150000, description: 'entertainment', category: 'entertainment', risk: 'medium' as const },
+      { amount: 100000, description: 'refreshments', category: 'food', risk: 'low' as const },
+      { amount: 250000, description: 'photography', category: 'media', risk: 'low' as const },
+    ],
+    expectedTotalSpent: 1500000,
+    expectedExcess: 500000,
+    expectedTax: 0,
+    expectedFlags: [],
+  },
+  {
+    id: 'tunde-over-budget',
+    name: "Tunde: Church Building (Over Budget)",
+    persona: 'Managing church construction with shortfall',
+    budget: 8000000,
+    source: 'Pastor Johnson (Church Committee)',
+    relationship: 'organization',
+    description: 'Over-budget project with no taxable excess',
+    expenses: [
+      { amount: 2500000, description: 'foundation and structure', category: 'construction', risk: 'low' as const },
+      { amount: 2000000, description: 'roofing complete', category: 'roofing', risk: 'low' as const },
+      { amount: 1800000, description: 'electrical installation', category: 'electrical', risk: 'low' as const },
+      { amount: 1200000, description: 'plumbing and fixtures', category: 'plumbing', risk: 'low' as const },
+      { amount: 1000000, description: 'finishing and paint', category: 'finishing', risk: 'low' as const },
+    ],
+    expectedTotalSpent: 8500000,
+    expectedExcess: -500000,
+    expectedTax: 0,
+    expectedFlags: ['Project is over budget by ₦500,000'],
+  }
+];
 
-export default function AdminVATTesting() {
+interface ProjectScenarioResult {
+  scenarioId: string;
+  scenarioName: string;
+  budget: number;
+  totalSpent: number;
+  excess: number;
+  taxAmount: number;
+  flags: string[];
+  passed: boolean;
+}
+
+
   const { toast } = useToast();
   const [loading, setLoading] = useState<string | null>(null);
   
@@ -197,6 +280,10 @@ export default function AdminVATTesting() {
   const [classificationSeedResult, setClassificationSeedResult] = useState<ClassificationSeedResult | null>(null);
   const [classificationJobResult, setClassificationJobResult] = useState<ClassificationJobResult | null>(null);
   
+  // Project Funds Testing state
+  const [selectedProjectScenario, setSelectedProjectScenario] = useState(PROJECT_SCENARIOS[0].id);
+  const [projectScenarioResult, setProjectScenarioResult] = useState<ProjectScenarioResult | null>(null);
+  
   // Expanded sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     calculator: true,
@@ -204,7 +291,8 @@ export default function AdminVATTesting() {
     seeder: true,
     reconciliation: true,
     incomeTax: true,
-    businessClassification: true
+    businessClassification: true,
+    projectFunds: true
   });
 
   const toggleSection = (section: string) => {
@@ -604,6 +692,96 @@ export default function AdminVATTesting() {
       }
     } catch (error) {
       toast({ title: "Export failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Run Project Fund Scenario
+  const handleRunProjectScenario = async (scenarioId: string) => {
+    const scenario = PROJECT_SCENARIOS.find(s => s.id === scenarioId);
+    if (!scenario) {
+      toast({ title: "Scenario not found", variant: "destructive" });
+      return;
+    }
+
+    setLoading('project-scenario');
+    try {
+      // Simulate the scenario locally (no actual API call needed for display)
+      const totalSpent = scenario.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+      const excess = scenario.budget - totalSpent;
+      
+      // Calculate tax on excess (0% band is ₦0-₦800,000)
+      let taxAmount = 0;
+      if (excess > 800000) {
+        // Apply progressive tax bands
+        const taxableAboveFirstBand = excess - 800000;
+        if (taxableAboveFirstBand > 0) {
+          // 15% on next ₦1.6M
+          const inSecondBand = Math.min(taxableAboveFirstBand, 1600000);
+          taxAmount += inSecondBand * 0.15;
+        }
+      }
+
+      // Generate flags based on expense patterns
+      const flags: string[] = [];
+      
+      // Check for rapid cash withdrawals
+      const laborExpenses = scenario.expenses.filter(e => 
+        e.description.toLowerCase().includes('labor') || 
+        e.category === 'labor'
+      );
+      const totalLaborCash = laborExpenses.reduce((sum, e) => sum + e.amount, 0);
+      if (totalLaborCash >= 1000000) {
+        flags.push(`Multiple large cash-based expenses (₦${(totalLaborCash / 1000000).toFixed(1)}M total labor)`);
+      }
+
+      // Check for vague descriptions
+      const vagueTerms = ['misc', 'sundry', 'various', 'other', 'general'];
+      scenario.expenses.forEach(exp => {
+        if (vagueTerms.some(term => exp.description.toLowerCase().includes(term))) {
+          flags.push(`Vague "${exp.description}" description needs specifics`);
+        }
+      });
+
+      // Check for over budget
+      if (excess < 0) {
+        flags.push(`Project is over budget by ₦${Math.abs(excess).toLocaleString()}`);
+      }
+
+      // Check for high-risk expenses
+      const highRiskExpenses = scenario.expenses.filter(e => e.risk === 'high');
+      if (highRiskExpenses.length > 0) {
+        flags.push(`${highRiskExpenses.length} high-risk expense(s) flagged for review`);
+      }
+
+      const result: ProjectScenarioResult = {
+        scenarioId: scenario.id,
+        scenarioName: scenario.name,
+        budget: scenario.budget,
+        totalSpent,
+        excess,
+        taxAmount,
+        flags,
+        passed: 
+          totalSpent === scenario.expectedTotalSpent &&
+          excess === scenario.expectedExcess &&
+          taxAmount === scenario.expectedTax
+      };
+
+      setProjectScenarioResult(result);
+      
+      toast({ 
+        title: result.passed ? "Scenario PASSED ✓" : "Scenario completed with variations",
+        description: `Excess: ₦${excess.toLocaleString()}, Tax: ₦${taxAmount.toLocaleString()}`,
+        variant: result.passed ? "default" : "destructive"
+      });
+    } catch (error) {
+      toast({ 
+        title: "Scenario failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
     } finally {
       setLoading(null);
     }
@@ -1297,6 +1475,102 @@ export default function AdminVATTesting() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Project Funds Testing */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer flex flex-row items-center justify-between"
+          onClick={() => toggleSection('projectFunds')}
+        >
+          <div className="flex items-center gap-3">
+            <Wallet className="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>Project Funds Testing</CardTitle>
+              <CardDescription>Test Emeka scenario - Section 5, 191, 4(1)(k) compliance</CardDescription>
+            </div>
+          </div>
+          {expandedSections.projectFunds ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </CardHeader>
+        {expandedSections.projectFunds && (
+          <CardContent className="space-y-4">
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-sm font-medium text-foreground">Select Scenario</label>
+                <select 
+                  value={selectedProjectScenario}
+                  onChange={(e) => setSelectedProjectScenario(e.target.value)}
+                  className="w-full mt-1 p-2 border rounded-md bg-background text-foreground"
+                >
+                  {PROJECT_SCENARIOS.map(scenario => (
+                    <option key={scenario.id} value={scenario.id}>
+                      {scenario.name} - {scenario.persona}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button 
+                onClick={() => handleRunProjectScenario(selectedProjectScenario)}
+                disabled={loading !== null}
+                className="gap-2"
+              >
+                {loading === 'project-scenario' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                Run Scenario
+              </Button>
+            </div>
+
+            {/* Scenario Details */}
+            {PROJECT_SCENARIOS.find(s => s.id === selectedProjectScenario) && (
+              <div className="p-3 bg-muted rounded-lg text-sm">
+                <p className="font-medium">{PROJECT_SCENARIOS.find(s => s.id === selectedProjectScenario)?.description}</p>
+                <p className="text-muted-foreground mt-1">
+                  Budget: ₦{PROJECT_SCENARIOS.find(s => s.id === selectedProjectScenario)?.budget.toLocaleString()} | 
+                  Expenses: {PROJECT_SCENARIOS.find(s => s.id === selectedProjectScenario)?.expenses.length} items
+                </p>
+              </div>
+            )}
+
+            {/* Results */}
+            {projectScenarioResult && (
+              <div className={`p-4 rounded-lg border ${projectScenarioResult.passed ? 'bg-green-500/10 border-green-500' : 'bg-yellow-500/10 border-yellow-500'}`}>
+                <h4 className="font-semibold flex items-center gap-2">
+                  {projectScenarioResult.passed ? <Check className="w-4 h-4 text-green-500" /> : <Bell className="w-4 h-4 text-yellow-500" />}
+                  {projectScenarioResult.scenarioName}
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Budget</p>
+                    <p className="font-mono">{formatCurrency(projectScenarioResult.budget)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Spent</p>
+                    <p className="font-mono">{formatCurrency(projectScenarioResult.totalSpent)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Excess</p>
+                    <p className={`font-mono ${projectScenarioResult.excess < 0 ? 'text-red-500' : ''}`}>
+                      {formatCurrency(projectScenarioResult.excess)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Tax Due</p>
+                    <p className="font-mono">{formatCurrency(projectScenarioResult.taxAmount)}</p>
+                  </div>
+                </div>
+                {projectScenarioResult.flags.length > 0 && (
+                  <div className="mt-3 p-2 bg-background rounded">
+                    <p className="text-xs font-medium text-yellow-600">⚠️ Compliance Flags:</p>
+                    <ul className="text-xs text-muted-foreground mt-1">
+                      {projectScenarioResult.flags.map((flag, i) => (
+                        <li key={i}>• {flag}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
