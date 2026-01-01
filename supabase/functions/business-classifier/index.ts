@@ -148,13 +148,49 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // ===== AUTHENTICATION CHECK =====
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.log('[business-classifier] Missing authorization header');
+      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Create client with user's token for auth check
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      console.log('[business-classifier] Invalid token:', authError?.message);
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('[business-classifier] User authenticated:', user.id);
+    // ===== END AUTHENTICATION CHECK =====
+
+    // Use service role for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { action, businessId, year } = await req.json();
     const classificationYear = year || new Date().getFullYear();
 
     console.log(`[business-classifier] Action: ${action}, Year: ${classificationYear}`);
+
+    // Check admin role for admin-only actions
+    const { data: isAdmin } = await supabaseAuth.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
 
     // ACTION: Classify single business
     if (action === 'classify') {
@@ -165,6 +201,7 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Verify user owns this business or is admin
       const { data: business, error } = await supabase
         .from('businesses')
         .select('*')
@@ -175,6 +212,13 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ error: 'Business not found' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        );
+      }
+
+      if (!isAdmin && business.user_id !== user.id) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Cannot classify other user business' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
         );
       }
 
@@ -205,8 +249,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ACTION: Classify all businesses (annual job)
+    // ACTION: Classify all businesses (admin-only)
     if (action === 'classify-all') {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Admin access required for classify-all' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        );
+      }
+
       const { data: businesses, error } = await supabase
         .from('businesses')
         .select('*');
@@ -305,8 +356,15 @@ Qualification:
       );
     }
 
-    // ACTION: Seed test businesses
+    // ACTION: Seed test businesses (admin-only)
     if (action === 'seed-businesses') {
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Admin access required for seed-businesses' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        );
+      }
+
       // First, get or create a test user
       let userId: string;
       
@@ -354,7 +412,8 @@ Qualification:
             total_fixed_assets: testBiz.assets,
             is_professional_services: testBiz.isProfessionalServices,
             classification: 'unclassified',
-            tax_rate: 0.30
+            tax_rate: 0.30,
+            registration_number: `RC${Date.now().toString().slice(-6)}`
           })
           .select()
           .single();

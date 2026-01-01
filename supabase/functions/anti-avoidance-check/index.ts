@@ -287,8 +287,38 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // ===== AUTHENTICATION CHECK =====
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.log('[anti-avoidance-check] Missing authorization header');
+      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Create client with user's token for auth check
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      console.log('[anti-avoidance-check] Invalid token:', authError?.message);
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('[anti-avoidance-check] User authenticated:', user.id);
+    // ===== END AUTHENTICATION CHECK =====
+
+    // Use service role for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
     console.log('Anti-avoidance check request:', JSON.stringify(body));
@@ -299,10 +329,13 @@ serve(async (req) => {
         body.transactions.map(async (t: Transaction) => {
           let connectedPartyMatch: ConnectedPartyMatch | undefined;
           
-          if (t.userId && (t.counterpartyName || t.counterpartyTin)) {
+          // Use the authenticated user's ID for connected party detection
+          const targetUserId = t.userId || user.id;
+          
+          if (targetUserId && (t.counterpartyName || t.counterpartyTin)) {
             connectedPartyMatch = await detectConnectedParty(
               supabase,
-              t.userId,
+              targetUserId,
               t.counterpartyName,
               t.counterpartyTin
             );
@@ -334,10 +367,13 @@ serve(async (req) => {
       let connectedPartyMatch: ConnectedPartyMatch | undefined;
       const transaction = body as Transaction;
       
-      if (transaction.userId && (transaction.counterpartyName || transaction.counterpartyTin)) {
+      // Use the authenticated user's ID for connected party detection
+      const targetUserId = transaction.userId || user.id;
+      
+      if (targetUserId && (transaction.counterpartyName || transaction.counterpartyTin)) {
         connectedPartyMatch = await detectConnectedParty(
           supabase,
-          transaction.userId,
+          targetUserId,
           transaction.counterpartyName,
           transaction.counterpartyTin
         );

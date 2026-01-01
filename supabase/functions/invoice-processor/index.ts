@@ -48,10 +48,55 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // ===== AUTHENTICATION CHECK =====
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.log('[invoice-processor] Missing authorization header');
+      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Create client with user's token for auth check
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      console.log('[invoice-processor] Invalid token:', authError?.message);
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('[invoice-processor] User authenticated:', user.id);
+    // ===== END AUTHENTICATION CHECK =====
+
+    // Use service role for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { action, userId, businessId, invoiceData, mockType } = await req.json();
+
+    // Validate that user can only access their own data (or admin can access all)
+    const { data: isAdmin } = await supabaseAuth.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
+
+    const targetUserId = userId || user.id;
+    if (!isAdmin && targetUserId !== user.id) {
+      console.log('[invoice-processor] User trying to access other user data');
+      return new Response(JSON.stringify({ error: 'Forbidden - Cannot access other user data' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     switch (action) {
       case 'process-ocr': {
@@ -97,7 +142,7 @@ serve(async (req) => {
         const { data: invoice, error } = await supabase
           .from('invoices')
           .insert({
-            user_id: userId,
+            user_id: targetUserId,
             business_id: businessId,
             invoice_number: invoiceData.invoiceNumber,
             date: invoiceData.date,
@@ -123,7 +168,7 @@ serve(async (req) => {
           await supabase
             .from('review_queue')
             .insert({
-              user_id: userId,
+              user_id: targetUserId,
               invoice_id: invoice.id,
               reasons: invoiceData.reviewReasons || ['Needs verification'],
               priority: invoiceData.confidence < 0.7 ? 'high' : 'medium',
@@ -144,7 +189,7 @@ serve(async (req) => {
           .order('created_at', { ascending: false })
           .limit(50);
 
-        if (userId) query = query.eq('user_id', userId);
+        if (targetUserId) query = query.eq('user_id', targetUserId);
         if (businessId) query = query.eq('business_id', businessId);
 
         const { data, error } = await query;

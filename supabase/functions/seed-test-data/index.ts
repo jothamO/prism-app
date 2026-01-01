@@ -100,8 +100,52 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // ===== AUTHENTICATION CHECK =====
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.log('[seed-test-data] Missing authorization header');
+      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Create client with user's token for auth check
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      console.log('[seed-test-data] Invalid token:', authError?.message);
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check admin role - seed-test-data is admin-only
+    const { data: hasAdminRole } = await supabaseAuth.rpc('has_role', {
+      _user_id: user.id,
+      _role: 'admin'
+    });
+
+    if (!hasAdminRole) {
+      console.log('[seed-test-data] User is not admin:', user.id);
+      return new Response(JSON.stringify({ error: 'Forbidden - Admin access required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('[seed-test-data] Admin authenticated:', user.id);
+    // ===== END AUTHENTICATION CHECK =====
+
+    // Use service role for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { action, scenario, period } = await req.json();
 
@@ -119,7 +163,7 @@ serve(async (req) => {
 
         // Create test user
         const testUserId = crypto.randomUUID();
-        const { data: user, error: userError } = await supabase
+        const { data: testUser, error: userError } = await supabase
           .from('users')
           .insert({
             id: testUserId,
@@ -253,7 +297,7 @@ serve(async (req) => {
           success: true,
           scenario,
           period: testPeriod,
-          user: { id: testUserId, businessName: user.business_name },
+          user: { id: testUserId, businessName: testUser.business_name },
           business: { id: testBusinessId, name: business.name },
           created: {
             invoices: invoices.length,
