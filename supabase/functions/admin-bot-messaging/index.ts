@@ -5,11 +5,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface BroadcastRequest {
-  action: "broadcast" | "segment-broadcast" | "direct-message" | "health";
+interface BotRequest {
+  action: 
+    | "broadcast" 
+    | "segment-broadcast" 
+    | "direct-message" 
+    | "health"
+    | "toggle-bot"
+    | "update-commands"
+    | "clear-user-data"
+    | "clear-all-states"
+    | "get-recent-errors";
   message?: string;
   platform?: "all" | "telegram" | "whatsapp";
   userId?: string;
+  enabled?: boolean;
+  clearOption?: "state" | "messages" | "onboarding" | "full";
   filters?: {
     entityType?: string;
     onboarded?: string;
@@ -65,25 +76,221 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body: BroadcastRequest = await req.json();
-    const { action, message, platform, userId, filters } = body;
+    const body: BotRequest = await req.json();
+    const { action, message, platform, userId, filters, enabled, clearOption } = body;
 
     console.log(`[admin-bot-messaging] Action: ${action}, Platform: ${platform}`);
 
-    // Health check
+    // ==================== HEALTH CHECK ====================
     if (action === "health") {
       const telegramHealthy = !!telegramToken;
-      // Could add actual API health checks here
-
       return new Response(
         JSON.stringify({
           telegram: telegramHealthy ? "online" : "not configured",
-          whatsapp: "online", // Placeholder - would check 360dialog API
+          whatsapp: "online",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // ==================== TOGGLE BOT ====================
+    if (action === "toggle-bot") {
+      if (!platform || platform === "all") {
+        return new Response(JSON.stringify({ error: "Specific platform required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Update system settings
+      const updateField = platform === "telegram" ? "telegram_enabled" : "whatsapp_enabled";
+      await supabaseClient
+        .from("system_settings")
+        .update({ [updateField]: enabled, updated_at: new Date().toISOString(), updated_by: user.id })
+        .eq("id", (await supabaseClient.from("system_settings").select("id").single()).data?.id);
+
+      // For Telegram, manage webhook
+      if (platform === "telegram" && telegramToken) {
+        if (enabled) {
+          // Set webhook
+          const webhookUrl = `${supabaseUrl}/functions/v1/telegram-bot`;
+          await fetch(`https://api.telegram.org/bot${telegramToken}/setWebhook`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: webhookUrl }),
+          });
+        } else {
+          // Delete webhook
+          await fetch(`https://api.telegram.org/bot${telegramToken}/deleteWebhook`, {
+            method: "POST",
+          });
+        }
+      }
+
+      console.log(`[admin-bot-messaging] ${platform} bot ${enabled ? "enabled" : "disabled"}`);
+      return new Response(
+        JSON.stringify({ success: true, platform, enabled }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== UPDATE BOT COMMANDS ====================
+    if (action === "update-commands") {
+      if (platform !== "telegram") {
+        return new Response(JSON.stringify({ error: "Only Telegram commands supported" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get enabled commands
+      const { data: commands } = await supabaseClient
+        .from("bot_commands")
+        .select("command, description")
+        .eq("platform", "telegram")
+        .eq("is_enabled", true)
+        .order("sort_order", { ascending: true });
+
+      if (!commands || commands.length === 0) {
+        return new Response(JSON.stringify({ error: "No commands to sync" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Format for Telegram API
+      const telegramCommands = commands.map((cmd) => ({
+        command: cmd.command.replace("/", ""),
+        description: cmd.description,
+      }));
+
+      // Call Telegram API
+      const response = await fetch(`https://api.telegram.org/bot${telegramToken}/setMyCommands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commands: telegramCommands }),
+      });
+
+      const result = await response.json();
+      console.log("[admin-bot-messaging] setMyCommands result:", result);
+
+      return new Response(
+        JSON.stringify({ success: result.ok, commandsSet: telegramCommands.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== CLEAR USER DATA ====================
+    if (action === "clear-user-data") {
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "User ID required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get user platform IDs
+      const { data: userData } = await supabaseClient
+        .from("users")
+        .select("telegram_id, whatsapp_id")
+        .eq("id", userId)
+        .single();
+
+      if (!userData) {
+        return new Response(JSON.stringify({ error: "User not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const cleared: string[] = [];
+
+      // Clear conversation state
+      if (clearOption === "state" || clearOption === "full") {
+        if (userData.telegram_id) {
+          await supabaseClient
+            .from("conversation_state")
+            .update({ expecting: null, context: {} })
+            .eq("telegram_id", userData.telegram_id);
+        }
+        if (userData.whatsapp_id) {
+          await supabaseClient
+            .from("conversation_state")
+            .update({ expecting: null, context: {} })
+            .eq("whatsapp_id", userData.whatsapp_id);
+        }
+        cleared.push("state");
+      }
+
+      // Clear messages
+      if (clearOption === "messages" || clearOption === "full") {
+        await supabaseClient.from("messages").delete().eq("user_id", userId);
+        cleared.push("messages");
+      }
+
+      // Reset onboarding
+      if (clearOption === "onboarding" || clearOption === "full") {
+        await supabaseClient
+          .from("users")
+          .update({
+            onboarding_completed: false,
+            onboarding_step: 0,
+            nin: null,
+            cac_number: null,
+            tin: null,
+            entity_type: null,
+            business_name: null,
+            company_name: null,
+            verification_status: "pending",
+            verified_at: null,
+          })
+          .eq("id", userId);
+        cleared.push("onboarding");
+      }
+
+      // Full reset also clears receipts
+      if (clearOption === "full") {
+        await supabaseClient.from("receipts").delete().eq("user_id", userId);
+        cleared.push("receipts");
+      }
+
+      console.log(`[admin-bot-messaging] Cleared for user ${userId}: ${cleared.join(", ")}`);
+      return new Response(
+        JSON.stringify({ success: true, cleared }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== CLEAR ALL STATES ====================
+    if (action === "clear-all-states") {
+      await supabaseClient
+        .from("conversation_state")
+        .update({ expecting: null, context: {} })
+        .not("id", "is", null);
+
+      console.log("[admin-bot-messaging] All conversation states cleared");
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== GET RECENT ERRORS ====================
+    if (action === "get-recent-errors") {
+      const { data: errors } = await supabaseClient
+        .from("messages")
+        .select("id, user_id, content, created_at, whatsapp_status")
+        .or("whatsapp_status.eq.failed,message_type.eq.error")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      return new Response(
+        JSON.stringify({ errors: errors || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== BROADCAST / DIRECT MESSAGE ====================
     // Validate message for broadcast actions
     if (!message) {
       return new Response(JSON.stringify({ error: "Message is required" }), {
@@ -93,7 +300,7 @@ Deno.serve(async (req) => {
     }
 
     // Get target users based on action
-    let targetUsers: Array<{ id: string; telegram_id: string | null; whatsapp_id: string | null; platform: string | null }> = [];
+    let targetUsers: Array<{ id: string; telegram_id: string | null; whatsapp_id: string | null; platform: string | null; is_blocked: boolean | null }> = [];
 
     if (action === "direct-message") {
       if (!userId) {
@@ -104,18 +311,21 @@ Deno.serve(async (req) => {
       }
       const { data } = await supabaseClient
         .from("users")
-        .select("id, telegram_id, whatsapp_id, platform")
+        .select("id, telegram_id, whatsapp_id, platform, is_blocked")
         .eq("id", userId)
         .single();
       if (data) targetUsers = [data];
     } else {
       // Broadcast or segment broadcast
-      let query = supabaseClient.from("users").select("id, telegram_id, whatsapp_id, platform, entity_type, onboarding_completed, verification_status");
+      let query = supabaseClient.from("users").select("id, telegram_id, whatsapp_id, platform, entity_type, onboarding_completed, verification_status, is_blocked");
 
       // Apply platform filter
       if (platform && platform !== "all") {
         query = query.eq("platform", platform);
       }
+
+      // Exclude blocked users
+      query = query.or("is_blocked.is.null,is_blocked.eq.false");
 
       // Apply segment filters
       if (filters) {
@@ -159,6 +369,12 @@ Deno.serve(async (req) => {
     let failedCount = 0;
 
     for (const targetUser of targetUsers) {
+      // Skip blocked users
+      if (targetUser.is_blocked) {
+        failedCount++;
+        continue;
+      }
+
       try {
         if (targetUser.platform === "telegram" && targetUser.telegram_id && telegramToken) {
           // Send Telegram message
@@ -177,12 +393,11 @@ Deno.serve(async (req) => {
 
           if (telegramResponse.ok) {
             sentCount++;
-            // Log message
             await supabaseClient.from("messages").insert({
               user_id: targetUser.id,
               content: message,
               direction: "outgoing",
-              message_type: "broadcast",
+              message_type: action === "direct-message" ? "direct" : "broadcast",
             });
           } else {
             failedCount++;
@@ -190,13 +405,12 @@ Deno.serve(async (req) => {
           }
         } else if (targetUser.platform === "whatsapp" && targetUser.whatsapp_id) {
           // WhatsApp sending would go here (360dialog API)
-          // For now, just log it
           sentCount++;
           await supabaseClient.from("messages").insert({
             user_id: targetUser.id,
             content: message,
             direction: "outgoing",
-            message_type: "broadcast",
+            message_type: action === "direct-message" ? "direct" : "broadcast",
           });
         } else {
           failedCount++;
