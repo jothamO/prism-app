@@ -61,6 +61,14 @@ export class MessageHandlerService {
             return await this.handleBusinessNameInput(userId, text);
         }
 
+        if (state?.expecting === 'tin') {
+            return await this.handleTINInput(userId, text);
+        }
+
+        if (state?.expecting === 'bvn') {
+            return await this.handleBVNInput(userId, text);
+        }
+
         // Default: general query
         return await this.handleGeneralQuery(userId, text);
     }
@@ -130,6 +138,13 @@ export class MessageHandlerService {
             case 'connect_bank':
                 return await this.startMonoConnection(userId);
 
+            case 'discover_bvn':
+                await this.setConversationState(userId, 'bvn');
+                return {
+                    message: `🔍 *Discover Your Bank Accounts*\n\n` +
+                        `Enter your *BVN* (11 digits) to find all linked accounts:`
+                };
+
             default:
                 return { message: '❌ Unknown action' };
         }
@@ -174,6 +189,9 @@ export class MessageHandlerService {
                 ],
                 [
                     { text: '🏢 Business (use CAC)', callback_data: 'entity_type:business' }
+                ],
+                [
+                    { text: '📋 I have my TIN', callback_data: 'entity_type:tin' }
                 ]
             ]
         };
@@ -202,8 +220,18 @@ export class MessageHandlerService {
             };
         }
 
+        if (choice === '3' || choice === 'tin') {
+            await this.setConversationState(userId, 'tin');
+
+            return {
+                message: `Great! What's your *TIN*?\n\n` +
+                    `(Tax Identification Number - usually 10-14 digits)\n\n` +
+                    `This works for both individuals and businesses.`
+            };
+        }
+
         return {
-            message: `Please select 1 or 2, or tap a button above.`
+            message: `Please select 1, 2, or 3, or tap a button above.`
         };
     }
 
@@ -224,12 +252,15 @@ export class MessageHandlerService {
             // Verify NIN
             const resolution = await this.taxIDResolver.resolveTaxID(nin.trim(), 'nin');
 
-            // Save to user record
+            // Save to user record with verification metadata
             await this.updateUser(userId, {
                 nin: nin.trim(),
                 full_name: resolution.name,
                 entity_type: 'individual',
-                tax_regime: 'PIT'
+                tax_regime: 'PIT',
+                verification_status: 'verified',
+                verification_source: resolution.verification_source,
+                verified_at: new Date().toISOString()
             });
 
             await this.setConversationState(userId, 'bank_connection');
@@ -269,12 +300,15 @@ export class MessageHandlerService {
             // Verify CAC
             const resolution = await this.taxIDResolver.resolveTaxID(cac.trim().toUpperCase(), 'cac');
 
-            // Save to user record
+            // Save to user record with verification metadata
             await this.updateUser(userId, {
                 cac_number: cac.trim().toUpperCase(),
                 company_name: resolution.name,
                 entity_type: 'company',
-                tax_regime: 'CIT'
+                tax_regime: 'CIT',
+                verification_status: 'verified',
+                verification_source: resolution.verification_source,
+                verified_at: new Date().toISOString()
             });
 
             await this.setConversationState(userId, 'bank_connection');
@@ -307,8 +341,118 @@ export class MessageHandlerService {
         return {
             message: `Thanks! What's your *CAC registration number*?\n\n` +
                 `Format: RC1234567 or BN1234567\n\n` +
-                `Reply "skip" if you don't have it handy.`
+            `Reply "skip" if you don't have it handy.`
         };
+    }
+
+    /**
+     * TIN input handler
+     */
+    private async handleTINInput(userId: string, tin: string): Promise<MessageResponse> {
+        // Validate TIN format
+        const cleanTIN = tin.replace(/\s/g, '').trim();
+        if (!/^[\d-]{8,15}$/.test(cleanTIN)) {
+            return {
+                message: `❌ Invalid TIN format.\n\n` +
+                    `TIN should be 8-15 digits (with optional hyphens).\n\n` +
+                    `Please try again:`
+            };
+        }
+
+        try {
+            // Verify TIN via Mono
+            const resolution = await this.taxIDResolver.resolveTaxID(cleanTIN, 'tin');
+
+            // Save to user record
+            await this.updateUser(userId, {
+                tin: cleanTIN,
+                full_name: resolution.name,
+                entity_type: resolution.entity_type,
+                tax_regime: resolution.tax_rules,
+                verification_status: 'verified',
+                verification_source: resolution.verification_source,
+                verified_at: new Date().toISOString()
+            });
+
+            await this.setConversationState(userId, 'bank_connection');
+
+            const entityLabel = resolution.entity_type === 'individual' ? 'Individual' : 'Company';
+
+            return {
+                message: `✅ *TIN Verified!*\n\n` +
+                    `• Name: ${resolution.name}\n` +
+                    `• TIN: ${cleanTIN}\n` +
+                    `• Type: ${entityLabel}\n` +
+                    `• Tax Rules: ${resolution.tax_rules}\n\n` +
+                    `*Next: Connect your bank*`,
+                buttons: [
+                    [{ text: '🏦 Connect Bank (Mono)', callback_data: 'connect_bank' }],
+                    [{ text: '🔍 Discover Accounts (BVN)', callback_data: 'discover_bvn' }]
+                ]
+            };
+        } catch (error: any) {
+            const errorMsg = error.message || 'Could not verify TIN';
+            return {
+                message: `❌ ${errorMsg}\n\n` +
+                    `Please check and try again, or use NIN/CAC instead:`
+            };
+        }
+    }
+
+    /**
+     * BVN input handler - discover linked bank accounts
+     */
+    private async handleBVNInput(userId: string, bvn: string): Promise<MessageResponse> {
+        // Validate BVN format (11 digits)
+        const cleanBVN = bvn.replace(/\s/g, '').trim();
+        if (!/^\d{11}$/.test(cleanBVN)) {
+            return {
+                message: `❌ Invalid BVN format.\n\n` +
+                    `BVN should be 11 digits.\n\n` +
+                    `Please try again:`
+            };
+        }
+
+        try {
+            // Discover bank accounts via Mono
+            const accounts = await this.taxIDResolver.discoverBankAccounts(cleanBVN);
+
+            if (accounts.length === 0) {
+                return {
+                    message: `ℹ️ No bank accounts found linked to this BVN.\n\n` +
+                        `You can connect a bank manually:`,
+                    buttons: [
+                        [{ text: '🏦 Connect Bank Manually', callback_data: 'connect_bank' }]
+                    ]
+                };
+            }
+
+            // Format account list
+            const accountList = accounts.map((a, i) => 
+                `${i + 1}. ${a.bank_name} - ****${a.account_number.slice(-4)} (${a.account_type})`
+            ).join('\n');
+
+            await this.setConversationState(userId, 'select_account');
+
+            return {
+                message: `🔍 *Bank Accounts Found:*\n\n` +
+                    `${accountList}\n\n` +
+                    `Would you like to connect any of these accounts?`,
+                buttons: [
+                    [{ text: '🏦 Connect All', callback_data: 'connect_all_accounts' }],
+                    [{ text: '📝 Choose Specific', callback_data: 'select_accounts' }],
+                    [{ text: '⏭️ Skip for Now', callback_data: 'skip_bank' }]
+                ]
+            };
+        } catch (error: any) {
+            return {
+                message: `❌ Could not lookup BVN.\n\n` +
+                    `Please try again or connect your bank manually:`,
+                buttons: [
+                    [{ text: '🏦 Connect Bank Manually', callback_data: 'connect_bank' }]
+                ]
+            };
+        }
     }
 
     /**

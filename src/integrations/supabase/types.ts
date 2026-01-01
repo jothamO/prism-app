@@ -1054,8 +1054,11 @@ export type Database = {
           party_name: string
           party_tin: string | null
           relationship_type: string
+          tin_verified: boolean | null
           updated_at: string | null
           user_id: string
+          verification_data: Json | null
+          verification_date: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1064,8 +1067,11 @@ export type Database = {
           party_name: string
           party_tin?: string | null
           relationship_type: string
+          tin_verified?: boolean | null
           updated_at?: string | null
           user_id: string
+          verification_data?: Json | null
+          verification_date?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1074,8 +1080,11 @@ export type Database = {
           party_name?: string
           party_tin?: string | null
           relationship_type?: string
+          tin_verified?: boolean | null
           updated_at?: string | null
           user_id?: string
+          verification_data?: Json | null
+          verification_date?: string | null
         }
         Relationships: []
       }
@@ -1456,6 +1465,10 @@ export type Database = {
           telegram_username: string | null
           tin: string | null
           updated_at: string | null
+          verification_data: Json | null
+          verification_source: string | null
+          verification_status: string | null
+          verified_at: string | null
           whatsapp_id: string | null
           whatsapp_number: string | null
         }
@@ -1485,6 +1498,10 @@ export type Database = {
           telegram_username?: string | null
           tin?: string | null
           updated_at?: string | null
+          verification_data?: Json | null
+          verification_source?: string | null
+          verification_status?: string | null
+          verified_at?: string | null
           whatsapp_id?: string | null
           whatsapp_number?: string | null
         }
@@ -1514,6 +1531,10 @@ export type Database = {
           telegram_username?: string | null
           tin?: string | null
           updated_at?: string | null
+          verification_data?: Json | null
+          verification_source?: string | null
+          verification_status?: string | null
+          verified_at?: string | null
           whatsapp_id?: string | null
           whatsapp_number?: string | null
         }
