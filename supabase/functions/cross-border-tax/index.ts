@@ -42,6 +42,9 @@ interface CrossBorderInput {
   fixedAssets?: number;
   businessType?: string;
   isLabelledStartup?: boolean;
+  isProfessionalService?: boolean;
+  estimatedExpenses?: number;
+  whtDeductedByClients?: number;
   foreignPayments: ForeignPayment[];
 }
 
@@ -68,18 +71,36 @@ interface CompanyClassification {
   qualifiesForZeroTax: boolean;
 }
 
+interface ProfessionalServicesTaxBreakdown {
+  grossIncome: number;
+  allowableExpenses: number;
+  taxableProfit: number;
+  grossCompanyTax: number;
+  whtCreditAvailable: number;
+  netTaxPayable: number;
+  vatCollected: number;
+  inputVAT: number;
+  netVATPayable: number;
+  section57Exclusion: boolean;
+}
+
 interface CrossBorderResult {
   success: boolean;
   companyClassification: CompanyClassification;
   isLabelledStartup: boolean;
+  isProfessionalService: boolean;
   startupBenefits: string[];
   paymentBreakdowns: PaymentBreakdown[];
+  professionalServicesTax?: ProfessionalServicesTaxBreakdown;
   annualSummary: {
     totalForeignPayments: number;
     totalVATOnImports: number;
     totalWHTRemitted: number;
     totalRemittance: number;
     companyTax: number;
+    netTaxPayable?: number;
+    vatCollected?: number;
+    netVATPayable?: number;
   };
   complianceChecklist: string[];
   actReferences: string[];
@@ -121,11 +142,14 @@ serve(async (req) => {
       fixedAssets = 0,
       businessType = 'technology',
       isLabelledStartup = false,
+      isProfessionalService = false,
+      estimatedExpenses = 0,
+      whtDeductedByClients = 0,
       foreignPayments = [],
     } = input;
 
-    // 1. Determine company classification - Section 56
-    const isProfessionalServices = PROFESSIONAL_SERVICES.includes(businessType.toLowerCase());
+    // 1. Determine company classification - Section 56 & 57
+    const isProfessionalServices = isProfessionalService || PROFESSIONAL_SERVICES.includes(businessType.toLowerCase());
     let classification: CompanyClassification;
 
     if (isProfessionalServices) {
@@ -189,16 +213,46 @@ serve(async (req) => {
       };
     });
 
-    // 3. Calculate annual summary
+    // 3. Calculate professional services tax breakdown if applicable
+    let professionalServicesTax: ProfessionalServicesTaxBreakdown | undefined;
+    
+    if (isProfessionalServices && !classification.qualifiesForZeroTax) {
+      const taxableProfit = annualTurnover - estimatedExpenses;
+      const grossCompanyTax = taxableProfit * (classification.taxRate / 100);
+      const netTaxPayable = Math.max(0, grossCompanyTax - whtDeductedByClients);
+      const vatCollected = annualTurnover * VAT_RATE;
+      const inputVAT = estimatedExpenses * VAT_RATE * 0.1; // Assume ~10% of expenses have VAT
+      const netVATPayable = vatCollected - inputVAT;
+      
+      professionalServicesTax = {
+        grossIncome: annualTurnover,
+        allowableExpenses: estimatedExpenses,
+        taxableProfit,
+        grossCompanyTax,
+        whtCreditAvailable: whtDeductedByClients,
+        netTaxPayable,
+        vatCollected,
+        inputVAT,
+        netVATPayable,
+        section57Exclusion: true,
+      };
+    }
+
+    // 4. Calculate annual summary
     const annualSummary = {
       totalForeignPayments: paymentBreakdowns.reduce((sum, p) => sum + p.annualGross, 0),
       totalVATOnImports: paymentBreakdowns.reduce((sum, p) => sum + p.annualVAT, 0),
       totalWHTRemitted: paymentBreakdowns.reduce((sum, p) => sum + p.annualWHT, 0),
       totalRemittance: paymentBreakdowns.reduce((sum, p) => sum + p.annualRemittance, 0),
-      companyTax: classification.qualifiesForZeroTax ? 0 : annualTurnover * (classification.taxRate / 100) * 0.3, // Simplified profit margin
+      companyTax: professionalServicesTax 
+        ? professionalServicesTax.grossCompanyTax 
+        : (classification.qualifiesForZeroTax ? 0 : annualTurnover * (classification.taxRate / 100) * 0.3),
+      netTaxPayable: professionalServicesTax?.netTaxPayable,
+      vatCollected: professionalServicesTax?.vatCollected,
+      netVATPayable: professionalServicesTax?.netVATPayable,
     };
 
-    // 4. Startup benefits
+    // 5. Startup benefits
     const startupBenefits: string[] = [];
     if (isLabelledStartup) {
       startupBenefits.push('Investors holding equity 24+ months qualify for CGT exemption on disposal');
@@ -207,10 +261,18 @@ serve(async (req) => {
       startupBenefits.push('Potential tax holiday on profits reinvested in R&D');
     }
 
-    // 5. Compliance checklist
+    // 6. Compliance checklist
     const complianceChecklist: string[] = [];
     
-    if (classification.qualifiesForZeroTax) {
+    if (isProfessionalServices) {
+      complianceChecklist.push('⚠ Section 57: Professional services EXCLUDED from Small Company status');
+      complianceChecklist.push(`⚠ Company tax at ${classification.taxRate}% applies regardless of turnover`);
+      if (whtDeductedByClients > 0) {
+        complianceChecklist.push(`✓ WHT Credit: ₦${whtDeductedByClients.toLocaleString()} deducted by clients available as credit`);
+      }
+      complianceChecklist.push('📅 Quarterly VAT filing required for professional services');
+      complianceChecklist.push('📄 Annual company income tax return with audited accounts');
+    } else if (classification.qualifiesForZeroTax) {
       complianceChecklist.push('✓ Section 56: Small Company status verified - 0% company tax');
     } else {
       complianceChecklist.push(`⚠ Section 56: Company tax at ${classification.taxRate}%`);
@@ -227,15 +289,24 @@ serve(async (req) => {
       complianceChecklist.push('✓ Nigeria Startup Act: Label benefits apply');
     }
 
-    // 6. Act references
-    const actReferences = [
-      'Section 56: Small Company classification',
-      'Section 151: VAT on imported services',
-      'Section 79: Withholding Tax on payments to non-residents',
-      'Nigeria Startup Act 2022: Labelled Startup benefits',
-    ];
-
+    // 7. Act references
+    const actReferences: string[] = [];
+    
+    if (isProfessionalServices) {
+      actReferences.push('Section 57: Professional services exclusion');
+      actReferences.push('Section 30: Allowable deductions for businesses');
+      actReferences.push('Section 148: VAT at 7.5% on services');
+    }
+    
+    actReferences.push('Section 56: Small Company classification');
+    
+    if (foreignPayments.length > 0) {
+      actReferences.push('Section 151: VAT on imported services');
+      actReferences.push('Section 79: Withholding Tax on payments to non-residents');
+    }
+    
     if (isLabelledStartup) {
+      actReferences.push('Nigeria Startup Act 2022: Labelled Startup benefits');
       actReferences.push('Section 165: R&D deductions');
     }
 
@@ -243,8 +314,10 @@ serve(async (req) => {
       success: true,
       companyClassification: classification,
       isLabelledStartup,
+      isProfessionalService: isProfessionalServices,
       startupBenefits,
       paymentBreakdowns,
+      professionalServicesTax,
       annualSummary,
       complianceChecklist,
       actReferences,

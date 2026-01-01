@@ -153,6 +153,19 @@ interface PaymentBreakdown {
   serviceType: string;
 }
 
+interface ProfessionalServicesTaxBreakdown {
+  grossIncome: number;
+  allowableExpenses: number;
+  taxableProfit: number;
+  grossCompanyTax: number;
+  whtCreditAvailable: number;
+  netTaxPayable: number;
+  vatCollected: number;
+  inputVAT: number;
+  netVATPayable: number;
+  section57Exclusion: boolean;
+}
+
 interface CrossBorderResult {
   success: boolean;
   companyClassification: {
@@ -162,14 +175,19 @@ interface CrossBorderResult {
     qualifiesForZeroTax: boolean;
   };
   isLabelledStartup: boolean;
+  isProfessionalService: boolean;
   startupBenefits: string[];
   paymentBreakdowns: PaymentBreakdown[];
+  professionalServicesTax?: ProfessionalServicesTaxBreakdown;
   annualSummary: {
     totalForeignPayments: number;
     totalVATOnImports: number;
     totalWHTRemitted: number;
     totalRemittance: number;
     companyTax: number;
+    netTaxPayable?: number;
+    vatCollected?: number;
+    netVATPayable?: number;
   };
   complianceChecklist: string[];
   actReferences: string[];
@@ -181,10 +199,16 @@ interface StartupScenario {
   persona: string;
   businessType: string;
   isLabelledStartup: boolean;
+  isProfessionalService?: boolean;
   annualTurnover: number;
   fixedAssets: number;
+  estimatedExpenses?: number;
+  whtDeductedByClients?: number;
   foreignPayments: ForeignPayment[];
   expectedCompanyTax: number;
+  expectedNetTaxPayable?: number;
+  expectedVATCollected?: number;
+  expectedVATPayable?: number;
   expectedVATOnImports: number;
   expectedWHT: number;
   expectedFlags: string[];
@@ -350,6 +374,30 @@ const STARTUP_SCENARIOS: StartupScenario[] = [
     expectedFlags: [
       'professional services',
       'not small company',
+    ],
+  },
+  {
+    id: 'blessing-consultant',
+    name: "Blessing: Independent Consultant",
+    persona: 'Professional service provider (legal/planning) with moderate turnover - Section 57 exclusion',
+    businessType: 'legal',
+    isLabelledStartup: false,
+    isProfessionalService: true,
+    annualTurnover: 35000000,
+    fixedAssets: 5000000,
+    estimatedExpenses: 10500000, // 30% cost ratio typical for services
+    whtDeductedByClients: 3500000, // 10% of turnover withheld
+    foreignPayments: [], // No cross-border for this scenario
+    expectedCompanyTax: 7350000, // 30% on ₦24.5M profit
+    expectedNetTaxPayable: 3850000, // After ₦3.5M WHT credit
+    expectedVATCollected: 2625000, // 7.5% on ₦35M
+    expectedVATPayable: 2362500, // Less input VAT
+    expectedVATOnImports: 0,
+    expectedWHT: 0, // No outbound WHT
+    expectedFlags: [
+      'professional services exclusion',
+      'WHT credit available',
+      'quarterly VAT filing',
     ],
   },
 ];
@@ -933,6 +981,9 @@ export default function AdminVATTesting() {
         fixedAssets: scenario.fixedAssets,
         businessType: scenario.businessType,
         isLabelledStartup: scenario.isLabelledStartup,
+        isProfessionalService: scenario.isProfessionalService || false,
+        estimatedExpenses: scenario.estimatedExpenses || 0,
+        whtDeductedByClients: scenario.whtDeductedByClients || 0,
         foreignPayments: scenario.foreignPayments,
       });
 
@@ -943,13 +994,24 @@ export default function AdminVATTesting() {
       const whtMatches = Math.abs(result.annualSummary.totalWHTRemitted - scenario.expectedWHT) < 100;
       const companyTaxMatches = result.companyClassification.qualifiesForZeroTax 
         ? scenario.expectedCompanyTax === 0 
-        : true;
+        : Math.abs(result.annualSummary.companyTax - scenario.expectedCompanyTax) < 1000;
+      
+      // For professional services, also check net tax payable
+      const netTaxMatches = !scenario.isProfessionalService || 
+        !scenario.expectedNetTaxPayable ||
+        !result.annualSummary.netTaxPayable ||
+        Math.abs(result.annualSummary.netTaxPayable - scenario.expectedNetTaxPayable) < 1000;
 
-      const passed = vatMatches && whtMatches && companyTaxMatches;
+      const passed = vatMatches && whtMatches && companyTaxMatches && netTaxMatches;
 
-      toast({ 
+      // Customize toast for professional services
+      const description = scenario.isProfessionalService && result.annualSummary.netTaxPayable
+        ? `Net Tax: ${formatCurrency(result.annualSummary.netTaxPayable)}, VAT: ${formatCurrency(result.annualSummary.netVATPayable || 0)}`
+        : `VAT: ${formatCurrency(result.annualSummary.totalVATOnImports)}, WHT: ${formatCurrency(result.annualSummary.totalWHTRemitted)}`;
+
+      toast({
         title: passed ? "Scenario PASSED ✓" : "Scenario completed with variations",
-        description: `VAT: ${formatCurrency(result.annualSummary.totalVATOnImports)}, WHT: ${formatCurrency(result.annualSummary.totalWHTRemitted)}`,
+        description,
         variant: passed ? "default" : "destructive"
       });
     } catch (error) {
@@ -1817,15 +1879,94 @@ export default function AdminVATTesting() {
 
             {/* Results */}
             {crossBorderResult && (
-              <div className={`p-4 rounded-lg border ${crossBorderResult.companyClassification.qualifiesForZeroTax ? 'bg-green-500/10 border-green-500' : 'bg-yellow-500/10 border-yellow-500'}`}>
+              <div className={`p-4 rounded-lg border ${crossBorderResult.companyClassification.qualifiesForZeroTax ? 'bg-green-500/10 border-green-500' : crossBorderResult.isProfessionalService ? 'bg-red-500/10 border-red-500' : 'bg-yellow-500/10 border-yellow-500'}`}>
                 <h4 className="font-semibold flex items-center gap-2">
                   {crossBorderResult.companyClassification.qualifiesForZeroTax 
                     ? <Check className="w-4 h-4 text-green-500" /> 
                     : <Bell className="w-4 h-4 text-yellow-500" />}
                   Company Classification: {crossBorderResult.companyClassification.status.toUpperCase()}
+                  {crossBorderResult.isProfessionalService && (
+                    <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded">Section 57 Excluded</span>
+                  )}
                 </h4>
                 <p className="text-sm text-muted-foreground mt-1">{crossBorderResult.companyClassification.reason}</p>
                 
+                {/* Professional Services Tax Breakdown - Section 57 */}
+                {crossBorderResult.isProfessionalService && crossBorderResult.professionalServicesTax && (
+                  <div className="mt-4 p-4 bg-red-500/5 border border-red-500/30 rounded-lg">
+                    <h5 className="font-semibold text-sm flex items-center gap-2 text-red-600">
+                      ⚖️ Section 57 Professional Services Tax Breakdown
+                    </h5>
+                    <p className="text-xs text-muted-foreground mt-1 mb-3">
+                      Professional services (legal, accounting, consulting) are excluded from Small Company 0% rate regardless of turnover
+                    </p>
+                    
+                    {/* Income Tax Calculation */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between border-b pb-1">
+                        <span>Gross Income (Annual Turnover)</span>
+                        <span className="font-mono">{formatCurrency(crossBorderResult.professionalServicesTax.grossIncome)}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-1">
+                        <span>Less: Allowable Expenses (Section 30)</span>
+                        <span className="font-mono text-green-600">-{formatCurrency(crossBorderResult.professionalServicesTax.allowableExpenses)}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-1 font-medium">
+                        <span>Taxable Profit</span>
+                        <span className="font-mono">{formatCurrency(crossBorderResult.professionalServicesTax.taxableProfit)}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-1">
+                        <span>Company Tax ({crossBorderResult.companyClassification.taxRate}%)</span>
+                        <span className="font-mono text-red-500">{formatCurrency(crossBorderResult.professionalServicesTax.grossCompanyTax)}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-1">
+                        <span>Less: WHT Credit (deducted by clients)</span>
+                        <span className="font-mono text-green-600">-{formatCurrency(crossBorderResult.professionalServicesTax.whtCreditAvailable)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-base pt-1">
+                        <span>Net Tax Payable</span>
+                        <span className="font-mono text-red-600">{formatCurrency(crossBorderResult.professionalServicesTax.netTaxPayable)}</span>
+                      </div>
+                    </div>
+
+                    {/* VAT Obligations */}
+                    <div className="mt-4 pt-3 border-t">
+                      <h6 className="font-medium text-xs mb-2">VAT Obligations (Section 148)</h6>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Output VAT Collected (7.5%)</span>
+                          <span className="font-mono">{formatCurrency(crossBorderResult.professionalServicesTax.vatCollected)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Less: Input VAT Paid</span>
+                          <span className="font-mono text-green-600">-{formatCurrency(crossBorderResult.professionalServicesTax.inputVAT)}</span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span>Net VAT Payable</span>
+                          <span className="font-mono">{formatCurrency(crossBorderResult.professionalServicesTax.netVATPayable)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Comparison Table */}
+                    <div className="mt-4 p-3 bg-background rounded">
+                      <h6 className="font-medium text-xs mb-2">⚡ Impact of Section 57 Exclusion</h6>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div className="p-2 bg-green-500/10 rounded">
+                          <p className="font-medium text-green-600">If Small Company Applied</p>
+                          <p className="font-mono text-lg mt-1">₦0</p>
+                          <p className="text-muted-foreground">Company Tax</p>
+                        </div>
+                        <div className="p-2 bg-red-500/10 rounded">
+                          <p className="font-medium text-red-600">Actual (Section 57)</p>
+                          <p className="font-mono text-lg mt-1">{formatCurrency(crossBorderResult.professionalServicesTax.netTaxPayable)}</p>
+                          <p className="text-muted-foreground">After WHT Credit</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Payment Breakdowns */}
                 {crossBorderResult.paymentBreakdowns.length > 0 && (
                   <div className="mt-4">
@@ -1859,23 +2000,43 @@ export default function AdminVATTesting() {
                 {/* Annual Summary */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 p-3 bg-background rounded">
                   <div>
-                    <p className="text-xs text-muted-foreground">Company Tax</p>
-                    <p className="font-mono font-bold text-green-600">
+                    <p className="text-xs text-muted-foreground">
+                      {crossBorderResult.isProfessionalService ? 'Gross Company Tax' : 'Company Tax'}
+                    </p>
+                    <p className={`font-mono font-bold ${crossBorderResult.companyClassification.qualifiesForZeroTax ? 'text-green-600' : 'text-red-600'}`}>
                       {crossBorderResult.companyClassification.qualifiesForZeroTax ? '₦0' : formatCurrency(crossBorderResult.annualSummary.companyTax)}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Annual VAT (Imported)</p>
-                    <p className="font-mono">{formatCurrency(crossBorderResult.annualSummary.totalVATOnImports)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Annual WHT</p>
-                    <p className="font-mono">{formatCurrency(crossBorderResult.annualSummary.totalWHTRemitted)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total Remittance</p>
-                    <p className="font-mono font-bold">{formatCurrency(crossBorderResult.annualSummary.totalRemittance)}</p>
-                  </div>
+                  {crossBorderResult.isProfessionalService && crossBorderResult.annualSummary.netTaxPayable !== undefined && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Net Tax (After WHT)</p>
+                      <p className="font-mono font-bold text-red-600">{formatCurrency(crossBorderResult.annualSummary.netTaxPayable)}</p>
+                    </div>
+                  )}
+                  {crossBorderResult.annualSummary.totalVATOnImports > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Annual VAT (Imported)</p>
+                      <p className="font-mono">{formatCurrency(crossBorderResult.annualSummary.totalVATOnImports)}</p>
+                    </div>
+                  )}
+                  {crossBorderResult.isProfessionalService && crossBorderResult.annualSummary.netVATPayable !== undefined && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Net VAT Payable</p>
+                      <p className="font-mono">{formatCurrency(crossBorderResult.annualSummary.netVATPayable)}</p>
+                    </div>
+                  )}
+                  {crossBorderResult.annualSummary.totalWHTRemitted > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Annual WHT</p>
+                      <p className="font-mono">{formatCurrency(crossBorderResult.annualSummary.totalWHTRemitted)}</p>
+                    </div>
+                  )}
+                  {crossBorderResult.annualSummary.totalRemittance > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Remittance</p>
+                      <p className="font-mono font-bold">{formatCurrency(crossBorderResult.annualSummary.totalRemittance)}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Startup Benefits */}
