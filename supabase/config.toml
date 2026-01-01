@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.admin-bot-messaging]
 verify_jwt = false
+
+[functions.cross-border-tax]
+verify_jwt = false

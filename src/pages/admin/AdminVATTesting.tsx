@@ -128,6 +128,68 @@ interface ClassificationJobResult {
   notifications: Array<{ businessId: string; businessName: string; message: string }>;
 }
 
+// Cross-Border Tax Types
+interface ForeignPayment {
+  recipient: string;
+  country: string;
+  monthlyAmount: number;
+  serviceType: string;
+  annualTotal: number;
+}
+
+interface PaymentBreakdown {
+  recipient: string;
+  country: string;
+  monthlyGross: number;
+  monthlyVAT: number;
+  monthlyWHT: number;
+  monthlyNetToRecipient: number;
+  monthlyRemittance: number;
+  annualGross: number;
+  annualVAT: number;
+  annualWHT: number;
+  annualRemittance: number;
+  whtRate: number;
+  serviceType: string;
+}
+
+interface CrossBorderResult {
+  success: boolean;
+  companyClassification: {
+    status: 'small' | 'medium' | 'large';
+    taxRate: number;
+    reason: string;
+    qualifiesForZeroTax: boolean;
+  };
+  isLabelledStartup: boolean;
+  startupBenefits: string[];
+  paymentBreakdowns: PaymentBreakdown[];
+  annualSummary: {
+    totalForeignPayments: number;
+    totalVATOnImports: number;
+    totalWHTRemitted: number;
+    totalRemittance: number;
+    companyTax: number;
+  };
+  complianceChecklist: string[];
+  actReferences: string[];
+}
+
+interface StartupScenario {
+  id: string;
+  name: string;
+  persona: string;
+  businessType: string;
+  isLabelledStartup: boolean;
+  annualTurnover: number;
+  fixedAssets: number;
+  foreignPayments: ForeignPayment[];
+  expectedCompanyTax: number;
+  expectedVATOnImports: number;
+  expectedWHT: number;
+  expectedFlags: string[];
+}
+
 const TEST_SCENARIOS = [
   { id: 'standard-retail', name: 'Standard Retail Business', description: '5 invoices, 2 expenses' },
   { id: 'zero-rated-exports', name: 'Export Business', description: '3 zero-rated invoices, 2 expenses' },
@@ -237,6 +299,61 @@ const PROJECT_SCENARIOS = [
   }
 ];
 
+// Startup & Cross-Border Scenarios - Section 56, 151, 79
+const STARTUP_SCENARIOS: StartupScenario[] = [
+  {
+    id: 'tunde-startup',
+    name: "Tunde: Labelled Startup Founder",
+    persona: 'Tech entrepreneur with Labelled Startup status hiring remote international staff',
+    businessType: 'technology',
+    isLabelledStartup: true,
+    annualTurnover: 40000000,
+    fixedAssets: 15000000,
+    foreignPayments: [
+      {
+        recipient: 'UK Software Engineer',
+        country: 'United Kingdom',
+        monthlyAmount: 500000,
+        serviceType: 'technical',
+        annualTotal: 6000000,
+      }
+    ],
+    expectedCompanyTax: 0,
+    expectedVATOnImports: 450000,
+    expectedWHT: 600000,
+    expectedFlags: [
+      'cross-border payment',
+      'self-assess VAT',
+      'WHT obligation',
+    ],
+  },
+  {
+    id: 'adaeze-consulting',
+    name: "Adaeze: Professional Services",
+    persona: 'Consulting firm hiring foreign experts (excluded from Small Company)',
+    businessType: 'consulting',
+    isLabelledStartup: false,
+    annualTurnover: 35000000,
+    fixedAssets: 10000000,
+    foreignPayments: [
+      {
+        recipient: 'US Management Consultant',
+        country: 'United States',
+        monthlyAmount: 800000,
+        serviceType: 'management',
+        annualTotal: 9600000,
+      }
+    ],
+    expectedCompanyTax: 3150000, // 30% on estimated profit
+    expectedVATOnImports: 720000,
+    expectedWHT: 960000,
+    expectedFlags: [
+      'professional services',
+      'not small company',
+    ],
+  },
+];
+
 interface ProjectScenarioResult {
   scenarioId: string;
   scenarioName: string;
@@ -284,6 +401,10 @@ export default function AdminVATTesting() {
   const [selectedProjectScenario, setSelectedProjectScenario] = useState(PROJECT_SCENARIOS[0].id);
   const [projectScenarioResult, setProjectScenarioResult] = useState<ProjectScenarioResult | null>(null);
   
+  // Startup & Cross-Border Testing state
+  const [selectedStartupScenario, setSelectedStartupScenario] = useState(STARTUP_SCENARIOS[0].id);
+  const [crossBorderResult, setCrossBorderResult] = useState<CrossBorderResult | null>(null);
+  
   // Expanded sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     calculator: true,
@@ -292,7 +413,8 @@ export default function AdminVATTesting() {
     reconciliation: true,
     incomeTax: true,
     businessClassification: true,
-    projectFunds: true
+    projectFunds: true,
+    startupCrossBorder: true
   });
 
   const toggleSection = (section: string) => {
@@ -789,6 +911,49 @@ export default function AdminVATTesting() {
         variant: result.passed ? "default" : "destructive"
       });
     } catch (error) {
+      toast({ 
+        title: "Scenario failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Startup & Cross-Border Scenario
+  const handleRunStartupScenario = async (scenarioId: string) => {
+    setLoading('startup-scenario');
+    try {
+      const scenario = STARTUP_SCENARIOS.find(s => s.id === scenarioId);
+      if (!scenario) throw new Error('Scenario not found');
+
+      const result = await callPublicEdgeFunction<CrossBorderResult>('cross-border-tax', {
+        annualTurnover: scenario.annualTurnover,
+        fixedAssets: scenario.fixedAssets,
+        businessType: scenario.businessType,
+        isLabelledStartup: scenario.isLabelledStartup,
+        foreignPayments: scenario.foreignPayments,
+      });
+
+      setCrossBorderResult(result);
+      
+      // Check if results match expectations
+      const vatMatches = Math.abs(result.annualSummary.totalVATOnImports - scenario.expectedVATOnImports) < 100;
+      const whtMatches = Math.abs(result.annualSummary.totalWHTRemitted - scenario.expectedWHT) < 100;
+      const companyTaxMatches = result.companyClassification.qualifiesForZeroTax 
+        ? scenario.expectedCompanyTax === 0 
+        : true;
+
+      const passed = vatMatches && whtMatches && companyTaxMatches;
+
+      toast({ 
+        title: passed ? "Scenario PASSED ✓" : "Scenario completed with variations",
+        description: `VAT: ${formatCurrency(result.annualSummary.totalVATOnImports)}, WHT: ${formatCurrency(result.annualSummary.totalWHTRemitted)}`,
+        variant: passed ? "default" : "destructive"
+      });
+    } catch (error) {
+      console.error('[startup-scenario] Error:', error);
       toast({ 
         title: "Scenario failed", 
         description: error instanceof Error ? error.message : "Unknown error",
@@ -1585,6 +1750,163 @@ export default function AdminVATTesting() {
                     </ul>
                   </div>
                 )}
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Startup & Cross-Border Tax Testing */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer flex flex-row items-center justify-between"
+          onClick={() => toggleSection('startupCrossBorder')}
+        >
+          <div className="flex items-center gap-3">
+            <Building2 className="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>Startup & Cross-Border Tax Testing</CardTitle>
+              <CardDescription>Test Tunde scenario - Section 56, 151, 79 compliance</CardDescription>
+            </div>
+          </div>
+          {expandedSections.startupCrossBorder ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </CardHeader>
+        {expandedSections.startupCrossBorder && (
+          <CardContent className="space-y-4">
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-sm font-medium text-foreground">Select Scenario</label>
+                <select 
+                  value={selectedStartupScenario}
+                  onChange={(e) => setSelectedStartupScenario(e.target.value)}
+                  className="w-full mt-1 p-2 border rounded-md bg-background text-foreground"
+                >
+                  {STARTUP_SCENARIOS.map(scenario => (
+                    <option key={scenario.id} value={scenario.id}>
+                      {scenario.name} - {scenario.persona}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button 
+                onClick={() => handleRunStartupScenario(selectedStartupScenario)}
+                disabled={loading !== null}
+                className="gap-2"
+              >
+                {loading === 'startup-scenario' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                Run Scenario
+              </Button>
+            </div>
+
+            {/* Scenario Details */}
+            {STARTUP_SCENARIOS.find(s => s.id === selectedStartupScenario) && (
+              <div className="p-3 bg-muted rounded-lg text-sm">
+                <p className="font-medium">{STARTUP_SCENARIOS.find(s => s.id === selectedStartupScenario)?.persona}</p>
+                <p className="text-muted-foreground mt-1">
+                  Turnover: ₦{STARTUP_SCENARIOS.find(s => s.id === selectedStartupScenario)?.annualTurnover.toLocaleString()} | 
+                  Business Type: {STARTUP_SCENARIOS.find(s => s.id === selectedStartupScenario)?.businessType} |
+                  {STARTUP_SCENARIOS.find(s => s.id === selectedStartupScenario)?.isLabelledStartup && ' 🏷️ Labelled Startup'}
+                </p>
+                <p className="text-muted-foreground mt-1">
+                  Foreign Payments: {STARTUP_SCENARIOS.find(s => s.id === selectedStartupScenario)?.foreignPayments.map(p => 
+                    `${p.recipient} (₦${p.monthlyAmount.toLocaleString()}/mo)`
+                  ).join(', ')}
+                </p>
+              </div>
+            )}
+
+            {/* Results */}
+            {crossBorderResult && (
+              <div className={`p-4 rounded-lg border ${crossBorderResult.companyClassification.qualifiesForZeroTax ? 'bg-green-500/10 border-green-500' : 'bg-yellow-500/10 border-yellow-500'}`}>
+                <h4 className="font-semibold flex items-center gap-2">
+                  {crossBorderResult.companyClassification.qualifiesForZeroTax 
+                    ? <Check className="w-4 h-4 text-green-500" /> 
+                    : <Bell className="w-4 h-4 text-yellow-500" />}
+                  Company Classification: {crossBorderResult.companyClassification.status.toUpperCase()}
+                </h4>
+                <p className="text-sm text-muted-foreground mt-1">{crossBorderResult.companyClassification.reason}</p>
+                
+                {/* Payment Breakdowns */}
+                {crossBorderResult.paymentBreakdowns.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium mb-2">Foreign Payment Analysis</p>
+                    {crossBorderResult.paymentBreakdowns.map((payment, idx) => (
+                      <div key={idx} className="p-3 bg-background rounded mb-2">
+                        <p className="font-medium text-sm">{payment.recipient} ({payment.country})</p>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">Monthly Gross</p>
+                            <p className="font-mono">{formatCurrency(payment.monthlyGross)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">WHT ({payment.whtRate}%)</p>
+                            <p className="font-mono text-red-500">-{formatCurrency(payment.monthlyWHT)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Net to Recipient</p>
+                            <p className="font-mono">{formatCurrency(payment.monthlyNetToRecipient)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">VAT Self-Assess</p>
+                            <p className="font-mono text-yellow-600">{formatCurrency(payment.monthlyVAT)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Annual Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 p-3 bg-background rounded">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Company Tax</p>
+                    <p className="font-mono font-bold text-green-600">
+                      {crossBorderResult.companyClassification.qualifiesForZeroTax ? '₦0' : formatCurrency(crossBorderResult.annualSummary.companyTax)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Annual VAT (Imported)</p>
+                    <p className="font-mono">{formatCurrency(crossBorderResult.annualSummary.totalVATOnImports)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Annual WHT</p>
+                    <p className="font-mono">{formatCurrency(crossBorderResult.annualSummary.totalWHTRemitted)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Remittance</p>
+                    <p className="font-mono font-bold">{formatCurrency(crossBorderResult.annualSummary.totalRemittance)}</p>
+                  </div>
+                </div>
+
+                {/* Startup Benefits */}
+                {crossBorderResult.isLabelledStartup && crossBorderResult.startupBenefits.length > 0 && (
+                  <div className="mt-3 p-2 bg-primary/10 rounded">
+                    <p className="text-xs font-medium text-primary">🏷️ Labelled Startup Benefits:</p>
+                    <ul className="text-xs text-muted-foreground mt-1">
+                      {crossBorderResult.startupBenefits.map((benefit, i) => (
+                        <li key={i}>• {benefit}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Compliance Checklist */}
+                {crossBorderResult.complianceChecklist.length > 0 && (
+                  <div className="mt-3 p-2 bg-muted rounded">
+                    <p className="text-xs font-medium">📋 Compliance Checklist:</p>
+                    <ul className="text-xs text-muted-foreground mt-1">
+                      {crossBorderResult.complianceChecklist.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Act References */}
+                <div className="mt-3 text-xs text-muted-foreground">
+                  <span className="font-medium">References: </span>
+                  {crossBorderResult.actReferences.join(' | ')}
+                </div>
               </div>
             )}
           </CardContent>
