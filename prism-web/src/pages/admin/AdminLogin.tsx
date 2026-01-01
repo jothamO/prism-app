@@ -1,37 +1,72 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Lock, Mail } from "lucide-react";
+import { Lock, Mail, Loader2 } from "lucide-react";
 import api from '@/lib/api';
 import maxtonImg from '@/assets/maxton.png';
+
+interface LoginResponse {
+    token: string;
+    refreshToken: string;
+    expiresAt: number;
+    user: {
+        id: string;
+        email: string;
+        role: string;
+    };
+}
 
 export default function AdminLogin() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(""); // Clear previous errors
+        setError("");
+        setIsLoading(true);
+
         try {
-            console.log("Attempting login with:", { email });
-            const response = await api.post<{ token: string }>('/auth/login', { email, password });
-            console.log("Login success:", response.data);
-            const token = response.data.token;
+            const response = await api.post<LoginResponse>('/auth/login', { email, password });
+            const { token, refreshToken, user } = response.data;
+
+            // Verify user has admin role
+            if (user.role !== 'admin') {
+                setError("Access denied: Admin privileges required");
+                setIsLoading(false);
+                return;
+            }
+
+            // Store tokens securely
             localStorage.setItem('admin_token', token);
+            localStorage.setItem('admin_refresh_token', refreshToken);
+            localStorage.setItem('admin_user', JSON.stringify(user));
+
             navigate('/admin');
         } catch (err: any) {
-            console.error("Login error details:", err);
+            console.error("Login error:", err?.response?.status);
+            
             if (err.response) {
-                // Server responded with a status code outside 2xx
-                setError(err.response.data?.message || `Server error: ${err.response.status}`);
+                const status = err.response.status;
+                const message = err.response.data?.error || err.response.data?.message;
+                
+                if (status === 401) {
+                    setError("Invalid email or password");
+                } else if (status === 403) {
+                    setError("Access denied: Admin privileges required");
+                } else if (status >= 500) {
+                    setError("Server error. Please try again later.");
+                } else {
+                    setError(message || "An error occurred during login");
+                }
             } else if (err.request) {
-                // Request was made but no response received
-                setError("Network error: No response from server. Is the backend running?");
+                setError("Unable to connect to server. Please check your connection.");
             } else {
-                // Something happened in setting up the request
-                setError(`Error: ${err.message}`);
+                setError("An unexpected error occurred");
             }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -63,6 +98,8 @@ export default function AdminLogin() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 focus:outline-none focus:border-purple-500 transition-colors"
                                 placeholder="admin@prism.ng"
+                                disabled={isLoading}
+                                required
                             />
                         </div>
                     </div>
@@ -77,19 +114,28 @@ export default function AdminLogin() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 focus:outline-none focus:border-purple-500 transition-colors"
                                 placeholder="••••••••"
+                                disabled={isLoading}
+                                required
                             />
                         </div>
                     </div>
 
                     <button
                         type="submit"
-                        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-2.5 rounded-lg transition-colors shadow-lg shadow-purple-500/20"
+                        disabled={isLoading}
+                        className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-lg transition-colors shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2"
                     >
-                        Sign In
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Signing in...
+                            </>
+                        ) : (
+                            "Sign In"
+                        )}
                     </button>
                 </form>
             </div>
         </div>
     );
 }
-
