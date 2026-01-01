@@ -92,7 +92,28 @@ serve(async (req) => {
   }
 
   try {
-    const input: CrossBorderInput = await req.json();
+    // Parse body with error handling for empty requests
+    let input: CrossBorderInput;
+    try {
+      const bodyText = await req.text();
+      if (!bodyText || bodyText.trim() === '') {
+        throw new Error('Request body is empty');
+      }
+      input = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('[cross-border-tax] JSON parse error:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid request body. Expected JSON with annualTurnover, foreignPayments, etc.' 
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
     console.log('[cross-border-tax] Processing request:', JSON.stringify(input, null, 2));
 
     const {
