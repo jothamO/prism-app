@@ -15,12 +15,17 @@ interface BotRequest {
     | "update-commands"
     | "clear-user-data"
     | "clear-all-states"
-    | "get-recent-errors";
+    | "get-recent-errors"
+    | "verify-user"
+    | "request-reverify"
+    | "update-subscription"
+    | "delete-user";
   message?: string;
   platform?: "all" | "telegram" | "whatsapp";
   userId?: string;
   enabled?: boolean;
   clearOption?: "state" | "messages" | "onboarding" | "full";
+  subscriptionTier?: "free" | "basic" | "pro" | "enterprise";
   filters?: {
     entityType?: string;
     onboarded?: string;
@@ -337,6 +342,219 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ errors: errors || [] }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== VERIFY USER ====================
+    if (action === "verify-user") {
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "User ID required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: updateError } = await supabaseClient
+        .from("users")
+        .update({
+          verification_status: "verified",
+          verified_at: new Date().toISOString(),
+          verification_source: "admin_manual",
+        })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.error("[admin-bot-messaging] Verify user error:", updateError);
+        return new Response(JSON.stringify({ error: "Failed to verify user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Log audit
+      await supabaseClient.from("audit_log").insert({
+        admin_id: user.id,
+        user_id: userId,
+        action: "user_verified",
+        entity_type: "user",
+        entity_id: userId,
+        new_values: { verification_status: "verified", verification_source: "admin_manual" },
+      });
+
+      console.log(`[admin-bot-messaging] User ${userId} manually verified by admin ${user.id}`);
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== REQUEST RE-VERIFICATION ====================
+    if (action === "request-reverify") {
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "User ID required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: updateError } = await supabaseClient
+        .from("users")
+        .update({
+          verification_status: "pending",
+          verification_data: null,
+          verified_at: null,
+          verification_source: null,
+        })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.error("[admin-bot-messaging] Request reverify error:", updateError);
+        return new Response(JSON.stringify({ error: "Failed to reset verification" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Log audit
+      await supabaseClient.from("audit_log").insert({
+        admin_id: user.id,
+        user_id: userId,
+        action: "verification_reset",
+        entity_type: "user",
+        entity_id: userId,
+      });
+
+      console.log(`[admin-bot-messaging] User ${userId} verification reset by admin ${user.id}`);
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== UPDATE SUBSCRIPTION ====================
+    if (action === "update-subscription") {
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "User ID required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { subscriptionTier } = body;
+      if (!subscriptionTier) {
+        return new Response(JSON.stringify({ error: "Subscription tier required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: oldData } = await supabaseClient
+        .from("users")
+        .select("subscription_tier")
+        .eq("id", userId)
+        .single();
+
+      const { error: updateError } = await supabaseClient
+        .from("users")
+        .update({
+          subscription_tier: subscriptionTier,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.error("[admin-bot-messaging] Update subscription error:", updateError);
+        return new Response(JSON.stringify({ error: "Failed to update subscription" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Log audit
+      await supabaseClient.from("audit_log").insert({
+        admin_id: user.id,
+        user_id: userId,
+        action: "subscription_updated",
+        entity_type: "user",
+        entity_id: userId,
+        old_values: { subscription_tier: oldData?.subscription_tier },
+        new_values: { subscription_tier: subscriptionTier },
+      });
+
+      console.log(`[admin-bot-messaging] User ${userId} subscription changed to ${subscriptionTier} by admin ${user.id}`);
+      return new Response(
+        JSON.stringify({ success: true, tier: subscriptionTier }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== DELETE USER ====================
+    if (action === "delete-user") {
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "User ID required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Get user data before deletion for audit
+      const { data: userData } = await supabaseClient
+        .from("users")
+        .select("telegram_id, whatsapp_id, full_name, email")
+        .eq("id", userId)
+        .single();
+
+      if (!userData) {
+        return new Response(JSON.stringify({ error: "User not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Delete related data in order (foreign key constraints)
+      await supabaseClient.from("receipts").delete().eq("user_id", userId);
+      await supabaseClient.from("messages").delete().eq("user_id", userId);
+      await supabaseClient.from("expenses").delete().eq("user_id", userId);
+      await supabaseClient.from("invoices").delete().eq("user_id", userId);
+      await supabaseClient.from("user_insights").delete().eq("user_id", userId);
+      await supabaseClient.from("reminders").delete().eq("user_id", userId);
+      
+      // Delete conversation state
+      if (userData.telegram_id) {
+        await supabaseClient.from("conversation_state").delete().eq("telegram_id", userData.telegram_id);
+      }
+      if (userData.whatsapp_id) {
+        await supabaseClient.from("conversation_state").delete().eq("whatsapp_id", userData.whatsapp_id);
+      }
+
+      // Delete user
+      const { error: deleteError } = await supabaseClient
+        .from("users")
+        .delete()
+        .eq("id", userId);
+
+      if (deleteError) {
+        console.error("[admin-bot-messaging] Delete user error:", deleteError);
+        return new Response(JSON.stringify({ error: "Failed to delete user" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Log audit
+      await supabaseClient.from("audit_log").insert({
+        admin_id: user.id,
+        user_id: userId,
+        action: "user_deleted",
+        entity_type: "user",
+        entity_id: userId,
+        old_values: userData,
+      });
+
+      console.log(`[admin-bot-messaging] User ${userId} deleted by admin ${user.id}`);
+      return new Response(
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
