@@ -37,7 +37,9 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
     const telegramToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
+    const whatsappApiKey = Deno.env.get("WHATSAPP_360DIALOG_API_KEY");
 
     // Verify admin authentication
     const authHeader = req.headers.get("Authorization");
@@ -48,18 +50,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Verify the user is an admin
+    // Use anon client with user's token for auth validation
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
 
     if (authError || !user) {
+      console.error("[admin-bot-messaging] Auth error:", authError?.message);
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Use service role client for admin operations
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Check admin role
     const { data: roleData } = await supabaseClient
@@ -83,12 +90,34 @@ Deno.serve(async (req) => {
 
     // ==================== HEALTH CHECK ====================
     if (action === "health") {
-      const telegramHealthy = !!telegramToken;
+      let telegramStatus = "not configured";
+      let whatsappStatus = "not configured";
+
+      // Check Telegram
+      if (telegramToken) {
+        try {
+          const response = await fetch(`https://api.telegram.org/bot${telegramToken}/getMe`);
+          const result = await response.json();
+          telegramStatus = result.ok ? "online" : "error";
+        } catch {
+          telegramStatus = "offline";
+        }
+      }
+
+      // Check WhatsApp (360dialog)
+      if (whatsappApiKey) {
+        try {
+          const response = await fetch("https://waba.360dialog.io/v1/configs/webhook", {
+            headers: { "D360-API-KEY": whatsappApiKey },
+          });
+          whatsappStatus = response.ok ? "online" : "error";
+        } catch {
+          whatsappStatus = "offline";
+        }
+      }
+
       return new Response(
-        JSON.stringify({
-          telegram: telegramHealthy ? "online" : "not configured",
-          whatsapp: "online",
-        }),
+        JSON.stringify({ telegram: telegramStatus, whatsapp: whatsappStatus }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

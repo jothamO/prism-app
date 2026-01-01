@@ -8,15 +8,15 @@ import {
   RefreshCw,
   Search,
   CheckCircle2,
-  Clock,
   Smartphone,
   MessagesSquare,
   ToggleLeft,
   ToggleRight,
-  AlertTriangle,
   Trash2,
   Terminal,
   Ban,
+  Zap,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -123,6 +123,7 @@ function OverviewTab() {
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [showCommands, setShowCommands] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<{ telegram: string; whatsapp: string } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -157,7 +158,7 @@ function OverviewTab() {
   }
 
   async function fetchSettings() {
-    const { data } = await supabase.from("system_settings").select("telegram_enabled, whatsapp_enabled").single();
+    const { data } = await supabase.from("system_settings").select("telegram_enabled, whatsapp_enabled").maybeSingle();
     if (data) {
       setTelegramEnabled(data.telegram_enabled ?? true);
       setWhatsappEnabled(data.whatsapp_enabled ?? true);
@@ -176,28 +177,49 @@ function OverviewTab() {
       else setWhatsappEnabled(newEnabled);
       toast({ title: "Success", description: `${platform} bot ${newEnabled ? "enabled" : "disabled"}` });
     } catch (error) {
+      console.error("Toggle error:", error);
       toast({ title: "Error", description: "Failed to toggle bot", variant: "destructive" });
     } finally {
       setToggling(null);
     }
   }
 
-  async function testWebhook() {
+  async function testConnections() {
     try {
       const response = await supabase.functions.invoke("admin-bot-messaging", { body: { action: "health" } });
       if (response.error) throw response.error;
-      toast({ title: "Webhook Status", description: `Telegram: ${response.data.telegram}, WhatsApp: ${response.data.whatsapp}` });
-    } catch {
-      toast({ title: "Error", description: "Webhook test failed", variant: "destructive" });
+      setHealthStatus(response.data);
+      toast({
+        title: "Connection Status",
+        description: `Telegram: ${response.data.telegram}, WhatsApp: ${response.data.whatsapp}`,
+      });
+    } catch (error) {
+      console.error("Health check error:", error);
+      toast({ title: "Error", description: "Connection test failed", variant: "destructive" });
+    }
+  }
+
+  async function syncTelegramCommands() {
+    try {
+      const response = await supabase.functions.invoke("admin-bot-messaging", {
+        body: { action: "update-commands", platform: "telegram" },
+      });
+      if (response.error) throw response.error;
+      toast({ title: "Success", description: `Synced ${response.data.commandsSet} commands to Telegram` });
+    } catch (error) {
+      console.error("Sync error:", error);
+      toast({ title: "Error", description: "Failed to sync commands", variant: "destructive" });
     }
   }
 
   async function clearAllStates() {
     if (!confirm("Clear all conversation states? This will unstick all users.")) return;
     try {
-      await supabase.functions.invoke("admin-bot-messaging", { body: { action: "clear-all-states" } });
+      const response = await supabase.functions.invoke("admin-bot-messaging", { body: { action: "clear-all-states" } });
+      if (response.error) throw response.error;
       toast({ title: "Success", description: "All conversation states cleared" });
-    } catch {
+    } catch (error) {
+      console.error("Clear states error:", error);
       toast({ title: "Error", description: "Failed to clear states", variant: "destructive" });
     }
   }
@@ -222,6 +244,7 @@ function OverviewTab() {
 
   return (
     <div className="space-y-6">
+      {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map((stat) => (
           <div key={stat.label} className="bg-card border border-border rounded-xl p-4">
@@ -244,7 +267,12 @@ function OverviewTab() {
             <div className="flex items-center justify-between p-3 bg-background rounded-lg">
               <div className="flex items-center gap-3">
                 <Bot className="w-5 h-5 text-sky-500" />
-                <span className="text-foreground">Telegram Bot</span>
+                <div>
+                  <span className="text-foreground">Telegram Bot</span>
+                  {healthStatus && (
+                    <p className="text-xs text-muted-foreground">API: {healthStatus.telegram}</p>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className={cn("flex items-center gap-2 text-sm", telegramEnabled ? "text-green-500" : "text-muted-foreground")}>
@@ -259,7 +287,12 @@ function OverviewTab() {
             <div className="flex items-center justify-between p-3 bg-background rounded-lg">
               <div className="flex items-center gap-3">
                 <Smartphone className="w-5 h-5 text-green-500" />
-                <span className="text-foreground">WhatsApp (360dialog)</span>
+                <div>
+                  <span className="text-foreground">WhatsApp (360dialog)</span>
+                  {healthStatus && (
+                    <p className="text-xs text-muted-foreground">API: {healthStatus.whatsapp}</p>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className={cn("flex items-center gap-2 text-sm", whatsappEnabled ? "text-green-500" : "text-muted-foreground")}>
@@ -274,22 +307,48 @@ function OverviewTab() {
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions - Platform Aware */}
         <div className="bg-card border border-border rounded-xl p-6">
           <h3 className="text-lg font-medium text-foreground mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            <button onClick={testWebhook} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
-              <RefreshCw className="w-4 h-4 text-primary" />
-              <span className="text-foreground">Test Webhook Connection</span>
-            </button>
-            <button onClick={() => setShowCommands(!showCommands)} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
-              <Terminal className="w-4 h-4 text-primary" />
-              <span className="text-foreground">Manage Bot Commands</span>
-            </button>
-            <button onClick={clearAllStates} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
-              <Trash2 className="w-4 h-4 text-destructive" />
-              <span className="text-foreground">Clear All Conversation States</span>
-            </button>
+          <div className="space-y-4">
+            {/* Shared Actions */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">General</p>
+              <button onClick={testConnections} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+                <Zap className="w-4 h-4 text-primary" />
+                <span className="text-foreground">Test Platform Connections</span>
+              </button>
+              <button onClick={clearAllStates} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+                <Trash2 className="w-4 h-4 text-destructive" />
+                <span className="text-foreground">Clear All Conversation States</span>
+              </button>
+            </div>
+
+            {/* Telegram Actions */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <Bot className="w-3 h-3" /> Telegram
+              </p>
+              <button onClick={() => setShowCommands(!showCommands)} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+                <Terminal className="w-4 h-4 text-sky-500" />
+                <span className="text-foreground">Manage Menu Commands</span>
+              </button>
+              <button onClick={syncTelegramCommands} className="w-full text-left px-4 py-3 bg-background rounded-lg hover:bg-accent transition-colors flex items-center gap-3">
+                <RefreshCw className="w-4 h-4 text-sky-500" />
+                <span className="text-foreground">Sync Commands to Telegram</span>
+              </button>
+            </div>
+
+            {/* WhatsApp Actions */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <Smartphone className="w-3 h-3" /> WhatsApp
+              </p>
+              <div className="w-full text-left px-4 py-3 bg-background rounded-lg flex items-center gap-3 text-muted-foreground">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm">Templates managed via 360dialog dashboard</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -423,23 +482,21 @@ function UsersTab() {
                       {user.platform || "Unknown"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-foreground capitalize">{user.entity_type || "—"}</td>
+                  <td className="px-4 py-3 text-foreground capitalize">{user.entity_type || "-"}</td>
                   <td className="px-4 py-3">
-                    {user.onboarding_completed ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Clock className="w-5 h-5 text-yellow-500" />}
+                    {user.onboarding_completed ? (
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Incomplete</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={cn("px-2 py-1 rounded-full text-xs font-medium", user.verification_status === "verified" ? "bg-green-500/20 text-green-500" : user.verification_status === "pending" ? "bg-yellow-500/20 text-yellow-500" : "bg-muted text-muted-foreground")}>
-                      {user.verification_status || "none"}
+                    <span className={cn("text-sm", user.verification_status === "verified" ? "text-green-500" : "text-muted-foreground")}>
+                      {user.verification_status || "Pending"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <UserActionMenu
-                      userId={user.id}
-                      userName={user.full_name || user.first_name || "User"}
-                      platform={user.platform}
-                      isBlocked={user.is_blocked}
-                      onUpdate={fetchUsers}
-                    />
+                    <UserActionMenu user={user} onUpdate={fetchUsers} />
                   </td>
                 </tr>
               ))
@@ -453,154 +510,160 @@ function UsersTab() {
 
 function ConversationsTab() {
   const [users, setUsers] = useState<BotUser[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [conversationState, setConversationState] = useState<ConversationState | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState<ConversationState | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  async function fetchUsers() {
-    const { data } = await supabase
-      .from("users")
-      .select("id, full_name, first_name, last_name, platform, telegram_username, whatsapp_number")
-      .order("created_at", { ascending: false });
-    setUsers(data || []);
-  }
+  useEffect(() => {
+    if (selectedUser) {
+      fetchConversation(selectedUser);
+    }
+  }, [selectedUser]);
 
-  async function fetchConversation(userId: string) {
+  async function fetchUsers() {
     setLoading(true);
     try {
-      // Get user details first
-      const { data: userData } = await supabase
+      const { data } = await supabase
         .from("users")
-        .select("telegram_id, whatsapp_id")
-        .eq("id", userId)
-        .single();
-
-      // Fetch messages
-      const { data: msgData } = await supabase
-        .from("messages")
-        .select("id, content, direction, message_type, created_at, media_url")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: true });
-      setMessages(msgData || []);
-
-      // Fetch conversation state
-      if (userData) {
-        let stateQuery = supabase.from("conversation_state").select("*");
-        if (userData.telegram_id) {
-          stateQuery = stateQuery.eq("telegram_id", userData.telegram_id);
-        } else if (userData.whatsapp_id) {
-          stateQuery = stateQuery.eq("whatsapp_id", userData.whatsapp_id);
-        }
-        const { data: stateData } = await stateQuery.maybeSingle();
-        setConversationState(stateData as ConversationState | null);
-      }
-    } catch (error) {
-      console.error("Error fetching conversation:", error);
-      toast({ title: "Error", description: "Failed to load conversation", variant: "destructive" });
+        .select("id, full_name, first_name, last_name, platform, telegram_id, telegram_username, whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, is_blocked, created_at")
+        .order("created_at", { ascending: false });
+      setUsers(data || []);
     } finally {
       setLoading(false);
     }
   }
 
-  async function clearConversationState() {
-    if (!conversationState?.id) return;
+  async function fetchConversation(userId: string) {
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+
+    // Fetch messages
+    const { data: messagesData } = await supabase
+      .from("messages")
+      .select("id, content, direction, message_type, created_at, media_url")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    setMessages(messagesData || []);
+
+    // Fetch conversation state
+    let stateQuery = supabase.from("conversation_state").select("*");
+    if (user.telegram_id) {
+      stateQuery = stateQuery.eq("telegram_id", user.telegram_id);
+    } else if (user.whatsapp_id) {
+      stateQuery = stateQuery.eq("whatsapp_id", user.whatsapp_id);
+    }
+    const { data: stateData } = await stateQuery.maybeSingle();
+    setState(stateData);
+  }
+
+  async function clearUserState() {
+    if (!selectedUser) return;
+    const user = users.find((u) => u.id === selectedUser);
+    if (!user) return;
+
     try {
-      await supabase
-        .from("conversation_state")
-        .update({ expecting: null, context: {} })
-        .eq("id", conversationState.id);
+      await supabase.functions.invoke("admin-bot-messaging", {
+        body: { action: "clear-user-data", userId: selectedUser, clearOption: "state" },
+      });
       toast({ title: "Success", description: "Conversation state cleared" });
-      if (selectedUserId) fetchConversation(selectedUserId);
-    } catch (error) {
+      fetchConversation(selectedUser);
+    } catch {
       toast({ title: "Error", description: "Failed to clear state", variant: "destructive" });
     }
   }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* User Selector */}
-      <div className="lg:col-span-1 bg-card border border-border rounded-xl p-4">
+      {/* User List */}
+      <div className="bg-card border border-border rounded-xl p-4">
         <h3 className="text-lg font-medium text-foreground mb-4">Select User</h3>
-        <select
-          value={selectedUserId}
-          onChange={(e) => {
-            setSelectedUserId(e.target.value);
-            if (e.target.value) fetchConversation(e.target.value);
-          }}
-          className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground mb-4"
-        >
-          <option value="">Choose a user...</option>
-          {users.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.telegram_username || user.whatsapp_number || "Unknown"}
-            </option>
-          ))}
-        </select>
-
-        {conversationState && (
-          <div className="space-y-3 pt-4 border-t border-border">
-            <h4 className="text-sm font-medium text-muted-foreground">Conversation State</h4>
-            <div className="bg-background p-3 rounded-lg">
-              <p className="text-xs text-muted-foreground">Expecting:</p>
-              <p className="text-foreground font-mono text-sm">{conversationState.expecting || "None"}</p>
+        <div className="space-y-2 max-h-[500px] overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-4">
+              <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
-            {conversationState.context && Object.keys(conversationState.context).length > 0 && (
-              <div className="bg-background p-3 rounded-lg">
-                <p className="text-xs text-muted-foreground">Context:</p>
-                <pre className="text-foreground font-mono text-xs overflow-auto max-h-32">
-                  {JSON.stringify(conversationState.context, null, 2)}
-                </pre>
-              </div>
-            )}
-            <button
-              onClick={clearConversationState}
-              className="w-full px-4 py-2 bg-destructive/20 text-destructive rounded-lg hover:bg-destructive/30 transition-colors text-sm"
-            >
-              Clear State (Unstick User)
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Messages */}
-      <div className="lg:col-span-2 bg-card border border-border rounded-xl p-4">
-        <h3 className="text-lg font-medium text-foreground mb-4">Message History</h3>
-        {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : !selectedUserId ? (
-          <div className="flex items-center justify-center h-48 text-muted-foreground">
-            Select a user to view their conversation
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex items-center justify-center h-48 text-muted-foreground">
-            No messages found for this user
-          </div>
-        ) : (
-          <div className="space-y-3 max-h-[500px] overflow-y-auto">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
+          ) : (
+            users.map((user) => (
+              <button
+                key={user.id}
+                onClick={() => setSelectedUser(user.id)}
                 className={cn(
-                  "max-w-[80%] p-3 rounded-lg",
-                  msg.direction === "incoming"
-                    ? "bg-accent text-foreground"
-                    : "bg-primary text-primary-foreground ml-auto"
+                  "w-full text-left px-3 py-2 rounded-lg transition-colors",
+                  selectedUser === user.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                 )}
               >
-                <p className="text-sm">{msg.content || "[Media message]"}</p>
-                <p className="text-xs opacity-70 mt-1">
-                  {msg.created_at ? new Date(msg.created_at).toLocaleString() : ""}
+                <p className="font-medium text-sm">
+                  {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Unknown"}
                 </p>
+                <p className={cn("text-xs", selectedUser === user.id ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                  {user.platform} • {user.telegram_username ? `@${user.telegram_username}` : user.whatsapp_number || "N/A"}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Conversation View */}
+      <div className="lg:col-span-2 bg-card border border-border rounded-xl p-4">
+        {selectedUser ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium text-foreground">Conversation</h3>
+              <button
+                onClick={clearUserState}
+                className="px-3 py-1 text-sm bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
+              >
+                Clear State
+              </button>
+            </div>
+
+            {/* Current State */}
+            {state && (
+              <div className="p-3 bg-accent/50 rounded-lg">
+                <p className="text-sm font-medium text-foreground">Current State</p>
+                <p className="text-sm text-muted-foreground">Expecting: {state.expecting || "Nothing"}</p>
+                {state.context && Object.keys(state.context).length > 0 && (
+                  <pre className="text-xs text-muted-foreground mt-1 overflow-x-auto">
+                    {JSON.stringify(state.context, null, 2)}
+                  </pre>
+                )}
               </div>
-            ))}
+            )}
+
+            {/* Messages */}
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {messages.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No messages yet</p>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={cn(
+                      "p-3 rounded-lg max-w-[80%]",
+                      msg.direction === "incoming" ? "bg-accent ml-0" : "bg-primary/10 ml-auto"
+                    )}
+                  >
+                    <p className="text-sm text-foreground">{msg.content || "[Media]"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {msg.created_at ? new Date(msg.created_at).toLocaleString() : ""}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-64 text-muted-foreground">
+            Select a user to view their conversation
           </div>
         )}
       </div>
@@ -609,242 +672,192 @@ function ConversationsTab() {
 }
 
 function BroadcastTab() {
-  const [mode, setMode] = useState<"all" | "segment" | "direct">("all");
+  const [mode, setMode] = useState<"broadcast" | "segment" | "direct">("broadcast");
   const [message, setMessage] = useState("");
   const [platform, setPlatform] = useState<"all" | "telegram" | "whatsapp">("all");
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [users, setUsers] = useState<BotUser[]>([]);
   const [sending, setSending] = useState(false);
-  const [filters, setFilters] = useState({
-    entityType: "all",
-    onboarded: "all",
-    verified: "all",
-  });
+  const [users, setUsers] = useState<BotUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [filters, setFilters] = useState({ entityType: "all", onboarded: "all", verified: "all" });
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (mode === "direct") {
+      fetchUsers();
+    }
+  }, [mode]);
 
   async function fetchUsers() {
     const { data } = await supabase
       .from("users")
-      .select("id, full_name, first_name, last_name, platform, telegram_username, whatsapp_number, entity_type, onboarding_completed, verification_status")
+      .select("id, full_name, first_name, last_name, platform, telegram_id, telegram_username, whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, is_blocked, created_at")
+      .or("is_blocked.is.null,is_blocked.eq.false")
       .order("created_at", { ascending: false });
     setUsers(data || []);
   }
 
-  async function sendMessage() {
+  async function sendBroadcast() {
     if (!message.trim()) {
       toast({ title: "Error", description: "Please enter a message", variant: "destructive" });
       return;
     }
 
+    if (mode === "direct" && !selectedUserId) {
+      toast({ title: "Error", description: "Please select a user", variant: "destructive" });
+      return;
+    }
+
     setSending(true);
     try {
-      // In a real implementation, this would call the edge function
-      // For now, we'll just log the broadcast to the database
-      const filterData = mode === "segment" ? filters : null;
-      const targetUserId = mode === "direct" ? selectedUserId : null;
+      const body: Record<string, unknown> = {
+        action: mode === "segment" ? "segment-broadcast" : mode,
+        message,
+        platform,
+      };
 
-      await supabase.from("broadcast_messages").insert({
-        admin_user_id: (await supabase.auth.getUser()).data.user?.id,
-        platform: mode === "direct" ? users.find(u => u.id === selectedUserId)?.platform || "all" : platform,
-        message_text: message,
-        filters: filterData,
-        status: "pending",
-      });
+      if (mode === "direct") {
+        body.userId = selectedUserId;
+      } else if (mode === "segment") {
+        body.filters = filters;
+      }
+
+      const response = await supabase.functions.invoke("admin-bot-messaging", { body });
+      if (response.error) throw response.error;
 
       toast({
-        title: "Broadcast Queued",
-        description: mode === "direct" 
-          ? "Direct message queued for delivery" 
-          : `Broadcast queued for ${platform === "all" ? "all platforms" : platform}`,
+        title: "Success",
+        description: `Sent to ${response.data.sent} users (${response.data.failed} failed)`,
       });
       setMessage("");
     } catch (error) {
-      console.error("Error sending broadcast:", error);
-      toast({ title: "Error", description: "Failed to queue broadcast", variant: "destructive" });
+      console.error("Broadcast error:", error);
+      toast({ title: "Error", description: "Failed to send message", variant: "destructive" });
     } finally {
       setSending(false);
     }
   }
 
-  const filteredUserCount = users.filter((u) => {
-    if (platform !== "all" && u.platform !== platform) return false;
-    if (filters.entityType !== "all" && u.entity_type !== filters.entityType) return false;
-    if (filters.onboarded !== "all") {
-      const isOnboarded = u.onboarding_completed;
-      if (filters.onboarded === "yes" && !isOnboarded) return false;
-      if (filters.onboarded === "no" && isOnboarded) return false;
-    }
-    if (filters.verified !== "all" && u.verification_status !== filters.verified) return false;
-    return true;
-  }).length;
-
   return (
-    <div className="space-y-6">
-      {/* Mode Selector */}
-      <div className="flex gap-2">
-        {[
-          { id: "all", label: "Broadcast All" },
-          { id: "segment", label: "Segmented" },
-          { id: "direct", label: "Direct Message" },
-        ].map((m) => (
-          <button
-            key={m.id}
-            onClick={() => setMode(m.id as typeof mode)}
-            className={cn(
-              "px-4 py-2 rounded-lg transition-colors",
-              mode === m.id
-                ? "bg-primary text-primary-foreground"
-                : "bg-accent text-foreground hover:bg-accent/80"
-            )}
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="bg-card border border-border rounded-xl p-6">
+        <h3 className="text-lg font-medium text-foreground mb-4">Send Message</h3>
+
+        {/* Mode Selection */}
+        <div className="flex gap-2 mb-4">
+          {[
+            { id: "broadcast", label: "Broadcast All" },
+            { id: "segment", label: "Segment" },
+            { id: "direct", label: "Direct" },
+          ].map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setMode(m.id as typeof mode)}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                mode === m.id ? "bg-primary text-primary-foreground" : "bg-accent text-foreground hover:bg-accent/80"
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Platform Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-foreground mb-2">Platform</label>
+          <select
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value as typeof platform)}
+            className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground"
           >
-            {m.label}
-          </button>
-        ))}
-      </div>
+            <option value="all">All Platforms</option>
+            <option value="telegram">Telegram Only</option>
+            <option value="whatsapp">WhatsApp Only</option>
+          </select>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Message Composer */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h3 className="text-lg font-medium text-foreground mb-4">
-            {mode === "all" && "Broadcast to All Users"}
-            {mode === "segment" && "Segmented Broadcast"}
-            {mode === "direct" && "Direct Message"}
-          </h3>
-
-          {mode === "direct" && (
-            <div className="mb-4">
-              <label className="text-sm font-medium text-muted-foreground block mb-2">
-                Select Recipient
-              </label>
+        {/* Segment Filters */}
+        {mode === "segment" && (
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Entity Type</label>
               <select
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-                className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground"
+                value={filters.entityType}
+                onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm"
               >
-                <option value="">Choose a user...</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.full_name || user.telegram_username || user.whatsapp_number || "Unknown"} ({user.platform})
-                  </option>
-                ))}
+                <option value="all">All</option>
+                <option value="individual">Individual</option>
+                <option value="business">Business</option>
               </select>
             </div>
-          )}
-
-          {mode !== "direct" && (
-            <div className="mb-4">
-              <label className="text-sm font-medium text-muted-foreground block mb-2">
-                Platform
-              </label>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Onboarded</label>
               <select
-                value={platform}
-                onChange={(e) => setPlatform(e.target.value as typeof platform)}
-                className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground"
+                value={filters.onboarded}
+                onChange={(e) => setFilters({ ...filters, onboarded: e.target.value })}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm"
               >
-                <option value="all">All Platforms</option>
-                <option value="telegram">Telegram Only</option>
-                <option value="whatsapp">WhatsApp Only</option>
+                <option value="all">All</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
               </select>
             </div>
-          )}
-
-          {mode === "segment" && (
-            <div className="mb-4 space-y-3">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground block mb-2">
-                  Entity Type
-                </label>
-                <select
-                  value={filters.entityType}
-                  onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground"
-                >
-                  <option value="all">All Types</option>
-                  <option value="individual">Individual</option>
-                  <option value="business">Business</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground block mb-2">
-                  Onboarding Status
-                </label>
-                <select
-                  value={filters.onboarded}
-                  onChange={(e) => setFilters({ ...filters, onboarded: e.target.value })}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground"
-                >
-                  <option value="all">All</option>
-                  <option value="yes">Completed</option>
-                  <option value="no">Not Completed</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground block mb-2">
-                  Verification Status
-                </label>
-                <select
-                  value={filters.verified}
-                  onChange={(e) => setFilters({ ...filters, verified: e.target.value })}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground"
-                >
-                  <option value="all">All</option>
-                  <option value="verified">Verified</option>
-                  <option value="pending">Pending</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Verified</label>
+              <select
+                value={filters.verified}
+                onChange={(e) => setFilters({ ...filters, verified: e.target.value })}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm"
+              >
+                <option value="all">All</option>
+                <option value="verified">Verified</option>
+                <option value="pending">Pending</option>
+              </select>
             </div>
-          )}
+          </div>
+        )}
 
+        {/* Direct Message User Selection */}
+        {mode === "direct" && (
           <div className="mb-4">
-            <label className="text-sm font-medium text-muted-foreground block mb-2">
-              Message
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Enter your message..."
-              rows={4}
-              className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+            <label className="block text-sm font-medium text-foreground mb-2">Select User</label>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground"
+            >
+              <option value="">Select a user...</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Unknown"} ({user.platform})
+                </option>
+              ))}
+            </select>
           </div>
+        )}
 
-          <button
-            onClick={sendMessage}
-            disabled={sending || !message.trim() || (mode === "direct" && !selectedUserId)}
-            className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {sending ? "Sending..." : "Send Message"}
-          </button>
+        {/* Message Input */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-foreground mb-2">Message</label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Enter your message... (HTML supported for Telegram)"
+            rows={4}
+            className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
 
-        {/* Preview & Stats */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h3 className="text-lg font-medium text-foreground mb-4">Preview & Recipients</h3>
-
-          <div className="bg-background rounded-lg p-4 mb-4">
-            <p className="text-sm text-muted-foreground mb-2">Message Preview:</p>
-            <p className="text-foreground whitespace-pre-wrap">
-              {message || "Your message will appear here..."}
-            </p>
-          </div>
-
-          <div className="bg-accent/50 rounded-lg p-4">
-            <p className="text-sm text-muted-foreground mb-1">Recipients:</p>
-            <p className="text-2xl font-bold text-foreground">
-              {mode === "direct" ? (selectedUserId ? "1 user" : "0 users") : `${filteredUserCount} users`}
-            </p>
-            {mode !== "direct" && (
-              <p className="text-sm text-muted-foreground">
-                Platform: {platform === "all" ? "Telegram & WhatsApp" : platform}
-              </p>
-            )}
-          </div>
-        </div>
+        {/* Send Button */}
+        <button
+          onClick={sendBroadcast}
+          disabled={sending || !message.trim()}
+          className="w-full px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        >
+          {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          {sending ? "Sending..." : "Send Message"}
+        </button>
       </div>
     </div>
   );
