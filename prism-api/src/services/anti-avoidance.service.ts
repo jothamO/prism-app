@@ -8,7 +8,11 @@
  * - Capital vs revenue misclassification
  * - Connected person transactions at non-market rates
  * - Transfer pricing violations
+ * - Related party name/TIN verification via Mono API
  */
+
+import { monoLookupService } from './mono-lookup.service';
+import { supabase } from '../config/supabase';
 
 export interface Transaction {
     id?: string;
@@ -17,8 +21,10 @@ export interface Transaction {
     category?: string;
     isConnectedPerson?: boolean;
     counterpartyName?: string;
+    counterpartyTIN?: string;
     date?: string;
     type?: 'income' | 'expense' | 'asset';
+    userId?: string;
 }
 
 export interface AvoidanceCheck {
@@ -27,6 +33,7 @@ export interface AvoidanceCheck {
     warnings: string[];
     recommendation: string;
     actReferences: string[];
+    verificationResults?: RelatedPartyVerification[];
 }
 
 export class AntiAvoidanceService {
@@ -301,6 +308,230 @@ export class AntiAvoidanceService {
 
         return results;
     }
+
+    /**
+     * Verify related party TIN matches claimed name via Mono API
+     * Used to detect mismatched or potentially artificial relationships
+     */
+    async verifyRelatedParty(partyName: string, partyTIN?: string): Promise<RelatedPartyVerification> {
+        const result: RelatedPartyVerification = {
+            partyName,
+            partyTIN,
+            verified: false,
+            nameMatch: false,
+            warnings: []
+        };
+
+        if (!partyTIN) {
+            result.warnings.push('No TIN provided for related party - verification not possible');
+            return result;
+        }
+
+        if (!monoLookupService.isConfigured()) {
+            result.warnings.push('Identity verification service not configured');
+            return result;
+        }
+
+        try {
+            // Try TIN lookup first
+            const tinData = await monoLookupService.lookupTIN(partyTIN, 'tin');
+            result.verified = true;
+            result.registeredName = tinData.taxpayer_name;
+            result.entityType = tinData.tin_type === 'INDIVIDUAL' ? 'individual' : 'company';
+
+            // Calculate name similarity
+            const similarity = this.calculateNameSimilarity(partyName, tinData.taxpayer_name);
+            result.nameMatchScore = similarity;
+            result.nameMatch = similarity >= 0.7;
+
+            if (!result.nameMatch) {
+                result.warnings.push(
+                    `⚠️ TIN holder name "${tinData.taxpayer_name}" doesn't match claimed name "${partyName}" ` +
+                    `(${Math.round(similarity * 100)}% match). This may indicate a misrepresentation.`
+                );
+            }
+
+        } catch (error: any) {
+            console.error('[AntiAvoidance] TIN verification failed:', error);
+            
+            if (error.statusCode === 404) {
+                result.warnings.push(`🚨 TIN ${partyTIN} not found in tax database - potentially fake`);
+            } else {
+                result.warnings.push('Unable to verify TIN - service temporarily unavailable');
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Check transaction counterparty against known related parties
+     */
+    async checkAgainstRelatedParties(transaction: Transaction): Promise<{
+        isRelatedParty: boolean;
+        relatedParty?: RelatedPartyMatch;
+        verification?: RelatedPartyVerification;
+    }> {
+        if (!transaction.userId || !transaction.counterpartyName) {
+            return { isRelatedParty: false };
+        }
+
+        // Query known related parties for this user
+        const { data: relatedParties } = await supabase
+            .from('related_parties')
+            .select('*')
+            .eq('user_id', transaction.userId);
+
+        if (!relatedParties || relatedParties.length === 0) {
+            return { isRelatedParty: false };
+        }
+
+        // Check for name matches
+        for (const party of relatedParties) {
+            const similarity = this.calculateNameSimilarity(
+                transaction.counterpartyName,
+                party.party_name
+            );
+
+            if (similarity >= 0.7) {
+                // Match found - this is a related party transaction
+                let verification: RelatedPartyVerification | undefined;
+
+                // Verify TIN if available and not recently verified
+                if (party.party_tin && !party.tin_verified) {
+                    verification = await this.verifyRelatedParty(party.party_name, party.party_tin);
+                    
+                    // Update verification status in database
+                    if (verification.verified) {
+                        await supabase
+                            .from('related_parties')
+                            .update({
+                                tin_verified: verification.nameMatch,
+                                verification_date: new Date().toISOString(),
+                                verification_data: verification
+                            })
+                            .eq('id', party.id);
+                    }
+                }
+
+                return {
+                    isRelatedParty: true,
+                    relatedParty: {
+                        id: party.id,
+                        name: party.party_name,
+                        relationship: party.relationship_type,
+                        tin: party.party_tin,
+                        matchScore: similarity
+                    },
+                    verification
+                };
+            }
+        }
+
+        // Also check against user's own businesses
+        const { data: businesses } = await supabase
+            .from('businesses')
+            .select('name, registration_number')
+            .eq('user_id', transaction.userId);
+
+        if (businesses) {
+            for (const business of businesses) {
+                const similarity = this.calculateNameSimilarity(
+                    transaction.counterpartyName,
+                    business.name
+                );
+
+                if (similarity >= 0.7) {
+                    return {
+                        isRelatedParty: true,
+                        relatedParty: {
+                            id: 'self-business',
+                            name: business.name,
+                            relationship: 'controlled_entity',
+                            matchScore: similarity
+                        }
+                    };
+                }
+            }
+        }
+
+        return { isRelatedParty: false };
+    }
+
+    /**
+     * Calculate similarity between two names (0-1)
+     * Uses Jaro-Winkler for fuzzy matching
+     */
+    private calculateNameSimilarity(name1: string, name2: string): number {
+        const s1 = name1.toLowerCase().trim();
+        const s2 = name2.toLowerCase().trim();
+
+        if (s1 === s2) return 1;
+
+        // Simple Jaro similarity
+        const len1 = s1.length;
+        const len2 = s2.length;
+        const matchWindow = Math.max(0, Math.floor(Math.max(len1, len2) / 2) - 1);
+
+        const matches1 = new Array(len1).fill(false);
+        const matches2 = new Array(len2).fill(false);
+        let matches = 0;
+        let transpositions = 0;
+
+        for (let i = 0; i < len1; i++) {
+            const start = Math.max(0, i - matchWindow);
+            const end = Math.min(i + matchWindow + 1, len2);
+
+            for (let j = start; j < end; j++) {
+                if (matches2[j] || s1[i] !== s2[j]) continue;
+                matches1[i] = matches2[j] = true;
+                matches++;
+                break;
+            }
+        }
+
+        if (matches === 0) return 0;
+
+        let k = 0;
+        for (let i = 0; i < len1; i++) {
+            if (!matches1[i]) continue;
+            while (!matches2[k]) k++;
+            if (s1[i] !== s2[k]) transpositions++;
+            k++;
+        }
+
+        const jaro = (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3;
+
+        // Winkler adjustment for common prefix
+        let prefix = 0;
+        for (let i = 0; i < Math.min(4, Math.min(len1, len2)); i++) {
+            if (s1[i] === s2[i]) prefix++;
+            else break;
+        }
+
+        return jaro + prefix * 0.1 * (1 - jaro);
+    }
+}
+
+// ==================== Type Definitions ====================
+
+export interface RelatedPartyVerification {
+    partyName: string;
+    partyTIN?: string;
+    verified: boolean;
+    nameMatch: boolean;
+    nameMatchScore?: number;
+    registeredName?: string;
+    entityType?: 'individual' | 'company';
+    warnings: string[];
+}
+
+export interface RelatedPartyMatch {
+    id: string;
+    name: string;
+    relationship: string;
+    tin?: string | null;
+    matchScore: number;
 }
 
 export const antiAvoidanceService = new AntiAvoidanceService();
