@@ -169,6 +169,23 @@ interface ProfessionalServicesTaxBreakdown {
   section57Exclusion: boolean;
 }
 
+interface AgriculturalTaxBreakdown {
+  isAgricultural: boolean;
+  yearsActive: number;
+  yearsRemaining: number;
+  exemptionActive: boolean;
+  grossIncome: number;
+  allowableExpenses: number;
+  taxableProfit: number;
+  taxWithoutExemption: number;
+  taxWithExemption: number;
+  taxSavings: number;
+  vatCollected: number; // Zero for zero-rated
+  inputVATClaimable: number;
+  vatRefundDue: number;
+  products: Array<{ name: string; amount: number; vatTreatment: string }>;
+}
+
 interface CrossBorderResult {
   success: boolean;
   companyClassification: {
@@ -179,9 +196,11 @@ interface CrossBorderResult {
   };
   isLabelledStartup: boolean;
   isProfessionalService: boolean;
+  isAgricultural?: boolean;
   startupBenefits: string[];
   paymentBreakdowns: PaymentBreakdown[];
   professionalServicesTax?: ProfessionalServicesTaxBreakdown;
+  agriculturalTax?: AgriculturalTaxBreakdown;
   annualSummary: {
     totalForeignPayments: number;
     totalVATOnImports: number;
@@ -191,6 +210,7 @@ interface CrossBorderResult {
     netTaxPayable?: number;
     vatCollected?: number;
     netVATPayable?: number;
+    vatRefundDue?: number;
   };
   complianceChecklist: string[];
   actReferences: string[];
@@ -203,15 +223,19 @@ interface StartupScenario {
   businessType: string;
   isLabelledStartup: boolean;
   isProfessionalService?: boolean;
+  isAgricultural?: boolean;
+  agricultureYearsActive?: number;
   annualTurnover: number;
   fixedAssets: number;
   estimatedExpenses?: number;
+  inputVATClaimable?: number;
   whtDeductedByClients?: number;
   foreignPayments: ForeignPayment[];
   expectedCompanyTax: number;
   expectedNetTaxPayable?: number;
   expectedVATCollected?: number;
   expectedVATPayable?: number;
+  expectedVATRefund?: number;
   expectedVATOnImports: number;
   expectedWHT: number;
   expectedFlags: string[];
@@ -661,6 +685,33 @@ const STARTUP_SCENARIOS: StartupScenario[] = [
       'professional services exclusion',
       'WHT credit available',
       'quarterly VAT filing',
+    ],
+  },
+  {
+    id: 'alhaji-kabir-cattle',
+    name: "Alhaji Kabir: Large-Scale Cattle Rancher",
+    persona: 'Agricultural leader in primary livestock production (cattle + dairy) - Section 163 exemption',
+    businessType: 'agriculture',
+    isLabelledStartup: false,
+    isProfessionalService: false,
+    isAgricultural: true,
+    agricultureYearsActive: 3, // Within 5-year exemption period
+    annualTurnover: 80000000, // ₦65M cattle + ₦15M milk
+    fixedAssets: 50000000, // Land, cattle, equipment
+    estimatedExpenses: 43000000, // Feed, vet, labor, transport
+    inputVATClaimable: 975000, // VAT on standard-rated purchases (equipment, transport, fuel)
+    foreignPayments: [], // No cross-border payments
+    expectedCompanyTax: 0, // Agricultural exemption (Thirteenth Schedule)
+    expectedNetTaxPayable: 0,
+    expectedVATCollected: 0, // Zero-rated supplies
+    expectedVATRefund: 975000, // Input VAT refundable
+    expectedVATOnImports: 0,
+    expectedWHT: 0,
+    expectedFlags: [
+      'agricultural exemption',
+      'zero-rated supplies',
+      'input VAT refund',
+      '5-year tax holiday',
     ],
   },
 ];
@@ -1273,6 +1324,9 @@ export default function AdminVATTesting() {
         businessType: scenario.businessType,
         isLabelledStartup: scenario.isLabelledStartup,
         isProfessionalService: scenario.isProfessionalService || false,
+        isAgricultural: scenario.isAgricultural || false,
+        agricultureYearsActive: scenario.agricultureYearsActive || 0,
+        inputVATClaimable: scenario.inputVATClaimable || 0,
         estimatedExpenses: scenario.estimatedExpenses || 0,
         whtDeductedByClients: scenario.whtDeductedByClients || 0,
         foreignPayments: scenario.foreignPayments,
@@ -1293,12 +1347,23 @@ export default function AdminVATTesting() {
         !result.annualSummary.netTaxPayable ||
         Math.abs(result.annualSummary.netTaxPayable - scenario.expectedNetTaxPayable) < 1000;
 
-      const passed = vatMatches && whtMatches && companyTaxMatches && netTaxMatches;
+      // For agricultural, check VAT refund
+      const vatRefundMatches = !scenario.isAgricultural ||
+        !scenario.expectedVATRefund ||
+        !result.annualSummary.vatRefundDue ||
+        Math.abs(result.annualSummary.vatRefundDue - scenario.expectedVATRefund) < 1000;
 
-      // Customize toast for professional services
-      const description = scenario.isProfessionalService && result.annualSummary.netTaxPayable
-        ? `Net Tax: ${formatCurrency(result.annualSummary.netTaxPayable)}, VAT: ${formatCurrency(result.annualSummary.netVATPayable || 0)}`
-        : `VAT: ${formatCurrency(result.annualSummary.totalVATOnImports)}, WHT: ${formatCurrency(result.annualSummary.totalWHTRemitted)}`;
+      const passed = vatMatches && whtMatches && companyTaxMatches && netTaxMatches && vatRefundMatches;
+
+      // Customize toast based on scenario type
+      let description: string;
+      if (scenario.isAgricultural && result.agriculturalTax) {
+        description = `Tax: ${formatCurrency(result.annualSummary.companyTax)}, VAT Refund: ${formatCurrency(result.annualSummary.vatRefundDue || 0)}`;
+      } else if (scenario.isProfessionalService && result.annualSummary.netTaxPayable) {
+        description = `Net Tax: ${formatCurrency(result.annualSummary.netTaxPayable)}, VAT: ${formatCurrency(result.annualSummary.netVATPayable || 0)}`;
+      } else {
+        description = `VAT: ${formatCurrency(result.annualSummary.totalVATOnImports)}, WHT: ${formatCurrency(result.annualSummary.totalWHTRemitted)}`;
+      }
 
       toast({
         title: passed ? "Scenario PASSED ✓" : "Scenario completed with variations",
@@ -2443,6 +2508,115 @@ export default function AdminVATTesting() {
                           <p className="font-medium text-red-600">Actual (Section 57)</p>
                           <p className="font-mono text-lg mt-1">{formatCurrency(crossBorderResult.professionalServicesTax.netTaxPayable)}</p>
                           <p className="text-muted-foreground">After WHT Credit</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Agricultural Tax Breakdown - Thirteenth Schedule */}
+                {crossBorderResult.isAgricultural && crossBorderResult.agriculturalTax && (
+                  <div className="mt-4 p-4 bg-green-500/5 border border-green-500/30 rounded-lg">
+                    <h5 className="font-semibold text-sm flex items-center gap-2 text-green-600">
+                      🌾 Thirteenth Schedule Agricultural Tax Exemption
+                    </h5>
+                    <p className="text-xs text-muted-foreground mt-1 mb-3">
+                      Primary agricultural production qualifies for 5-year income tax exemption with zero-rated VAT treatment
+                    </p>
+                    
+                    {/* Exemption Status Banner */}
+                    <div className="flex items-center gap-3 p-3 bg-green-500/10 rounded-lg mb-4">
+                      <div className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center text-xl font-bold">
+                        {crossBorderResult.agriculturalTax.yearsActive}
+                      </div>
+                      <div>
+                        <p className="font-medium text-green-700">Year {crossBorderResult.agriculturalTax.yearsActive} of 5</p>
+                        <p className="text-xs text-muted-foreground">
+                          {crossBorderResult.agriculturalTax.exemptionActive 
+                            ? `${crossBorderResult.agriculturalTax.yearsRemaining} years remaining in tax holiday`
+                            : 'Exemption period expired'}
+                        </p>
+                      </div>
+                      <div className="ml-auto text-right">
+                        <p className="text-xs text-muted-foreground">Tax Savings</p>
+                        <p className="font-mono text-lg text-green-600 font-bold">
+                          {formatCurrency(crossBorderResult.agriculturalTax.taxSavings)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Income Tax Calculation */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between border-b pb-1">
+                        <span>Gross Income (Annual Sales)</span>
+                        <span className="font-mono">{formatCurrency(crossBorderResult.agriculturalTax.grossIncome)}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-1">
+                        <span>Less: Production Expenses</span>
+                        <span className="font-mono text-green-600">-{formatCurrency(crossBorderResult.agriculturalTax.allowableExpenses)}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-1 font-medium">
+                        <span>Taxable Profit (Before Exemption)</span>
+                        <span className="font-mono">{formatCurrency(crossBorderResult.agriculturalTax.taxableProfit)}</span>
+                      </div>
+                      <div className="flex justify-between border-b pb-1">
+                        <span>Agricultural Exemption (Section 163)</span>
+                        <span className="font-mono text-green-600">-{formatCurrency(crossBorderResult.agriculturalTax.taxableProfit)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-base pt-1">
+                        <span>Tax Payable</span>
+                        <span className="font-mono text-green-600">₦0</span>
+                      </div>
+                    </div>
+
+                    {/* Product Breakdown - Zero-Rated VAT */}
+                    <div className="mt-4 pt-3 border-t">
+                      <h6 className="font-medium text-xs mb-2">Product Sales (Section 187 - Zero-Rated)</h6>
+                      <div className="space-y-1">
+                        {crossBorderResult.agriculturalTax.products.map((product, idx) => (
+                          <div key={idx} className="flex justify-between text-sm p-2 bg-background rounded">
+                            <span>{product.name}</span>
+                            <div className="text-right">
+                              <span className="font-mono">{formatCurrency(product.amount)}</span>
+                              <span className="ml-2 text-xs text-green-600">{product.vatTreatment}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* VAT Position */}
+                    <div className="mt-4 pt-3 border-t">
+                      <h6 className="font-medium text-xs mb-2">VAT Position (Zero-Rated Supplier)</h6>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Output VAT (Zero-rated supplies)</span>
+                          <span className="font-mono">₦0</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Less: Input VAT Paid (Equipment, Fuel, Transport)</span>
+                          <span className="font-mono text-green-600">-{formatCurrency(crossBorderResult.agriculturalTax.inputVATClaimable)}</span>
+                        </div>
+                        <div className="flex justify-between font-medium text-green-600">
+                          <span>VAT Refund Due (Section 156)</span>
+                          <span className="font-mono">{formatCurrency(crossBorderResult.agriculturalTax.vatRefundDue)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Comparison Table */}
+                    <div className="mt-4 p-3 bg-background rounded">
+                      <h6 className="font-medium text-xs mb-2">⚡ Impact of Agricultural Exemption</h6>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div className="p-2 bg-red-500/10 rounded">
+                          <p className="font-medium text-red-600">Without Exemption</p>
+                          <p className="font-mono text-lg mt-1">{formatCurrency(crossBorderResult.agriculturalTax.taxWithoutExemption)}</p>
+                          <p className="text-muted-foreground">Company Tax Due</p>
+                        </div>
+                        <div className="p-2 bg-green-500/10 rounded">
+                          <p className="font-medium text-green-600">With Agricultural Exemption</p>
+                          <p className="font-mono text-lg mt-1">₦0 + {formatCurrency(crossBorderResult.agriculturalTax.vatRefundDue)} refund</p>
+                          <p className="text-muted-foreground">Net Position</p>
                         </div>
                       </div>
                     </div>

@@ -43,6 +43,9 @@ interface CrossBorderInput {
   businessType?: string;
   isLabelledStartup?: boolean;
   isProfessionalService?: boolean;
+  isAgricultural?: boolean;
+  agricultureYearsActive?: number;
+  inputVATClaimable?: number;
   estimatedExpenses?: number;
   whtDeductedByClients?: number;
   foreignPayments: ForeignPayment[];
@@ -84,14 +87,33 @@ interface ProfessionalServicesTaxBreakdown {
   section57Exclusion: boolean;
 }
 
+interface AgriculturalTaxBreakdown {
+  isAgricultural: boolean;
+  yearsActive: number;
+  yearsRemaining: number;
+  exemptionActive: boolean;
+  grossIncome: number;
+  allowableExpenses: number;
+  taxableProfit: number;
+  taxWithoutExemption: number;
+  taxWithExemption: number;
+  taxSavings: number;
+  vatCollected: number;
+  inputVATClaimable: number;
+  vatRefundDue: number;
+  products: Array<{ name: string; amount: number; vatTreatment: string }>;
+}
+
 interface CrossBorderResult {
   success: boolean;
   companyClassification: CompanyClassification;
   isLabelledStartup: boolean;
   isProfessionalService: boolean;
+  isAgricultural: boolean;
   startupBenefits: string[];
   paymentBreakdowns: PaymentBreakdown[];
   professionalServicesTax?: ProfessionalServicesTaxBreakdown;
+  agriculturalTax?: AgriculturalTaxBreakdown;
   annualSummary: {
     totalForeignPayments: number;
     totalVATOnImports: number;
@@ -101,6 +123,7 @@ interface CrossBorderResult {
     netTaxPayable?: number;
     vatCollected?: number;
     netVATPayable?: number;
+    vatRefundDue?: number;
   };
   complianceChecklist: string[];
   actReferences: string[];
@@ -143,16 +166,27 @@ serve(async (req) => {
       businessType = 'technology',
       isLabelledStartup = false,
       isProfessionalService = false,
+      isAgricultural = false,
+      agricultureYearsActive = 0,
+      inputVATClaimable = 0,
       estimatedExpenses = 0,
       whtDeductedByClients = 0,
       foreignPayments = [],
     } = input;
 
-    // 1. Determine company classification - Section 56 & 57
+    // 1. Determine company classification - Section 56, 57, & Thirteenth Schedule
     const isProfessionalServices = isProfessionalService || PROFESSIONAL_SERVICES.includes(businessType.toLowerCase());
     let classification: CompanyClassification;
 
-    if (isProfessionalServices) {
+    // Agricultural businesses get special treatment under Thirteenth Schedule
+    if (isAgricultural && agricultureYearsActive > 0 && agricultureYearsActive <= 5) {
+      classification = {
+        status: 'small', // Classification for reporting purposes
+        taxRate: 0,
+        reason: `Agricultural exemption active (Year ${agricultureYearsActive} of 5) - Thirteenth Schedule`,
+        qualifiesForZeroTax: true,
+      };
+    } else if (isProfessionalServices) {
       classification = {
         status: 'large',
         taxRate: 30,
@@ -238,18 +272,68 @@ serve(async (req) => {
       };
     }
 
+    // 3b. Calculate agricultural tax breakdown if applicable
+    let agriculturalTax: AgriculturalTaxBreakdown | undefined;
+    
+    if (isAgricultural) {
+      const taxableProfit = annualTurnover - estimatedExpenses;
+      const yearsRemaining = Math.max(0, 5 - agricultureYearsActive);
+      const exemptionActive = agricultureYearsActive > 0 && agricultureYearsActive <= 5;
+      
+      // Tax that would apply without agricultural exemption
+      let taxRateWithoutExemption = 30; // Default to large company rate
+      if (annualTurnover <= SMALL_COMPANY_TURNOVER_THRESHOLD && fixedAssets <= SMALL_COMPANY_ASSETS_THRESHOLD) {
+        taxRateWithoutExemption = 0;
+      } else if (annualTurnover <= 100_000_000) {
+        taxRateWithoutExemption = 20;
+      }
+      const taxWithoutExemption = taxableProfit * (taxRateWithoutExemption / 100);
+      const taxWithExemption = exemptionActive ? 0 : taxWithoutExemption;
+      const taxSavings = taxWithoutExemption - taxWithExemption;
+      
+      // Zero-rated VAT for agricultural products (Section 187)
+      const vatCollected = 0; // Zero-rated supplies
+      const vatRefundDue = inputVATClaimable; // Input VAT is refundable for zero-rated suppliers
+      
+      // Product breakdown (typical for cattle ranching)
+      const products = [
+        { name: 'Live Cattle Sales', amount: annualTurnover * 0.8125, vatTreatment: 'Zero-rated (Section 187)' },
+        { name: 'Fresh Milk Sales', amount: annualTurnover * 0.1875, vatTreatment: 'Zero-rated (Section 187)' },
+      ];
+      
+      agriculturalTax = {
+        isAgricultural: true,
+        yearsActive: agricultureYearsActive,
+        yearsRemaining,
+        exemptionActive,
+        grossIncome: annualTurnover,
+        allowableExpenses: estimatedExpenses,
+        taxableProfit,
+        taxWithoutExemption,
+        taxWithExemption,
+        taxSavings,
+        vatCollected,
+        inputVATClaimable,
+        vatRefundDue,
+        products,
+      };
+    }
+
     // 4. Calculate annual summary
     const annualSummary = {
       totalForeignPayments: paymentBreakdowns.reduce((sum, p) => sum + p.annualGross, 0),
       totalVATOnImports: paymentBreakdowns.reduce((sum, p) => sum + p.annualVAT, 0),
       totalWHTRemitted: paymentBreakdowns.reduce((sum, p) => sum + p.annualWHT, 0),
       totalRemittance: paymentBreakdowns.reduce((sum, p) => sum + p.annualRemittance, 0),
-      companyTax: professionalServicesTax 
-        ? professionalServicesTax.grossCompanyTax 
-        : (classification.qualifiesForZeroTax ? 0 : annualTurnover * (classification.taxRate / 100) * 0.3),
-      netTaxPayable: professionalServicesTax?.netTaxPayable,
-      vatCollected: professionalServicesTax?.vatCollected,
-      netVATPayable: professionalServicesTax?.netVATPayable,
+      companyTax: agriculturalTax 
+        ? agriculturalTax.taxWithExemption
+        : professionalServicesTax 
+          ? professionalServicesTax.grossCompanyTax 
+          : (classification.qualifiesForZeroTax ? 0 : annualTurnover * (classification.taxRate / 100) * 0.3),
+      netTaxPayable: agriculturalTax ? 0 : professionalServicesTax?.netTaxPayable,
+      vatCollected: agriculturalTax ? 0 : professionalServicesTax?.vatCollected,
+      netVATPayable: agriculturalTax ? -(agriculturalTax.vatRefundDue) : professionalServicesTax?.netVATPayable,
+      vatRefundDue: agriculturalTax?.vatRefundDue,
     };
 
     // 5. Startup benefits
@@ -264,7 +348,18 @@ serve(async (req) => {
     // 6. Compliance checklist
     const complianceChecklist: string[] = [];
     
-    if (isProfessionalServices) {
+    if (isAgricultural && agriculturalTax?.exemptionActive) {
+      complianceChecklist.push(`✓ Section 163(1)(p): Agricultural income exemption active (Year ${agricultureYearsActive} of 5)`);
+      complianceChecklist.push('✓ Thirteenth Schedule: Livestock/dairy production qualifies');
+      complianceChecklist.push(`💰 Tax savings this year: ₦${agriculturalTax.taxSavings.toLocaleString()}`);
+      complianceChecklist.push(`📅 Exemption expires in ${agriculturalTax.yearsRemaining} years`);
+      complianceChecklist.push('✓ Section 187: All supplies zero-rated (live cattle, fresh milk)');
+      if (inputVATClaimable > 0) {
+        complianceChecklist.push(`💵 Section 156: Input VAT refund claim eligible: ₦${inputVATClaimable.toLocaleString()}`);
+      }
+      complianceChecklist.push('📄 Keep detailed records of agricultural production');
+      complianceChecklist.push('📄 Maintain proof of primary production status');
+    } else if (isProfessionalServices) {
       complianceChecklist.push('⚠ Section 57: Professional services EXCLUDED from Small Company status');
       complianceChecklist.push(`⚠ Company tax at ${classification.taxRate}% applies regardless of turnover`);
       if (whtDeductedByClients > 0) {
@@ -292,6 +387,13 @@ serve(async (req) => {
     // 7. Act references
     const actReferences: string[] = [];
     
+    if (isAgricultural) {
+      actReferences.push('Section 163(1)(p): Agricultural income exemption');
+      actReferences.push('Thirteenth Schedule: Exempt agricultural activities');
+      actReferences.push('Section 187: Zero-rated VAT on agricultural products');
+      actReferences.push('Section 156: Input VAT credit for zero-rated suppliers');
+    }
+    
     if (isProfessionalServices) {
       actReferences.push('Section 57: Professional services exclusion');
       actReferences.push('Section 30: Allowable deductions for businesses');
@@ -315,9 +417,11 @@ serve(async (req) => {
       companyClassification: classification,
       isLabelledStartup,
       isProfessionalService: isProfessionalServices,
+      isAgricultural,
       startupBenefits,
       paymentBreakdowns,
       professionalServicesTax,
+      agriculturalTax,
       annualSummary,
       complianceChecklist,
       actReferences,
