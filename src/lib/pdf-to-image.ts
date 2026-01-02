@@ -1,7 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// Configure PDF.js worker from CDN
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Use the worker from the npm package (works with Vite)
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export interface PDFConversionResult {
   pageCount: number;
@@ -11,11 +12,10 @@ export interface PDFConversionResult {
 export async function convertPDFToImages(
   file: File, 
   options: { 
-    maxPages?: number;
     scale?: number;
   } = {}
 ): Promise<PDFConversionResult> {
-  const { maxPages = 5, scale = 2.0 } = options;
+  const { scale = 2.0 } = options;
   
   // Read file as ArrayBuffer
   const arrayBuffer = await file.arrayBuffer();
@@ -24,11 +24,11 @@ export async function convertPDFToImages(
   // Load PDF document
   const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
   const pageCount = pdf.numPages;
-  const pagesToConvert = Math.min(pageCount, maxPages);
   
   const images: string[] = [];
   
-  for (let i = 1; i <= pagesToConvert; i++) {
+  // Convert ALL pages
+  for (let i = 1; i <= pageCount; i++) {
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale });
     

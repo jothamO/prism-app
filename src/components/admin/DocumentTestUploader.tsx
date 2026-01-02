@@ -156,7 +156,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
       setIsConvertingPdf(true);
       setOcrError(null);
       try {
-        const result = await convertPDFToImages(file, { maxPages: 5 });
+        const result = await convertPDFToImages(file);
         setPdfConversion(result);
         setSelectedPage(0);
         
@@ -168,7 +168,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
         
         toast({
           title: "PDF converted",
-          description: `Converted ${result.images.length} of ${result.pageCount} pages. Select a page to process.`,
+          description: `Converted all ${result.pageCount} pages. Select a page to process.`,
         });
       } catch (error) {
         console.error('PDF conversion error:', error);
@@ -464,7 +464,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
               <div className="mt-2 p-2 bg-muted/50 rounded-lg">
                 <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
                   <FileImage className="w-3 h-3" />
-                  PDF Pages ({pdfConversion.images.length} of {pdfConversion.pageCount})
+                  PDF Pages ({pdfConversion.pageCount} total)
                 </div>
                 <div className="flex gap-1 overflow-x-auto pb-1">
                   {pdfConversion.images.map((_, index) => (
@@ -485,11 +485,6 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
                     </button>
                   ))}
                 </div>
-                {pdfConversion.pageCount > pdfConversion.images.length && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    Only first {pdfConversion.images.length} pages converted
-                  </p>
-                )}
               </div>
             )}
           </div>
