@@ -2,18 +2,30 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database } from "lucide-react";
+import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database, Brain } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functions";
+import { NLUDebugPanel, NLUIntent, ArtificialTransactionCheck } from "@/components/admin/NLUDebugPanel";
+import { WhatsAppButtonsPreview, WhatsAppListMessage, ListSection } from "@/components/admin/WhatsAppInteractivePreview";
+
+interface ListConfig {
+  header?: string;
+  body: string;
+  footer?: string;
+  buttonText: string;
+  sections: ListSection[];
+}
 
 interface Message {
   id: string;
   text: string;
   sender: "user" | "bot";
   timestamp: Date;
-  type?: "text" | "image" | "buttons";
+  type?: "text" | "image" | "buttons" | "list";
   buttons?: Array<{ id: string; title: string }>;
+  listConfig?: ListConfig;
+  intent?: { name: string; confidence: number };
 }
 
 type UserState = "new" | "awaiting_tin" | "awaiting_business_name" | "registered" | "awaiting_invoice" | "awaiting_confirm";
@@ -93,6 +105,14 @@ const AdminSimulator = () => {
   const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // NLU State
+  const [nluIntent, setNluIntent] = useState<NLUIntent | null>(null);
+  const [nluSource, setNluSource] = useState<'ai' | 'fallback' | null>(null);
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [artificialCheck, setArtificialCheck] = useState<ArtificialTransactionCheck | null>(null);
+  const [conversationContext, setConversationContext] = useState<Array<{ role: string; content: string }>>([]);
+  const [nluEnabled, setNluEnabled] = useState(true);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -102,7 +122,55 @@ const AdminSimulator = () => {
     scrollToBottom();
   }, [messages]);
 
-  const addBotMessage = (text: string, buttons?: Array<{ id: string; title: string }>) => {
+  // NLU Classification
+  const classifyIntent = async (message: string): Promise<{
+    intent: NLUIntent;
+    source: 'ai' | 'fallback';
+    artificialTransactionCheck?: ArtificialTransactionCheck;
+  } | null> => {
+    if (!nluEnabled) return null;
+    
+    setIsClassifying(true);
+    try {
+      const result = await callPublicEdgeFunction<{
+        intent: { name: string; confidence: number; entities: Record<string, unknown>; reasoning?: string };
+        source: 'ai' | 'fallback';
+        artificialTransactionCheck?: { isSuspicious: boolean; warning?: string; actReference?: string };
+      }>('simulate-nlu', {
+        message,
+        context: conversationContext.slice(-5)
+      });
+
+      const intent: NLUIntent = {
+        name: result.intent.name,
+        confidence: result.intent.confidence,
+        entities: result.intent.entities,
+        reasoning: result.intent.reasoning
+      };
+      
+      setNluIntent(intent);
+      setNluSource(result.source);
+      setArtificialCheck(result.artificialTransactionCheck || null);
+      
+      return {
+        intent,
+        source: result.source,
+        artificialTransactionCheck: result.artificialTransactionCheck
+      };
+    } catch (error) {
+      console.error('NLU classification failed:', error);
+      return null;
+    } finally {
+      setIsClassifying(false);
+    }
+  };
+
+  const addBotMessage = (
+    text: string, 
+    buttons?: Array<{ id: string; title: string }>,
+    listConfig?: ListConfig,
+    intent?: { name: string; confidence: number }
+  ) => {
     setIsTyping(true);
     setTimeout(() => {
       setMessages((prev) => [
@@ -112,15 +180,24 @@ const AdminSimulator = () => {
           text,
           sender: "bot",
           timestamp: new Date(),
-          type: buttons ? "buttons" : "text",
+          type: listConfig ? "list" : buttons ? "buttons" : "text",
           buttons,
+          listConfig,
+          intent,
         },
       ]);
       setIsTyping(false);
+      
+      // Update conversation context
+      setConversationContext(prev => [...prev.slice(-4), { role: 'assistant', content: text }]);
     }, 500 + Math.random() * 300);
   };
 
-  const addBotMessageImmediate = (text: string, buttons?: Array<{ id: string; title: string }>) => {
+  const addBotMessageImmediate = (
+    text: string, 
+    buttons?: Array<{ id: string; title: string }>,
+    listConfig?: ListConfig
+  ) => {
     setMessages((prev) => [
       ...prev,
       {
@@ -128,8 +205,9 @@ const AdminSimulator = () => {
         text,
         sender: "bot",
         timestamp: new Date(),
-        type: buttons ? "buttons" : "text",
+        type: listConfig ? "list" : buttons ? "buttons" : "text",
         buttons,
+        listConfig,
       },
     ]);
   };
@@ -267,6 +345,82 @@ const AdminSimulator = () => {
     }
   };
 
+  // Intent-based response helpers
+  const sendTaxReliefOptions = () => {
+    addBotMessage(
+      "Select the type of relief you want to learn about:",
+      undefined,
+      {
+        header: "Tax Relief Options",
+        body: "Nigeria Tax Act 2025 provides various tax reliefs and exemptions.",
+        footer: "NTA 2025 Sections 62-75",
+        buttonText: "View Options",
+        sections: [
+          {
+            title: "Personal Reliefs",
+            rows: [
+              { id: "relief_cra", title: "CRA", description: "Consolidated Relief Allowance" },
+              { id: "relief_pension", title: "Pension", description: "Pension contributions" },
+              { id: "relief_housing", title: "Housing", description: "NHF contributions" }
+            ]
+          },
+          {
+            title: "Family Reliefs",
+            rows: [
+              { id: "relief_children", title: "Children", description: "Child education allowance" },
+              { id: "relief_dependent", title: "Dependents", description: "Dependent relative relief" }
+            ]
+          }
+        ]
+      },
+      nluIntent ? { name: nluIntent.name, confidence: nluIntent.confidence } : undefined
+    );
+  };
+
+  const sendTransactionSummaryOptions = () => {
+    addBotMessage(
+      "Select a period to view your transaction summary:",
+      [
+        { id: "period_week", title: "This Week" },
+        { id: "period_month", title: "This Month" },
+        { id: "period_year", title: "This Year" }
+      ],
+      undefined,
+      nluIntent ? { name: nluIntent.name, confidence: nluIntent.confidence } : undefined
+    );
+  };
+
+  const sendTaxCalculationOptions = () => {
+    addBotMessage(
+      "What type of tax calculation do you need?",
+      undefined,
+      {
+        header: "Tax Calculator",
+        body: "Choose the type of tax you want to calculate:",
+        footer: "Nigeria Tax Act 2025",
+        buttonText: "Select Type",
+        sections: [
+          {
+            title: "Income Tax",
+            rows: [
+              { id: "calc_employment", title: "Employment Income", description: "PAYE calculation" },
+              { id: "calc_business", title: "Business Income", description: "Self-employed/Freelancer" },
+              { id: "calc_pension", title: "Pension Income", description: "Retiree exemption check" }
+            ]
+          },
+          {
+            title: "VAT",
+            rows: [
+              { id: "calc_vat_standard", title: "Standard VAT", description: "7.5% rate calculation" },
+              { id: "calc_vat_exempt", title: "Check Exemption", description: "Is my item VAT exempt?" }
+            ]
+          }
+        ]
+      },
+      nluIntent ? { name: nluIntent.name, confidence: nluIntent.confidence } : undefined
+    );
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
 
@@ -277,9 +431,18 @@ const AdminSimulator = () => {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMessage]);
+    
+    // Update conversation context
+    setConversationContext(prev => [...prev.slice(-4), { role: 'user', content: inputMessage }]);
 
     const lowerMessage = inputMessage.toLowerCase().trim();
     setInputMessage("");
+
+    // Classify intent via NLU for registered users
+    let nluResult: Awaited<ReturnType<typeof classifyIntent>> = null;
+    if (userState === "registered" && nluEnabled) {
+      nluResult = await classifyIntent(inputMessage);
+    }
 
     // Handle based on user state
     if (userState === "new") {
@@ -358,10 +521,156 @@ const AdminSimulator = () => {
       return;
     }
 
-    // Registered user commands
+    // Registered user - use NLU-based routing with fallback to regex
     if (userState === "registered" || userState === "awaiting_invoice") {
       setUserState("registered");
 
+      // Try NLU-based routing first
+      if (nluResult?.intent) {
+        const { name: intentName, entities } = nluResult.intent;
+        
+        // Route based on intent
+        switch (intentName) {
+          case 'get_tax_relief_info':
+            sendTaxReliefOptions();
+            return;
+            
+          case 'get_transaction_summary':
+            sendTransactionSummaryOptions();
+            return;
+            
+          case 'get_tax_calculation':
+            // Check if entities provide enough info for direct calculation
+            if (entities.amount && typeof entities.amount === 'number') {
+              if (entities.tax_type === 'vat') {
+                // Direct VAT calculation
+                await handleVATCalculation(entities.amount, entities.description as string || 'goods');
+                return;
+              } else {
+                // Direct income tax calculation
+                await handleIncomeTaxCalculation(entities.amount);
+                return;
+              }
+            }
+            // Otherwise show options
+            sendTaxCalculationOptions();
+            return;
+            
+          case 'upload_receipt':
+            addBotMessage(
+              "📤 Invoice Upload\n\n" +
+              "Please send a photo of your invoice. I'll use OCR to extract the details.",
+              [
+                { id: "upload_now", title: "📎 Upload Now" },
+                { id: "upload_later", title: "Later" }
+              ],
+              undefined,
+              { name: intentName, confidence: nluResult.intent.confidence }
+            );
+            setUserState("awaiting_invoice");
+            return;
+            
+          case 'categorize_expense':
+            if (nluResult.artificialTransactionCheck?.isSuspicious) {
+              addBotMessage(
+                `⚠️ SECTION 191 ALERT\n\n${nluResult.artificialTransactionCheck.warning}\n\n` +
+                `Reference: ${nluResult.artificialTransactionCheck.actReference}\n\n` +
+                "How would you like to categorize this?",
+                [
+                  { id: "cat_business", title: "💼 Business" },
+                  { id: "cat_personal", title: "👤 Personal" },
+                  { id: "cat_review", title: "📋 Flag for Review" }
+                ],
+                undefined,
+                { name: intentName, confidence: nluResult.intent.confidence }
+              );
+            } else {
+              addBotMessage(
+                "How would you like to categorize this expense?",
+                [
+                  { id: "cat_business", title: "💼 Business" },
+                  { id: "cat_personal", title: "👤 Personal" }
+                ],
+                undefined,
+                { name: intentName, confidence: nluResult.intent.confidence }
+              );
+            }
+            return;
+            
+          case 'verify_identity':
+            addBotMessage(
+              "Which ID would you like to verify?",
+              undefined,
+              {
+                header: "ID Verification",
+                body: "Select the type of identification to verify:",
+                footer: "Verification via NIMC/CAC",
+                buttonText: "Select ID Type",
+                sections: [
+                  {
+                    title: "Personal ID",
+                    rows: [
+                      { id: "verify_tin", title: "TIN", description: "Tax Identification Number" },
+                      { id: "verify_nin", title: "NIN", description: "National ID Number" }
+                    ]
+                  },
+                  {
+                    title: "Business ID",
+                    rows: [
+                      { id: "verify_cac", title: "CAC/RC", description: "Company Registration" }
+                    ]
+                  }
+                ]
+              },
+              { name: intentName, confidence: nluResult.intent.confidence }
+            );
+            return;
+            
+          case 'connect_bank':
+            addBotMessage(
+              "🏦 Connect your bank account for automated transaction tracking.",
+              undefined,
+              {
+                header: "Bank Connection",
+                body: "Select your bank to connect via Mono:",
+                footer: "Secure connection via Mono API",
+                buttonText: "Select Bank",
+                sections: [
+                  {
+                    title: "Major Banks",
+                    rows: [
+                      { id: "bank_gtb", title: "GTBank", description: "Guaranty Trust Bank" },
+                      { id: "bank_access", title: "Access Bank", description: "Access Bank Plc" },
+                      { id: "bank_zenith", title: "Zenith Bank", description: "Zenith Bank Plc" },
+                      { id: "bank_first", title: "First Bank", description: "First Bank of Nigeria" }
+                    ]
+                  }
+                ]
+              },
+              { name: intentName, confidence: nluResult.intent.confidence }
+            );
+            return;
+            
+          case 'set_reminder':
+            addBotMessage(
+              "📅 What would you like to be reminded about?",
+              [
+                { id: "remind_vat", title: "VAT Filing" },
+                { id: "remind_tax", title: "Tax Payment" },
+                { id: "remind_custom", title: "Custom" }
+              ],
+              undefined,
+              { name: intentName, confidence: nluResult.intent.confidence }
+            );
+            return;
+            
+          case 'general_query':
+            addBotMessage(HELP_MESSAGE);
+            return;
+        }
+      }
+
+      // Fallback to legacy regex-based handlers
       if (lowerMessage === "help") {
         addBotMessage(HELP_MESSAGE);
         return;
@@ -372,31 +681,7 @@ const AdminSimulator = () => {
       if (vatMatch) {
         const amount = parseInt(vatMatch[1].replace(/,/g, ""));
         const description = vatMatch[2] || "general goods";
-        
-        setIsTyping(true);
-        addBotMessageImmediate("🔄 Calculating VAT...");
-        
-        const result = await callVATCalculator(amount, description);
-        setIsTyping(false);
-        
-        if (result && !result.error) {
-          const classificationEmoji = 
-            result.classification === 'standard' ? '📊' :
-            result.classification === 'zero-rated' ? '🆓' : '🚫';
-          
-          addBotMessage(
-            `${classificationEmoji} VAT Calculation Result:\n` +
-            `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `Classification: *${result.classification.toUpperCase()}*\n` +
-            `Act Reference: ${result.actReference}\n\n` +
-            `Amount: ${formatCurrency(result.subtotal)}\n` +
-            `VAT (${(result.vatRate * 100).toFixed(1)}%): ${formatCurrency(result.vatAmount)}\n` +
-            `Total: ${formatCurrency(result.total)}\n\n` +
-            (result.canClaimInputVAT ? '✅ Input VAT claimable' : '❌ Cannot claim input VAT')
-          );
-        } else {
-          addBotMessage("❌ Failed to calculate VAT. Please try again.");
-        }
+        await handleVATCalculation(amount, description);
         return;
       }
 
@@ -524,56 +809,7 @@ const AdminSimulator = () => {
       if (taxMatch) {
         const isMonthly = !!taxMatch[1];
         const amount = parseInt(taxMatch[2].replace(/,/g, ""));
-        
-        setIsTyping(true);
-        addBotMessageImmediate("🔄 Calculating income tax...");
-        
-        const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual');
-        setIsTyping(false);
-        
-        if (result && !result.error) {
-          // Check for special exemptions
-          if (result.isMinimumWageExempt) {
-            addBotMessage(
-              `💰 Income Tax Calculation\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `${isMonthly ? 'Monthly' : 'Annual'} Income: ${formatCurrency(result.grossIncome)}\n\n` +
-              `✅ MINIMUM WAGE EXEMPTION\n\n` +
-              `Earners of national minimum wage (₦70,000/month\n` +
-              `or ₦840,000/year) or below are exempt from\n` +
-              `personal income tax under the Nigeria Tax Act 2025.\n\n` +
-              `📊 Summary:\n` +
-              `├─ Gross Income: ${formatCurrency(result.grossIncome)}\n` +
-              `├─ Tax Payable: ₦0\n` +
-              `├─ Effective Rate: 0%\n` +
-              `└─ Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
-              `Reference: ${result.actReference}`
-            );
-          } else {
-            const breakdown = result.taxBreakdown
-              .filter((band: { taxInBand: number }) => band.taxInBand > 0)
-              .map((band: { band: string; rate: number; taxInBand: number }) => 
-                `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
-              )
-              .join('\n');
-            
-            addBotMessage(
-              `💰 Income Tax Calculation\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-              `${isMonthly ? 'Monthly' : 'Annual'} Income: ${formatCurrency(result.grossIncome)}\n` +
-              `Chargeable Income: ${formatCurrency(result.chargeableIncome)}\n\n` +
-              (breakdown ? `📋 Tax Breakdown (Section 58):\n${breakdown}\n` : '') +
-              `━━━━━━━━━━━━━━━━━━━━━━━\n` +
-              `💰 Total Tax: ${formatCurrency(result.totalTax)}\n` +
-              `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
-              `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
-              `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
-              `Reference: ${result.actReference}`
-            );
-          }
-        } else {
-          addBotMessage("❌ Failed to calculate income tax. Please try again.");
-        }
+        await handleIncomeTaxCalculation(amount, isMonthly);
         return;
       }
 
@@ -672,7 +908,7 @@ const AdminSimulator = () => {
             name: projectName,
             budget: budget,
             source_person: sourcePerson,
-            source_relationship: 'family', // Default for simulation
+            source_relationship: 'family',
           });
           
           setIsTyping(false);
@@ -749,13 +985,10 @@ const AdminSimulator = () => {
             const balance = activeProject.budget - newSpent;
             const isOverBudget = balance < 0;
             
-            // Update local state
             setActiveProject(prev => prev ? { ...prev, spent: newSpent } : null);
             
-            // Check for risk indicators
             let warningMessage = '';
             
-            // Rapid cash withdrawal check (mock - in real scenario would check DB)
             const lowerDesc = description.toLowerCase();
             if (lowerDesc.includes('labor') || lowerDesc.includes('cash') || lowerDesc.includes('worker')) {
               if (amount >= 500000) {
@@ -765,7 +998,6 @@ const AdminSimulator = () => {
               }
             }
             
-            // Vague description check
             const vagueTerms = ['misc', 'sundry', 'various', 'other', 'general'];
             if (vagueTerms.some(term => lowerDesc.includes(term))) {
               warningMessage += `\n\n⚠️ DOCUMENTATION WARNING\n` +
@@ -852,7 +1084,6 @@ const AdminSimulator = () => {
               `💡 Tip: Send receipt photos to verify expenses.`
             );
             
-            // Update local state
             setActiveProject(prev => prev ? { ...prev, spent: s.spent } : null);
           } else {
             addBotMessage("❌ Failed to fetch project status.");
@@ -917,25 +1148,17 @@ const AdminSimulator = () => {
               `📊 Final Summary:\n` +
               `├─ Budget Received: ${formatCurrency(c.budget)}\n` +
               `├─ Total Spent: ${formatCurrency(c.spent)}\n` +
-              `└─ Excess Retained: ${formatCurrency(c.excess)}\n\n` +
+              `└─ ${hasExcess ? `Excess (Taxable): ${formatCurrency(c.excess)}` : 'Fully Utilized ✓'}\n\n` +
               (hasExcess ? 
-                `⚠️ TAX TREATMENT\n` +
-                `Excess of ${formatCurrency(c.excess)} is taxable income\n` +
-                `under Section 4(1)(k) of the Tax Act 2025.\n\n` +
-                `📋 PIT Calculation (Section 58):\n` +
-                (taxBreakdown || `All within 0% band (₦0 - ₦800,000)`) +
-                `\n━━━━━━━━━━━━━━━━━━━━━\n` +
-                `💰 Total Tax Due: ${formatCurrency(c.taxCalculation.totalTax)}` +
-                (c.taxCalculation.totalTax === 0 ? `\n\n✅ Excess falls within tax-free band!` : '')
-                :
-                `✅ NO TAXABLE EXCESS\n` +
-                `All funds were properly expended on the project.\n` +
-                `No Personal Income Tax liability.`
-              ) +
-              `\n\n📄 Type *project statement* to generate a PDF report.`
+                `💰 Tax on Excess:\n${taxBreakdown}\n` +
+                `━━━━━━━━━━━━━━━━━━━━━\n` +
+                `Total Tax Due: ${formatCurrency(c.taxCalculation.totalTax)}\n\n` +
+                `⚠️ The excess amount is treated as personal income\n` +
+                `and subject to progressive income tax.\n\n`
+              : `✅ No tax liability - funds fully utilized for project purposes.\n\n`) +
+              `Reference: NTA 2025 Section 5 (Agency Funds)`
             );
             
-            // Clear active project
             setActiveProject(null);
           } else {
             addBotMessage("❌ Failed to complete project: " + (result?.error || 'Unknown error'));
@@ -947,86 +1170,222 @@ const AdminSimulator = () => {
         return;
       }
 
-      // Default response for unrecognized commands
+      // Default: Unknown command
       addBotMessage(
-        "I didn't understand that command. Type *help* to see available options."
+        "I didn't understand that command. 🤔\n\n" +
+        "Type *help* to see available commands, or try:\n" +
+        "• *vat 50000 electronics*\n" +
+        "• *tax 10000000*\n" +
+        "• *summary*"
       );
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  // Helper functions for tax calculations
+  const handleVATCalculation = async (amount: number, description: string) => {
+    setIsTyping(true);
+    addBotMessageImmediate("🔄 Calculating VAT...");
+    
+    const result = await callVATCalculator(amount, description);
+    setIsTyping(false);
+    
+    if (result && !result.error) {
+      const classificationEmoji = 
+        result.classification === 'standard' ? '📊' :
+        result.classification === 'zero-rated' ? '🆓' : '🚫';
+      
+      addBotMessage(
+        `${classificationEmoji} VAT Calculation Result:\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Classification: *${result.classification.toUpperCase()}*\n` +
+        `Act Reference: ${result.actReference}\n\n` +
+        `Amount: ${formatCurrency(result.subtotal)}\n` +
+        `VAT (${(result.vatRate * 100).toFixed(1)}%): ${formatCurrency(result.vatAmount)}\n` +
+        `Total: ${formatCurrency(result.total)}\n\n` +
+        (result.canClaimInputVAT ? '✅ Input VAT claimable' : '❌ Cannot claim input VAT'),
+        undefined,
+        undefined,
+        nluIntent ? { name: nluIntent.name, confidence: nluIntent.confidence } : undefined
+      );
+    } else {
+      addBotMessage("❌ Failed to calculate VAT. Please try again.");
+    }
+  };
+
+  const handleIncomeTaxCalculation = async (amount: number, isMonthly: boolean = false) => {
+    setIsTyping(true);
+    addBotMessageImmediate("🔄 Calculating income tax...");
+    
+    const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual');
+    setIsTyping(false);
+    
+    if (result && !result.error) {
+      if (result.isMinimumWageExempt) {
+        addBotMessage(
+          `💰 Income Tax Calculation\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `${isMonthly ? 'Monthly' : 'Annual'} Income: ${formatCurrency(result.grossIncome)}\n\n` +
+          `✅ MINIMUM WAGE EXEMPTION\n\n` +
+          `Earners of national minimum wage (₦70,000/month\n` +
+          `or ₦840,000/year) or below are exempt from\n` +
+          `personal income tax under the Nigeria Tax Act 2025.\n\n` +
+          `📊 Summary:\n` +
+          `├─ Gross Income: ${formatCurrency(result.grossIncome)}\n` +
+          `├─ Tax Payable: ₦0\n` +
+          `├─ Effective Rate: 0%\n` +
+          `└─ Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+          `Reference: ${result.actReference}`,
+          undefined,
+          undefined,
+          nluIntent ? { name: nluIntent.name, confidence: nluIntent.confidence } : undefined
+        );
+      } else {
+        const breakdown = result.taxBreakdown
+          .filter((band: { taxInBand: number }) => band.taxInBand > 0)
+          .map((band: { band: string; rate: number; taxInBand: number }) => 
+            `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
+          )
+          .join('\n');
+        
+        addBotMessage(
+          `💰 Income Tax Calculation\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `${isMonthly ? 'Monthly' : 'Annual'} Income: ${formatCurrency(result.grossIncome)}\n` +
+          `Chargeable Income: ${formatCurrency(result.chargeableIncome)}\n\n` +
+          (breakdown ? `📋 Tax Breakdown (Section 58):\n${breakdown}\n` : '') +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `💰 Total Tax: ${formatCurrency(result.totalTax)}\n` +
+          `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
+          `📅 Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
+          `💵 Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+          `Reference: ${result.actReference}`,
+          undefined,
+          undefined,
+          nluIntent ? { name: nluIntent.name, confidence: nluIntent.confidence } : undefined
+        );
+      }
+    } else {
+      addBotMessage("❌ Failed to calculate income tax. Please try again.");
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
-    // Add user message showing upload
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        text: `📎 Uploaded: ${file.name}`,
-        sender: "user",
-        timestamp: new Date(),
-        type: "image",
-      },
-    ]);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          text: "📷 Invoice uploaded",
+          sender: "user",
+          timestamp: new Date(),
+          type: "image",
+        },
+      ]);
 
-    setIsTyping(true);
-    addBotMessageImmediate("🔄 Processing invoice with OCR...");
+      setIsTyping(true);
+      addBotMessageImmediate("🔍 Processing invoice with OCR...");
 
-    // Simulate OCR processing
-    const result = await callInvoiceProcessor('process-ocr', { 
-      imageUrl: URL.createObjectURL(file),
-      userId: userData.id 
-    });
-
-    setIsTyping(false);
-
-    if (result && !result.error) {
-      setPendingInvoice({
-        invoiceNumber: result.invoiceNumber || 'INV-001',
-        customerName: result.customerName || 'Customer',
-        items: result.items || [],
-        subtotal: result.subtotal || 0,
-        vatAmount: result.vatAmount || 0,
-        total: result.total || 0,
-        confidence: result.confidence || 0.85
+      const result = await callInvoiceProcessor('process-image', {
+        imageBase64: base64,
+        userId: userData.id,
+        businessId: userData.businessId
       });
 
-      const itemsList = (result.items || [])
-        .map((item: { description: string; quantity: number; unitPrice: number }) => 
+      setIsTyping(false);
+
+      if (result && result.success) {
+        setPendingInvoice({
+          invoiceNumber: result.invoiceNumber || 'INV-001',
+          customerName: result.customerName || 'Customer',
+          items: result.items || [],
+          subtotal: result.subtotal || 0,
+          vatAmount: result.vatAmount || 0,
+          total: result.total || 0,
+          confidence: result.confidence || 0.85
+        });
+
+        const itemsList = result.items?.map((item: { description: string; quantity: number; unitPrice: number; vatAmount: number }) => 
           `• ${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice)}`
-        )
-        .join('\n');
+        ).join('\n');
 
-      addBotMessage(
-        `✅ Invoice Extracted (${Math.round((result.confidence || 0.85) * 100)}% confidence)\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `Invoice #: ${result.invoiceNumber || 'INV-001'}\n` +
-        `Customer: ${result.customerName || 'Customer'}\n\n` +
-        `Items:\n${itemsList || 'No items'}\n\n` +
-        `Subtotal: ${formatCurrency(result.subtotal || 0)}\n` +
-        `VAT (7.5%): ${formatCurrency(result.vatAmount || 0)}\n` +
-        `Total: ${formatCurrency(result.total || 0)}\n\n` +
-        `Is this correct?`,
-        [
-          { id: "confirm", title: "✓ Confirm" },
-          { id: "edit", title: "✎ Edit" }
-        ]
-      );
-      setUserState("awaiting_confirm");
-    } else {
-      addBotMessage(
-        "❌ Failed to process invoice. Please try again with a clearer image."
-      );
-    }
+        addBotMessage(
+          `✅ Invoice Extracted (${Math.round((result.confidence || 0.85) * 100)}% confidence)\n` +
+          `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `Invoice #: ${result.invoiceNumber || 'INV-001'}\n` +
+          `Customer: ${result.customerName || 'Customer'}\n\n` +
+          `Items:\n${itemsList || 'No items'}\n\n` +
+          `Subtotal: ${formatCurrency(result.subtotal || 0)}\n` +
+          `VAT (7.5%): ${formatCurrency(result.vatAmount || 0)}\n` +
+          `Total: ${formatCurrency(result.total || 0)}\n\n` +
+          `Is this correct?`,
+          [
+            { id: "confirm", title: "✓ Confirm" },
+            { id: "edit", title: "✎ Edit" }
+          ]
+        );
+        setUserState("awaiting_confirm");
+      } else {
+        addBotMessage(
+          "❌ Failed to process invoice. Please try again with a clearer image."
+        );
+      }
 
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleButtonClick = async (buttonId: string) => {
+    // Handle WhatsApp list/button selections
+    if (buttonId.startsWith('relief_')) {
+      const reliefType = buttonId.replace('relief_', '');
+      addBotMessage(`📋 ${reliefType.toUpperCase()} Relief information coming soon...`);
+      return;
+    }
+    if (buttonId.startsWith('period_')) {
+      sendTransactionSummaryOptions();
+      return;
+    }
+    if (buttonId.startsWith('calc_')) {
+      addBotMessage("Please enter the amount for calculation.\n\nExample: *tax 10000000* or *vat 50000*");
+      return;
+    }
+    if (buttonId.startsWith('bank_')) {
+      addBotMessage("🏦 Bank connection feature coming soon!\n\nThis will connect via Mono API for automated transaction tracking.");
+      return;
+    }
+    if (buttonId.startsWith('verify_')) {
+      addBotMessage("✅ Verification feature coming soon!\n\nThis will validate your ID against NIMC/CAC databases.");
+      return;
+    }
+    if (buttonId.startsWith('remind_')) {
+      addBotMessage("📅 Reminder feature coming soon!\n\nYou'll receive WhatsApp reminders before tax deadlines.");
+      return;
+    }
+    if (buttonId.startsWith('cat_')) {
+      const category = buttonId.replace('cat_', '');
+      addBotMessage(`✅ Expense categorized as: *${category.toUpperCase()}*`);
+      return;
+    }
+    if (buttonId === 'upload_now') {
+      fileInputRef.current?.click();
+      return;
+    }
+    if (buttonId === 'upload_later') {
+      addBotMessage("No problem! Type *upload* when you're ready to upload an invoice.");
+      setUserState("registered");
+      return;
+    }
+
+    // Original button handlers
     if (buttonId === "confirm" && pendingInvoice) {
       setIsTyping(true);
       addBotMessageImmediate("🔄 Saving invoice...");
@@ -1068,13 +1427,18 @@ const AdminSimulator = () => {
     setUserState("new");
     setUserData({});
     setPendingInvoice(null);
+    setActiveProject(null);
+    setNluIntent(null);
+    setNluSource(null);
+    setArtificialCheck(null);
+    setConversationContext([]);
     toast({ title: "Simulator reset" });
   };
 
   return (
     <div className="flex h-[calc(100vh-8rem)] gap-4">
       {/* Config Panel */}
-      <Card className="w-80 flex-shrink-0">
+      <Card className="w-80 flex-shrink-0 overflow-y-auto">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Phone className="w-5 h-5" />
@@ -1104,11 +1468,28 @@ const AdminSimulator = () => {
             </label>
           </div>
 
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="nluEnabled"
+              checked={nluEnabled}
+              onChange={(e) => setNluEnabled(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <label htmlFor="nluEnabled" className="text-sm flex items-center gap-1">
+              <Brain className="w-3 h-3" />
+              NLU Enabled
+            </label>
+          </div>
+
           <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
             <p className="font-medium">User State: {userState}</p>
             {userData.businessName && <p>Business: {userData.businessName}</p>}
             {userData.tin && <p>TIN: {userData.tin}</p>}
             {userData.id && <p>ID: {userData.id.substring(0, 8)}...</p>}
+            {activeProject && (
+              <p className="text-primary">Project: {activeProject.name}</p>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -1135,6 +1516,17 @@ const AdminSimulator = () => {
               Seed
             </Button>
           </div>
+
+          {/* NLU Debug Panel */}
+          <NLUDebugPanel
+            intent={nluIntent}
+            source={nluSource}
+            isLoading={isClassifying}
+            artificialCheck={artificialCheck}
+            onTestIntent={(testMessage) => {
+              setInputMessage(testMessage);
+            }}
+          />
         </CardContent>
       </Card>
 
@@ -1148,9 +1540,15 @@ const AdminSimulator = () => {
             <div>
               <CardTitle className="text-lg">PRISM Tax Bot</CardTitle>
               <p className="text-xs text-muted-foreground">
-                {isTyping ? "typing..." : "Online"}
+                {isClassifying ? "🧠 classifying..." : isTyping ? "typing..." : "Online"}
               </p>
             </div>
+            {nluEnabled && (
+              <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+                <Brain className="w-3 h-3" />
+                NLU Active
+              </div>
+            )}
           </div>
         </CardHeader>
         
@@ -1184,18 +1582,34 @@ const AdminSimulator = () => {
                         i % 2 === 1 ? <strong key={i}>{part}</strong> : part
                       )}
                     </p>
-                    {message.buttons && (
-                      <div className="flex gap-2 mt-3">
-                        {message.buttons.map((btn) => (
-                          <Button
-                            key={btn.id}
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleButtonClick(btn.id)}
-                          >
-                            {btn.title}
-                          </Button>
-                        ))}
+                    
+                    {/* WhatsApp Reply Buttons */}
+                    {message.buttons && message.buttons.length <= 3 && !message.listConfig && (
+                      <WhatsAppButtonsPreview
+                        buttons={message.buttons}
+                        onSelect={(buttonId) => handleButtonClick(buttonId)}
+                      />
+                    )}
+
+                    {/* WhatsApp List Messages */}
+                    {message.listConfig && (
+                      <WhatsAppListMessage
+                        header={message.listConfig.header}
+                        body={message.listConfig.body}
+                        footer={message.listConfig.footer}
+                        buttonText={message.listConfig.buttonText}
+                        sections={message.listConfig.sections}
+                        onSelect={(rowId) => handleButtonClick(rowId)}
+                      />
+                    )}
+
+                    {/* Intent Badge (for debugging) */}
+                    {message.intent && nluEnabled && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <Brain className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">
+                          {message.intent.name} ({Math.round(message.intent.confidence * 100)}%)
+                        </span>
                       </div>
                     )}
                   </div>
@@ -1245,7 +1659,7 @@ const AdminSimulator = () => {
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
             className="flex-1"
           />
-          <Button onClick={handleSendMessage} disabled={!inputMessage.trim()}>
+          <Button onClick={handleSendMessage} disabled={!inputMessage.trim() || isClassifying}>
             <Send className="w-4 h-4" />
           </Button>
         </div>
