@@ -11,11 +11,16 @@ const corsHeaders = {
 };
 
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
-const RAILWAY_GATEWAY_URL = Deno.env.get("RAILWAY_GATEWAY_URL");
+const RAW_GATEWAY_URL = Deno.env.get("RAILWAY_GATEWAY_URL");
 
-if (!TELEGRAM_BOT_TOKEN || !RAILWAY_GATEWAY_URL) {
+if (!TELEGRAM_BOT_TOKEN || !RAW_GATEWAY_URL) {
     throw new Error("Missing TELEGRAM_BOT_TOKEN or RAILWAY_GATEWAY_URL");
 }
+
+// Ensure URL has protocol prefix
+const RAILWAY_GATEWAY_URL = RAW_GATEWAY_URL.startsWith("http") 
+    ? RAW_GATEWAY_URL 
+    : `https://${RAW_GATEWAY_URL}`;
 
 // ============= Telegram API Helpers =============
 
