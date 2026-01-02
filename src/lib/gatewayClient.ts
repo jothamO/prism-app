@@ -80,19 +80,31 @@ export class GatewayClient {
     }
 
     async checkHealth(): Promise<any> {
+        if (!this.gatewayUrl || this.gatewayUrl === 'NOT_CONFIGURED') {
+            throw new Error('Gateway URL not configured');
+        }
         try {
-            const response = await fetch(`${this.gatewayUrl}/health`);
+            const response = await fetch(`${this.gatewayUrl}/health`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!response.ok) {
+                throw new Error(`Health check failed: ${response.status}`);
+            }
             return await response.json();
         } catch (error) {
             console.error('[Gateway Client] Health check failed:', error);
             throw error;
         }
     }
+
+    getUrl(): string {
+        return this.gatewayUrl;
+    }
 }
 
 // Export singleton instance
-// Use RAILWAY_GATEWAY_URL from Supabase secrets (fetched at runtime) or fallback
-const GATEWAY_URL = import.meta.env.VITE_RAILWAY_GATEWAY_URL || 
-                   'https://prism-clawdis-gateway-production.up.railway.app';
+// The RAILWAY_GATEWAY_URL should be set in Railway env or via VITE_ prefix for frontend
+const GATEWAY_URL = import.meta.env.VITE_RAILWAY_GATEWAY_URL || 'NOT_CONFIGURED';
 export const gatewayClient = new GatewayClient(GATEWAY_URL);
 export { GATEWAY_URL };
