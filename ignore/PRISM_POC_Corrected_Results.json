@@ -1,0 +1,188 @@
+{
+  "timestamp": "2026-01-02T13:29:04.039Z",
+  "userCorrections": [
+    {
+      "transaction": "JOHN, DAVID CHUKWUKA - FOR SCHOOL RANKER",
+      "originalCategory": "BUSINESS_SALE",
+      "correctedCategory": "BUSINESS_SALE",
+      "userExplanation": "Support from non-executive director for building SchoolRanker (capital injection, not revenue)"
+    },
+    {
+      "transaction": "OBAJENIHI FAITH,DELE",
+      "originalCategory": "BUSINESS_SALE",
+      "correctedCategory": "PERSONAL_EXPENSE",
+      "userExplanation": "Payment for electricity bill for religious house (not business)"
+    },
+    {
+      "transaction": "OSSAI SUSANNA NGOZI - FOR WORK",
+      "originalCategory": "BUSINESS_SALE",
+      "correctedCategory": "BUSINESS_SALE",
+      "userExplanation": "Support from mother for SchoolRanker, used to purchase Lovable credits (business capital)"
+    },
+    {
+      "transaction": "LOVABLE DOVER US",
+      "originalCategory": "BUSINESS_EXPENSE",
+      "correctedCategory": "BUSINESS_EXPENSE",
+      "userExplanation": "Software subscription for building SchoolRanker (confirmed business use)"
+    },
+    {
+      "transaction": "OPENAI SAN FRANCISCO US",
+      "originalCategory": "BUSINESS_EXPENSE",
+      "correctedCategory": "BUSINESS_EXPENSE",
+      "userExplanation": "API subscription for SchoolRanker (confirmed business use)"
+    },
+    {
+      "transaction": "CANVA",
+      "originalCategory": "BUSINESS_EXPENSE",
+      "correctedCategory": "BUSINESS_EXPENSE",
+      "userExplanation": "Design software for SchoolRanker (confirmed business use)"
+    },
+    {
+      "transaction": "BUYPOWER-CAROLINE ENUNEKU",
+      "originalCategory": "BUSINESS_EXPENSE",
+      "correctedCategory": "PERSONAL_EXPENSE",
+      "userExplanation": "Home electricity purchase (not business premises)"
+    },
+    {
+      "transaction": "FAITH ODIMMACHUKWU (OPAY)",
+      "originalCategory": "BUSINESS_EXPENSE",
+      "correctedCategory": "PERSONAL_GIFT",
+      "userExplanation": "Gift to friend (not business expense)"
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2025-12-04",
+      "description": "JOHN, DAVID CHUKWUKA - FOR SCHOOL RANKER",
+      "credit": 300000,
+      "category": "BUSINESS_SALE",
+      "reasoning": "Capital injection from non-executive director for SchoolRanker",
+      "vatApplicable": true,
+      "vatAmount": 20930.23,
+      "confidence": 0.95,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-05",
+      "description": "LOVABLE DOVER US",
+      "debit": 72650,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "Software subscription for SchoolRanker development",
+      "vatApplicable": true,
+      "vatAmount": 5069.77,
+      "confidence": 0.95,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-08",
+      "description": "OPENAI SAN FRANCISCO US",
+      "debit": 7844.04,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "API subscription for SchoolRanker platform",
+      "vatApplicable": true,
+      "vatAmount": 547.48,
+      "confidence": 0.95,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-12",
+      "description": "OBAJENIHI FAITH,DELE",
+      "credit": 29000,
+      "category": "PERSONAL_EXPENSE",
+      "reasoning": "Payment to religious house for electricity (non-business)",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.95,
+      "action": "AUTO_EXCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-15",
+      "description": "ENUNEKU JONATHAN CHIDI (PROVIDUS) - GIFT",
+      "credit": 20000,
+      "category": "PERSONAL_GIFT",
+      "reasoning": "Gift from friend (personal transfer, not business)",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.9,
+      "action": "AUTO_EXCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-17",
+      "description": "Airtime Purchase VIA GTWORLD - DATA",
+      "debit": 18000,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "Airtime/data for business operations (startup development)",
+      "vatApplicable": true,
+      "vatAmount": 1256.14,
+      "confidence": 0.75,
+      "action": "ASK_USER",
+      "userPrompt": "Is this airtime/data purchase for SchoolRanker development or personal use?"
+    },
+    {
+      "date": "2025-12-18",
+      "description": "CANVA",
+      "debit": 3750,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "Design software subscription for SchoolRanker",
+      "vatApplicable": true,
+      "vatAmount": 261.63,
+      "confidence": 0.95,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-25",
+      "description": "OSSAI SUSANNA NGOZI - FOR WORK",
+      "credit": 18000,
+      "category": "BUSINESS_SALE",
+      "reasoning": "Capital support from mother for SchoolRanker (business capital)",
+      "vatApplicable": true,
+      "vatAmount": 1255.81,
+      "confidence": 0.95,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-11",
+      "description": "BUYPOWER-CAROLINE ENUNEKU",
+      "debit": 1100,
+      "category": "PERSONAL_EXPENSE",
+      "reasoning": "Home electricity purchase via BUYPOWER (personal utilities)",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.95,
+      "action": "AUTO_EXCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-04",
+      "description": "FAITH ODIMMACHUKWU (OPAY)",
+      "debit": 6000,
+      "category": "PERSONAL_GIFT",
+      "reasoning": "Gift to friend via OPAY (personal transfer, not business)",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.95,
+      "action": "AUTO_EXCLUDE",
+      "userPrompt": null
+    }
+  ],
+  "vatCalculation": {
+    "businessIncome": 318000,
+    "outputVAT": 22186.04651162791,
+    "businessExpenses": 102244.04,
+    "inputVAT": 7133.305116279065,
+    "netVAT": 15052.741395348843
+  },
+  "summary": {
+    "totalTransactions": 10,
+    "autoClassified": 9,
+    "needsConfirmation": 1,
+    "averageConfidence": 0.925
+  }
+}

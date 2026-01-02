@@ -17,17 +17,17 @@ import { projectController } from "./project.controller";
  */
 function safeCompare(a: string | undefined, b: string | undefined): boolean {
   if (!a || !b) return false;
-  
+
   const bufA = Buffer.from(a, 'utf8');
   const bufB = Buffer.from(b, 'utf8');
-  
+
   // If lengths differ, still perform comparison to maintain constant time
   if (bufA.length !== bufB.length) {
     // Compare against itself to maintain timing, then return false
     timingSafeEqual(bufA, bufA);
     return false;
   }
-  
+
   return timingSafeEqual(bufA, bufB);
 }
 
@@ -48,7 +48,7 @@ export class WebhookController {
     try {
       const secret = req.headers["x-mono-webhook-secret"] as string | undefined;
       const expectedSecret = process.env.MONO_WEBHOOK_SECRET;
-      
+
       // Use constant-time comparison to prevent timing attacks
       if (!safeCompare(secret, expectedSecret)) {
         console.warn("Mono webhook: Invalid secret received");
@@ -74,11 +74,89 @@ export class WebhookController {
         if (accountData && event.data.meta && event.data.meta.data_status === "AVAILABLE") {
           const { monoService } = await import("../services/mono.service");
           await monoService.syncAccount(accountData.user_id, accountId);
+
+          // Phase 6: Detect EMTL charges and bank fees
+          await this.detectBankCharges(accountData.user_id, accountId);
         }
       }
     } catch (error) {
       console.error("Mono Webhook error:", error);
       if (!res.headersSent) res.sendStatus(500);
+    }
+  }
+
+  /**
+   * Detect EMTL charges and bank fees from Mono transactions
+   * Phase 6: Bank Charges & EMTL Compliance
+   */
+  private async detectBankCharges(userId: string, accountId: string) {
+    try {
+      console.log(`[Webhook] Detecting bank charges for user ${userId}, account ${accountId}`);
+
+      // Get recent transactions from Mono
+      const { monoService } = await import("../services/mono.service");
+      const transactions = await monoService.getTransactions(accountId);
+
+      if (!transactions || transactions.length === 0) {
+        console.log('[Webhook] No transactions to analyze');
+        return;
+      }
+
+      // Detect EMTL charges
+      const { emtlDetectorService } = await import("../services/emtl-detector.service");
+      const emtlCharges = await emtlDetectorService.detectEMTL(transactions, userId);
+      await emtlDetectorService.saveEMTLCharges(userId, emtlCharges);
+
+      // Categorize bank charges
+      const { bankChargeCategorizer } = await import("../services/bank-charge-categorizer.service");
+      const bankCharges = await bankChargeCategorizer.categorizeCharges(transactions, userId);
+      await bankChargeCategorizer.saveCharges(userId, bankCharges);
+
+      // Send summary to user if significant charges detected
+      const totalEMTL = emtlCharges.reduce((sum, c) => sum + c.amount, 0);
+      const totalBankCharges = bankCharges.reduce((sum, c) => sum + c.amount, 0);
+
+      if (totalEMTL + totalBankCharges > 0) {
+        await this.sendBankChargesSummary(userId, emtlCharges, bankCharges);
+      }
+
+      console.log(`[Webhook] Bank charge detection complete: ${emtlCharges.length} EMTL, ${bankCharges.length} bank charges`);
+    } catch (error) {
+      console.error('[Webhook] Error detecting bank charges:', error);
+      // Don't throw - webhook should still succeed
+    }
+  }
+
+  /**
+   * Send bank charges summary to user via WhatsApp
+   */
+  private async sendBankChargesSummary(userId: string, emtlCharges: any[], bankCharges: any[]) {
+    try {
+      const { data: user } = await supabase
+        .from("users")
+        .select("whatsapp_number")
+        .eq("id", userId)
+        .single();
+
+      if (!user || !user.whatsapp_number) {
+        console.log('[Webhook] User has no WhatsApp number, skipping notification');
+        return;
+      }
+
+      // Generate summaries
+      const { emtlDetectorService } = await import("../services/emtl-detector.service");
+      const { bankChargeCategorizer } = await import("../services/bank-charge-categorizer.service");
+
+      const emtlSummary = emtlDetectorService.generateSummary(emtlCharges);
+      const bankSummary = bankChargeCategorizer.generateMonthlySummary(bankCharges);
+
+      const message = `🏦 *Bank Charges Detected*\n\n${emtlSummary}\n\n${bankSummary}`;
+
+      await whatsappService.sendMessage(user.whatsapp_number, message);
+
+      console.log(`[Webhook] Sent bank charges summary to user ${userId}`);
+    } catch (error) {
+      console.error('[Webhook] Error sending bank charges summary:', error);
     }
   }
 

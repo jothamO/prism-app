@@ -1,0 +1,225 @@
+{
+  "timestamp": "2026-01-02T13:14:39.938Z",
+  "transactions": [
+    {
+      "date": "2025-12-04",
+      "description": "JOHN, DAVID CHUKWUKA - FOR SCHOOL RANKER",
+      "credit": 300000,
+      "category": "BUSINESS_SALE",
+      "reasoning": "Payment for School Ranker services from client",
+      "vatApplicable": true,
+      "vatAmount": 20930.23,
+      "confidence": 0.95,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-05",
+      "description": "LOVABLE DOVER US",
+      "debit": 72650,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "Lovable software subscription for development",
+      "vatApplicable": true,
+      "vatAmount": 5076.74,
+      "confidence": 0.85,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-08",
+      "description": "OPENAI SAN FRANCISCO US",
+      "debit": 7844.04,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "OpenAI API subscription for business operations",
+      "vatApplicable": true,
+      "vatAmount": 546.81,
+      "confidence": 0.9,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-12",
+      "description": "OBAJENIHI FAITH,DELE",
+      "credit": 29000,
+      "category": "BUSINESS_SALE",
+      "reasoning": "Payment from client for School Ranker work",
+      "vatApplicable": true,
+      "vatAmount": 2023.26,
+      "confidence": 0.85,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-15",
+      "description": "ENUNEKU JONATHAN CHIDI (PROVIDUS) - GIFT",
+      "credit": 20000,
+      "category": "PERSONAL_GIFT",
+      "reasoning": "Explicitly labeled as GIFT in description",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.99,
+      "action": "AUTO_EXCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-17",
+      "description": "Airtime Purchase VIA GTWORLD - DATA",
+      "debit": 18000,
+      "category": "PERSONAL_EXPENSE",
+      "reasoning": "Airtime/data purchase - personal communication",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.9,
+      "action": "AUTO_EXCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-18",
+      "description": "CANVA",
+      "debit": 3750,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "Canva design software subscription for business",
+      "vatApplicable": true,
+      "vatAmount": 261.63,
+      "confidence": 0.88,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-25",
+      "description": "OSSAI SUSANNA NGOZI - FOR WORK",
+      "credit": 18000,
+      "category": "BUSINESS_SALE",
+      "reasoning": "Payment for work on School Ranker project",
+      "vatApplicable": true,
+      "vatAmount": 1255.81,
+      "confidence": 0.9,
+      "action": "AUTO_INCLUDE",
+      "userPrompt": null
+    },
+    {
+      "date": "2025-12-11",
+      "description": "BUYPOWER-CAROLINE ENUNEKU",
+      "debit": 1100,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "Utility payment via OPAY - clarification needed",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.6,
+      "action": "ASK_USER",
+      "userPrompt": "Is the ₦6,000 OPAY payment a business utility expense or personal?"
+    },
+    {
+      "date": "2025-12-04",
+      "description": "FAITH ODIMMACHUKWU (OPAY)",
+      "debit": 6000,
+      "category": "BUSINESS_EXPENSE",
+      "reasoning": "BUYPOWER utility payment - likely business",
+      "vatApplicable": false,
+      "vatAmount": 0,
+      "confidence": 0.65,
+      "action": "ASK_USER",
+      "userPrompt": "Is the ₦1,100 BUYPOWER payment for business office utilities or personal use?"
+    }
+  ],
+  "complianceIssues": [
+    {
+      "severity": "HIGH",
+      "type": "FOREIGN_CURRENCY",
+      "description": "3 foreign currency transactions (₦84,244.04)",
+      "transactions": [
+        {
+          "date": "2025-12-05",
+          "description": "LOVABLE DOVER US",
+          "debit": 72650,
+          "category": "BUSINESS_EXPENSE",
+          "reasoning": "Lovable software subscription for development",
+          "vatApplicable": true,
+          "vatAmount": 5076.74,
+          "confidence": 0.85,
+          "action": "AUTO_INCLUDE",
+          "userPrompt": null
+        },
+        {
+          "date": "2025-12-08",
+          "description": "OPENAI SAN FRANCISCO US",
+          "debit": 7844.04,
+          "category": "BUSINESS_EXPENSE",
+          "reasoning": "OpenAI API subscription for business operations",
+          "vatApplicable": true,
+          "vatAmount": 546.81,
+          "confidence": 0.9,
+          "action": "AUTO_INCLUDE",
+          "userPrompt": null
+        },
+        {
+          "date": "2025-12-18",
+          "description": "CANVA",
+          "debit": 3750,
+          "category": "BUSINESS_EXPENSE",
+          "reasoning": "Canva design software subscription for business",
+          "vatApplicable": true,
+          "vatAmount": 261.63,
+          "confidence": 0.88,
+          "action": "AUTO_INCLUDE",
+          "userPrompt": null
+        }
+      ],
+      "action": "Must use CBN exchange rates (Section 20, NTA 2025)",
+      "userPrompt": "\n⚠️ Foreign Currency Detected\n\nI found 3 transactions in foreign currency:\n• LOVABLE DOVER US: ₦72,650\n• OPENAI SAN FRANCISCO US: ₦7,844.04\n• CANVA: ₦3,750\n\n\nTotal: ₦84,244.04\n\nI'll fetch CBN exchange rates for accurate VAT calculation.\nContinue? Reply YES\n      "
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "MIXED_ACCOUNT",
+      "description": "Personal and business transactions in same account",
+      "action": "Recommend opening separate business account",
+      "userPrompt": "\n⚠️ Mixed Account Detected\n\nYour account has both:\n• 5 business expenses\n• 1 personal expenses\n\nThis makes tax filing complex. Consider opening a dedicated business account.\n\nFor now, I'll ask you to confirm ambiguous transactions.\n      "
+    },
+    {
+      "severity": "MEDIUM",
+      "type": "SECTION_191_RISK",
+      "description": "2 transactions need clarification to avoid artificial transaction claims",
+      "transactions": [
+        {
+          "date": "2025-12-11",
+          "description": "BUYPOWER-CAROLINE ENUNEKU",
+          "debit": 1100,
+          "category": "BUSINESS_EXPENSE",
+          "reasoning": "Utility payment via OPAY - clarification needed",
+          "vatApplicable": false,
+          "vatAmount": 0,
+          "confidence": 0.6,
+          "action": "ASK_USER",
+          "userPrompt": "Is the ₦6,000 OPAY payment a business utility expense or personal?"
+        },
+        {
+          "date": "2025-12-04",
+          "description": "FAITH ODIMMACHUKWU (OPAY)",
+          "debit": 6000,
+          "category": "BUSINESS_EXPENSE",
+          "reasoning": "BUYPOWER utility payment - likely business",
+          "vatApplicable": false,
+          "vatAmount": 0,
+          "confidence": 0.65,
+          "action": "ASK_USER",
+          "userPrompt": "Is the ₦1,100 BUYPOWER payment for business office utilities or personal use?"
+        }
+      ],
+      "action": "User must confirm business purpose",
+      "userPrompt": "\n⚠️ Compliance Check (Section 191)\n\n2 transactions need clarification:\n• BUYPOWER-CAROLINE ENUNEKU: ₦1,100\n• FAITH ODIMMACHUKWU (OPAY): ₦6,000\n\nPlease confirm these are legitimate business expenses.\n      "
+    }
+  ],
+  "vatCalculation": {
+    "businessIncome": 347000,
+    "outputVAT": 24209.302325581375,
+    "businessExpenses": 84244.04,
+    "inputVAT": 5877.491162790699,
+    "netVAT": 18331.811162790676
+  },
+  "summary": {
+    "totalTransactions": 10,
+    "autoClassified": 8,
+    "needsConfirmation": 2,
+    "averageConfidence": 0.8470000000000001
+  }
+}
