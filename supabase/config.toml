@@ -48,5 +48,8 @@ verify_jwt = false
 [functions.weekly-savings-email]
 verify_jwt = false
 
-[functions.get-service-key]
+[functions.telegram-bot-gateway]
+verify_jwt = false
+
+[functions.whatsapp-bot-gateway]
 verify_jwt = false
