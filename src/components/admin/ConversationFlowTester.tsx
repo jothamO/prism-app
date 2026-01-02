@@ -44,17 +44,18 @@ interface ConversationFlowTesterProps {
 }
 
 const TEST_FLOWS: TestFlow[] = [
+  // === BUSINESS FLOWS ===
   {
     id: 'registration',
-    name: 'User Registration',
-    description: 'New user → TIN → Business → Verified',
+    name: 'Business Registration',
+    description: 'New business → TIN → Name → Verified',
     steps: [
       { action: 'send', message: 'hello', description: 'Greet bot' },
       { action: 'wait', timeout: 1000, description: 'Wait for response' },
       { action: 'expect', pattern: /Welcome|PRISM|Get started|Test environment/i, description: 'Expect welcome' },
       { action: 'send', message: 'help', description: 'Request help' },
       { action: 'wait', timeout: 1000, description: 'Wait for help menu' },
-      { action: 'expect', pattern: /Available commands|vat|tax|pension/i, description: 'Expect commands list' },
+      { action: 'expect', pattern: /Available commands|vat|tax|pension|Business Tax|Project Funds/i, description: 'Expect commands list' },
     ]
   },
   {
@@ -69,8 +70,8 @@ const TEST_FLOWS: TestFlow[] = [
   },
   {
     id: 'income_tax',
-    name: 'Income Tax Calculation',
-    description: 'Calculate PAYE tax',
+    name: 'Business Income Tax',
+    description: 'Calculate business tax',
     steps: [
       { action: 'send', message: 'tax 5000000', description: 'Request tax calc' },
       { action: 'wait', timeout: 2000, description: 'Wait for calculation' },
@@ -78,13 +79,13 @@ const TEST_FLOWS: TestFlow[] = [
     ]
   },
   {
-    id: 'pension_tax',
-    name: 'Pension Tax Exemption',
-    description: 'Verify pension exemption',
+    id: 'freelancer_tax',
+    name: 'Freelancer Tax',
+    description: 'Calculate freelancer tax with expenses',
     steps: [
-      { action: 'send', message: 'pension 2400000', description: 'Request pension calc' },
+      { action: 'send', message: 'freelance 7200000 expenses 1800000', description: 'Request freelancer calc' },
       { action: 'wait', timeout: 2000, description: 'Wait for calculation' },
-      { action: 'expect', pattern: /Pension|Exempt|Section 163/i, description: 'Expect exemption' },
+      { action: 'expect', pattern: /Freelancer|Business Expenses|Section 20/i, description: 'Expect freelancer result' },
     ]
   },
   {
@@ -101,6 +102,78 @@ const TEST_FLOWS: TestFlow[] = [
       { action: 'send', message: 'project balance', description: 'Check balance' },
       { action: 'wait', timeout: 1000, description: 'Wait for balance' },
       { action: 'expect', pattern: /Balance|Budget|Spent/i, description: 'Expect balance shown' },
+    ]
+  },
+  
+  // === INDIVIDUAL FLOWS ===
+  {
+    id: 'employee_paye',
+    name: 'Employee PAYE',
+    description: 'Calculate PAYE with monthly salary',
+    steps: [
+      { action: 'send', message: 'salary 450000', description: 'Request salary calc' },
+      { action: 'wait', timeout: 2000, description: 'Wait for calculation' },
+      { action: 'expect', pattern: /Salary|PAYE|Tax|Monthly|Net Pay/i, description: 'Expect PAYE result' },
+    ]
+  },
+  {
+    id: 'minimum_wage',
+    name: 'Minimum Wage Exemption',
+    description: 'Verify minimum wage tax exemption',
+    steps: [
+      { action: 'send', message: 'salary 70000', description: 'Minimum wage salary' },
+      { action: 'wait', timeout: 2000, description: 'Wait for calculation' },
+      { action: 'expect', pattern: /MINIMUM WAGE|EXEMPT|₦0|70,000/i, description: 'Expect exemption' },
+    ]
+  },
+  {
+    id: 'landlord_rental',
+    name: 'Landlord Rental Income',
+    description: 'Calculate WHT on rental income',
+    steps: [
+      { action: 'send', message: 'rental income 2400000', description: 'Request rental calc' },
+      { action: 'wait', timeout: 1500, description: 'Wait for calculation' },
+      { action: 'expect', pattern: /Rental|WHT|10%|Withholding/i, description: 'Expect WHT result' },
+    ]
+  },
+  {
+    id: 'personal_reliefs',
+    name: 'Personal Reliefs Flow',
+    description: 'View and apply personal tax reliefs',
+    steps: [
+      { action: 'send', message: 'reliefs', description: 'Request reliefs list' },
+      { action: 'wait', timeout: 1500, description: 'Wait for list' },
+      { action: 'expect', pattern: /Relief|Pension|NHF|NHIS/i, description: 'Expect relief options' },
+    ]
+  },
+  {
+    id: 'side_hustle',
+    name: 'Side Hustle Income',
+    description: 'Gig economy income declaration',
+    steps: [
+      { action: 'send', message: 'side hustle 150000', description: 'Request side income calc' },
+      { action: 'wait', timeout: 2000, description: 'Wait for calculation' },
+      { action: 'expect', pattern: /Side Hustle|Tax|Monthly|Net/i, description: 'Expect side income result' },
+    ]
+  },
+  {
+    id: 'pension_tax',
+    name: 'Pension Tax Exemption',
+    description: 'Verify pension exemption',
+    steps: [
+      { action: 'send', message: 'pension 2400000', description: 'Request pension calc' },
+      { action: 'wait', timeout: 2000, description: 'Wait for calculation' },
+      { action: 'expect', pattern: /Pension|Exempt|Section 163/i, description: 'Expect exemption' },
+    ]
+  },
+  {
+    id: 'min_wage_check',
+    name: 'Minimum Wage Check',
+    description: 'Check minimum wage threshold info',
+    steps: [
+      { action: 'send', message: 'minimum wage check', description: 'Check threshold' },
+      { action: 'wait', timeout: 1000, description: 'Wait for info' },
+      { action: 'expect', pattern: /Minimum Wage|70,000|840,000|EXEMPT/i, description: 'Expect threshold info' },
     ]
   }
 ];

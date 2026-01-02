@@ -29,13 +29,20 @@ interface Message {
   intent?: { name: string; confidence: number };
 }
 
-type UserState = "new" | "awaiting_tin" | "awaiting_business_name" | "registered" | "awaiting_invoice" | "awaiting_confirm";
+type UserState = "new" | "awaiting_tin" | "awaiting_business_name" | "registered" | "awaiting_invoice" | "awaiting_confirm" | "awaiting_nin" | "awaiting_name" | "awaiting_employment";
+
+type EntityType = "business" | "individual";
 
 interface TestUserData {
   id?: string;
   tin?: string;
   businessName?: string;
   businessId?: string;
+  // Individual fields
+  nin?: string;
+  fullName?: string;
+  employmentStatus?: 'employed' | 'self_employed' | 'retired' | 'student';
+  appliedReliefs?: Array<{ type: string; amount: number; label: string }>;
 }
 
 interface PendingInvoice {
@@ -57,9 +64,10 @@ interface ActiveProject {
   source_relationship: string;
 }
 
-const HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
+const BUSINESS_HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
 
-Available commands:
+*Business Tax Commands:*
+
 📝 *vat [amount] [description]* - Calculate VAT
 💼 *tax [amount]* - Calculate income tax
 🏛️ *pension [amount]* - Calculate tax for pensioners
@@ -69,7 +77,7 @@ Available commands:
 💰 *paid* - Confirm payment for a filing
 📤 *upload* - Upload an invoice for processing
 
-📁 Project Funds:
+📁 *Project Funds:*
 • *new project [name] [budget] from [source]* - Create project
 • *project expense [amount] [description]* - Record expense
 • *project balance* - Check project status
@@ -80,14 +88,36 @@ Available commands:
 Examples:
 • vat 50000 electronics
 • tax 10000000
-• monthly tax 500000
-• pension 2400000
 • freelance 7200000 expenses 1800000
-• contractor 10000000
-• new project Uncle Building 5000000 from Uncle Chukwu
-• project expense 150000 cement and blocks
-• project balance
-• complete project`;
+• new project Uncle Building 5000000 from Uncle Chukwu`;
+
+const INDIVIDUAL_HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
+
+*Personal Tax Commands:*
+
+💰 *salary [amount]* - Calculate PAYE on your salary
+📅 *monthly pay [amount]* - Monthly salary tax breakdown
+🏠 *rental income [amount]* - Tax on rent received (10% WHT)
+💼 *side hustle [amount]* - Gig/casual income tax
+🎓 *minimum wage check* - Check tax exemption status
+👴 *pension [amount]* - Pensioner income (tax-exempt)
+
+*Tax Reliefs:*
+🏦 *reliefs* - See available tax reliefs
+✅ *my reliefs* - View your applied reliefs
+➕ *add relief [type]* - Apply a relief (pension, nhf, nhis, rent, insurance)
+
+*General:*
+❓ *help* - Show this menu
+👤 *profile* - View your tax profile
+
+Examples:
+• salary 450000
+• monthly pay 350000
+• rental income 3600000
+• side hustle 100000
+• reliefs
+• add relief nhf`;
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -104,6 +134,7 @@ const AdminSimulator = () => {
   const [testMode, setTestMode] = useState(true);
   const [pendingInvoice, setPendingInvoice] = useState<PendingInvoice | null>(null);
   const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
+  const [entityType, setEntityType] = useState<EntityType>("business");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -448,6 +479,8 @@ const AdminSimulator = () => {
     // Handle based on user state
     if (userState === "new") {
       if (lowerMessage === "help" || lowerMessage === "hi" || lowerMessage === "hello") {
+        const HELP_MESSAGE = entityType === 'individual' ? INDIVIDUAL_HELP_MESSAGE : BUSINESS_HELP_MESSAGE;
+        
         if (testMode) {
           setIsTyping(true);
           addBotMessageImmediate("🔄 Setting up test environment...");
@@ -464,6 +497,29 @@ const AdminSimulator = () => {
               HELP_MESSAGE
             );
           } else {
+            if (entityType === 'individual') {
+              addBotMessage(
+                "Welcome to PRISM - Your Personal Tax Assistant! 🇳🇬\n\n" +
+                "To get started, please enter your 11-digit NIN (National ID Number):"
+              );
+              setUserState("awaiting_nin");
+            } else {
+              addBotMessage(
+                "Welcome to PRISM - Nigeria's VAT automation platform! 🇳🇬\n\n" +
+                "To get started, I'll need to verify your business.\n\n" +
+                "Please enter your TIN (Tax Identification Number):"
+              );
+              setUserState("awaiting_tin");
+            }
+          }
+        } else {
+          if (entityType === 'individual') {
+            addBotMessage(
+              "Welcome to PRISM - Your Personal Tax Assistant! 🇳🇬\n\n" +
+              "To get started, please enter your 11-digit NIN (National ID Number):"
+            );
+            setUserState("awaiting_nin");
+          } else {
             addBotMessage(
               "Welcome to PRISM - Nigeria's VAT automation platform! 🇳🇬\n\n" +
               "To get started, I'll need to verify your business.\n\n" +
@@ -471,13 +527,6 @@ const AdminSimulator = () => {
             );
             setUserState("awaiting_tin");
           }
-        } else {
-          addBotMessage(
-            "Welcome to PRISM - Nigeria's VAT automation platform! 🇳🇬\n\n" +
-            "To get started, I'll need to verify your business.\n\n" +
-            "Please enter your TIN (Tax Identification Number):"
-          );
-          setUserState("awaiting_tin");
         }
       } else {
         addBotMessage(
@@ -487,6 +536,38 @@ const AdminSimulator = () => {
       return;
     }
 
+    // Individual registration: NIN
+    if (userState === "awaiting_nin") {
+      if (/^\d{11}$/.test(lowerMessage.replace(/\D/g, ""))) {
+        setUserData((prev) => ({ ...prev, nin: inputMessage.replace(/\D/g, "") }));
+        addBotMessage(
+          `✅ NIN verified!\n\nWhat is your full name?`
+        );
+        setUserState("awaiting_name");
+      } else {
+        addBotMessage(
+          "❌ Invalid NIN format. Please enter a valid 11-digit National ID Number:"
+        );
+      }
+      return;
+    }
+
+    // Individual registration: Full Name
+    if (userState === "awaiting_name") {
+      setUserData((prev) => ({ ...prev, fullName: inputMessage }));
+      addBotMessage(
+        "What is your employment status?",
+        [
+          { id: "emp_employed", title: "💼 Employed" },
+          { id: "emp_self", title: "🏢 Self-Employed" },
+          { id: "emp_retired", title: "👴 Retired" }
+        ]
+      );
+      setUserState("awaiting_employment");
+      return;
+    }
+
+    // Business registration: TIN
     if (userState === "awaiting_tin") {
       if (/^\d{10,}$/.test(lowerMessage.replace(/\D/g, ""))) {
         setUserData((prev) => ({ ...prev, tin: inputMessage }));
@@ -503,6 +584,7 @@ const AdminSimulator = () => {
     }
 
     if (userState === "awaiting_business_name") {
+      const HELP_MESSAGE = BUSINESS_HELP_MESSAGE;
       setUserData((prev) => ({ ...prev, businessName: inputMessage }));
       addBotMessage(
         `🎉 Registration complete!\n\nBusiness: *${inputMessage}*\nTIN: *${userData.tin}*\n\n${HELP_MESSAGE}`
@@ -666,14 +748,243 @@ const AdminSimulator = () => {
             return;
             
           case 'general_query':
-            addBotMessage(HELP_MESSAGE);
+            const helpMsg = entityType === 'individual' ? INDIVIDUAL_HELP_MESSAGE : BUSINESS_HELP_MESSAGE;
+            addBotMessage(helpMsg);
             return;
         }
       }
 
       // Fallback to legacy regex-based handlers
       if (lowerMessage === "help") {
-        addBotMessage(HELP_MESSAGE);
+        const helpMsg = entityType === 'individual' ? INDIVIDUAL_HELP_MESSAGE : BUSINESS_HELP_MESSAGE;
+        addBotMessage(helpMsg);
+        return;
+      }
+
+      // === INDIVIDUAL-SPECIFIC COMMANDS ===
+      
+      // Salary command: "salary 450000" or "monthly pay 350000"
+      const salaryMatch = lowerMessage.match(/^(?:salary|monthly pay)\s+[₦n]?(\d[\d,]*)/i);
+      if (salaryMatch) {
+        const amount = parseInt(salaryMatch[1].replace(/,/g, ""));
+        const isMonthly = amount < 1000000; // Assume monthly if < 1M
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating PAYE...");
+        
+        const result = await callIncomeTaxCalculator(isMonthly ? amount * 12 : amount, 'annual', 'employment');
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          // Check for minimum wage exemption
+          const isExempt = result.isMinimumWageExempt;
+          
+          if (isExempt) {
+            addBotMessage(
+              `💰 Salary Tax Calculation\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `Monthly Salary: ${formatCurrency(amount)}\n` +
+              `Annual Salary: ${formatCurrency(isMonthly ? amount * 12 : amount)}\n\n` +
+              `✅ MINIMUM WAGE EXEMPTION\n\n` +
+              `Your income is at or below the national minimum\n` +
+              `wage threshold of ₦70,000/month.\n\n` +
+              `📊 Summary:\n` +
+              `├─ Tax Payable: ₦0\n` +
+              `├─ Effective Rate: 0%\n` +
+              `└─ Monthly Net: ${formatCurrency(amount)}\n\n` +
+              `Reference: Section 58 NTA 2025`
+            );
+          } else {
+            const breakdown = result.taxBreakdown
+              .filter((band: { taxInBand: number }) => band.taxInBand > 0)
+              .map((band: { band: string; rate: number; taxInBand: number }) => 
+                `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
+              )
+              .join('\n');
+            
+            addBotMessage(
+              `💰 Salary Tax Calculation (PAYE)\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+              `${isMonthly ? 'Monthly' : 'Annual'} Salary: ${formatCurrency(isMonthly ? amount : amount)}\n` +
+              `Annual Salary: ${formatCurrency(isMonthly ? amount * 12 : amount)}\n\n` +
+              `📋 Tax Breakdown (Section 58):\n${breakdown}\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `💰 Annual Tax: ${formatCurrency(result.totalTax)}\n` +
+              `📊 Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
+              `📅 Monthly Tax (PAYE): ${formatCurrency(result.monthlyTax)}\n` +
+              `💵 Monthly Net Pay: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+              `Reference: ${result.actReference}`
+            );
+          }
+        } else {
+          addBotMessage("❌ Failed to calculate salary tax. Please try again.");
+        }
+        return;
+      }
+
+      // Rental income command: "rental income 2400000"
+      const rentalMatch = lowerMessage.match(/^rental\s+income\s+[₦n]?(\d[\d,]*)/i);
+      if (rentalMatch) {
+        const amount = parseInt(rentalMatch[1].replace(/,/g, ""));
+        const whtRate = 0.10;
+        const whtAmount = amount * whtRate;
+        const netRent = amount - whtAmount;
+        
+        addBotMessage(
+          `🏠 Rental Income Tax\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `Annual Rental Income: ${formatCurrency(amount)}\n\n` +
+          `📋 Withholding Tax (WHT):\n` +
+          `├─ WHT Rate: 10%\n` +
+          `├─ WHT Amount: ${formatCurrency(whtAmount)}\n` +
+          `└─ Net Rent Received: ${formatCurrency(netRent)}\n\n` +
+          `💡 Note: Tenants (if corporate) should deduct\n` +
+          `10% WHT and remit to FIRS on your behalf.\n` +
+          `This WHT is creditable against your final\n` +
+          `income tax liability.\n\n` +
+          `Reference: Section 77 NTA 2025`
+        );
+        return;
+      }
+
+      // Side hustle / gig income: "side hustle 150000"
+      const sideHustleMatch = lowerMessage.match(/^(?:side hustle|gig|casual)\s+[₦n]?(\d[\d,]*)/i);
+      if (sideHustleMatch) {
+        const amount = parseInt(sideHustleMatch[1].replace(/,/g, ""));
+        const annualAmount = amount * 12;
+        
+        setIsTyping(true);
+        addBotMessageImmediate("🔄 Calculating side income tax...");
+        
+        const result = await callIncomeTaxCalculator(annualAmount, 'annual', 'business');
+        setIsTyping(false);
+        
+        if (result && !result.error) {
+          addBotMessage(
+            `💼 Side Hustle Income Tax\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Monthly Side Income: ${formatCurrency(amount)}\n` +
+            `Annual Side Income: ${formatCurrency(annualAmount)}\n\n` +
+            `📊 Tax Summary:\n` +
+            `├─ Tax Payable: ${formatCurrency(result.totalTax)}\n` +
+            `├─ Effective Rate: ${result.effectiveRate.toFixed(2)}%\n` +
+            `├─ Monthly Tax: ${formatCurrency(result.monthlyTax)}\n` +
+            `└─ Monthly Net: ${formatCurrency(result.monthlyNetIncome)}\n\n` +
+            `💡 Tip: Keep records of all expenses to claim\n` +
+            `deductions (transport, internet, equipment).\n\n` +
+            `Reference: Section 20 NTA 2025`
+          );
+        } else {
+          addBotMessage("❌ Failed to calculate side hustle tax. Please try again.");
+        }
+        return;
+      }
+
+      // Minimum wage check
+      if (lowerMessage === "minimum wage check" || lowerMessage.includes("minimum wage")) {
+        addBotMessage(
+          `🎓 Minimum Wage Tax Exemption\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `Current National Minimum Wage: ₦70,000/month\n` +
+          `Annual Threshold: ₦840,000\n\n` +
+          `If your total annual income is at or below\n` +
+          `the minimum wage threshold, you are EXEMPT\n` +
+          `from personal income tax.\n\n` +
+          `To check your status, type:\n` +
+          `*salary [your monthly income]*\n\n` +
+          `Reference: Section 58 NTA 2025`
+        );
+        return;
+      }
+
+      // Reliefs command
+      if (lowerMessage === "reliefs") {
+        addBotMessage(
+          "Select the tax reliefs that apply to you:",
+          undefined,
+          {
+            header: "Personal Relief Calculator",
+            body: "Select all reliefs that apply to you:",
+            footer: "NTA 2025 Sections 62-75",
+            buttonText: "Select Reliefs",
+            sections: [
+              {
+                title: "Mandatory Contributions",
+                rows: [
+                  { id: "relief_pension_8", title: "Pension (8%)", description: "Employee contribution" },
+                  { id: "relief_nhf", title: "NHF (2.5%)", description: "National Housing Fund" },
+                  { id: "relief_nhis", title: "NHIS (5%)", description: "Health insurance" }
+                ]
+              },
+              {
+                title: "Optional Reliefs",
+                rows: [
+                  { id: "relief_rent", title: "Rent Paid", description: "Up to ₦200K deductible" },
+                  { id: "relief_life_insurance", title: "Life Insurance", description: "Premium payments" },
+                  { id: "relief_mortgage", title: "Mortgage Interest", description: "Housing loan interest" }
+                ]
+              }
+            ]
+          }
+        );
+        return;
+      }
+
+      // My reliefs command
+      if (lowerMessage === "my reliefs") {
+        const reliefs = userData.appliedReliefs || [];
+        if (reliefs.length === 0) {
+          addBotMessage(
+            `✅ Your Applied Reliefs\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `No reliefs applied yet.\n\n` +
+            `Type *reliefs* to see available options.`
+          );
+        } else {
+          const reliefList = reliefs.map(r => `├─ ${r.label}: ${formatCurrency(r.amount)}`).join('\n');
+          const totalRelief = reliefs.reduce((sum, r) => sum + r.amount, 0);
+          addBotMessage(
+            `✅ Your Applied Reliefs\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `${reliefList}\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `Total Relief: ${formatCurrency(totalRelief)}\n\n` +
+            `Type *reliefs* to add more.`
+          );
+        }
+        return;
+      }
+
+      // Add relief command: "add relief nhf"
+      const addReliefMatch = lowerMessage.match(/^add relief\s+(\w+)/i);
+      if (addReliefMatch) {
+        const reliefType = addReliefMatch[1].toLowerCase();
+        const reliefMap: Record<string, { type: string; label: string; amount: number }> = {
+          'pension': { type: 'pension', label: 'Pension (8%)', amount: 0 },
+          'nhf': { type: 'nhf', label: 'NHF (2.5%)', amount: 0 },
+          'nhis': { type: 'nhis', label: 'NHIS (5%)', amount: 0 },
+          'rent': { type: 'rent', label: 'Rent Paid', amount: 200000 },
+          'insurance': { type: 'insurance', label: 'Life Insurance', amount: 0 }
+        };
+        
+        const relief = reliefMap[reliefType];
+        if (relief) {
+          setUserData(prev => ({
+            ...prev,
+            appliedReliefs: [...(prev.appliedReliefs || []), relief]
+          }));
+          addBotMessage(
+            `✅ Relief Added: *${relief.label}*\n\n` +
+            `This relief will be applied to your tax calculations.\n\n` +
+            `Type *my reliefs* to see all applied reliefs.`
+          );
+        } else {
+          addBotMessage(
+            `❌ Unknown relief type: ${reliefType}\n\n` +
+            `Available reliefs: pension, nhf, nhis, rent, insurance\n\n` +
+            `Example: *add relief nhf*`
+          );
+        }
         return;
       }
 
@@ -1505,6 +1816,58 @@ const AdminSimulator = () => {
       addBotMessage(categoryMessages[category] || `✅ Expense categorized as: *${category.toUpperCase()}*`);
       return;
     }
+    
+    // Employment status selection (individual registration)
+    if (buttonId.startsWith('emp_')) {
+      const statusMap: Record<string, 'employed' | 'self_employed' | 'retired'> = {
+        'emp_employed': 'employed',
+        'emp_self': 'self_employed',
+        'emp_retired': 'retired'
+      };
+      const status = statusMap[buttonId];
+      if (status) {
+        setUserData(prev => ({ ...prev, employmentStatus: status }));
+        const statusLabels = { employed: 'Employed', self_employed: 'Self-Employed', retired: 'Retired' };
+        const HELP_MESSAGE = INDIVIDUAL_HELP_MESSAGE;
+        
+        addBotMessage(
+          `🎉 Registration complete!\n\n` +
+          `Name: *${userData.fullName}*\n` +
+          `NIN: *${userData.nin}*\n` +
+          `Status: *${statusLabels[status]}*\n\n` +
+          HELP_MESSAGE
+        );
+        setUserState("registered");
+      }
+      return;
+    }
+    
+    // Individual relief selections from interactive list
+    if (buttonId.startsWith('relief_pension_8') || buttonId === 'relief_nhf' || buttonId === 'relief_nhis' || 
+        buttonId === 'relief_rent' || buttonId === 'relief_life_insurance' || buttonId === 'relief_mortgage') {
+      const reliefMap: Record<string, { type: string; label: string; amount: number }> = {
+        'relief_pension_8': { type: 'pension', label: 'Pension (8%)', amount: 0 },
+        'relief_nhf': { type: 'nhf', label: 'NHF (2.5%)', amount: 0 },
+        'relief_nhis': { type: 'nhis', label: 'NHIS (5%)', amount: 0 },
+        'relief_rent': { type: 'rent', label: 'Rent Paid', amount: 200000 },
+        'relief_life_insurance': { type: 'insurance', label: 'Life Insurance', amount: 0 },
+        'relief_mortgage': { type: 'mortgage', label: 'Mortgage Interest', amount: 0 }
+      };
+      
+      const relief = reliefMap[buttonId];
+      if (relief) {
+        setUserData(prev => ({
+          ...prev,
+          appliedReliefs: [...(prev.appliedReliefs || []), relief]
+        }));
+        addBotMessage(
+          `✅ Relief Added: *${relief.label}*\n\n` +
+          `This relief will be applied to your tax calculations.\n\n` +
+          `Type *my reliefs* to see all applied reliefs.`
+        );
+      }
+      return;
+    }
     if (buttonId === 'upload_now') {
       fileInputRef.current?.click();
       return;
@@ -1618,6 +1981,29 @@ const AdminSimulator = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Entity Type Toggle */}
+          <div>
+            <label className="text-sm font-medium text-muted-foreground block mb-2">Entity Type</label>
+            <div className="flex gap-2">
+              <Button
+                variant={entityType === 'business' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => { setEntityType('business'); resetSimulator(); }}
+                className="flex-1"
+              >
+                💼 Business
+              </Button>
+              <Button
+                variant={entityType === 'individual' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => { setEntityType('individual'); resetSimulator(); }}
+                className="flex-1"
+              >
+                👤 Individual
+              </Button>
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-medium text-muted-foreground">Phone Number</label>
             <Input
@@ -1656,8 +2042,22 @@ const AdminSimulator = () => {
 
           <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
             <p className="font-medium">User State: {userState}</p>
-            {userData.businessName && <p>Business: {userData.businessName}</p>}
-            {userData.tin && <p>TIN: {userData.tin}</p>}
+            <p className="text-xs text-muted-foreground">Mode: {entityType === 'individual' ? '👤 Individual' : '💼 Business'}</p>
+            {entityType === 'business' ? (
+              <>
+                {userData.businessName && <p>Business: {userData.businessName}</p>}
+                {userData.tin && <p>TIN: {userData.tin}</p>}
+              </>
+            ) : (
+              <>
+                {userData.fullName && <p>Name: {userData.fullName}</p>}
+                {userData.nin && <p>NIN: {userData.nin}</p>}
+                {userData.employmentStatus && <p>Status: {userData.employmentStatus}</p>}
+                {userData.appliedReliefs && userData.appliedReliefs.length > 0 && (
+                  <p>Reliefs: {userData.appliedReliefs.length} applied</p>
+                )}
+              </>
+            )}
             {userData.id && <p>ID: {userData.id.substring(0, 8)}...</p>}
             {activeProject && (
               <p className="text-primary">Project: {activeProject.name}</p>
