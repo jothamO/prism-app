@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database, Brain } from "lucide-react";
+import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database, Brain, FlaskConical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functions";
 import { NLUDebugPanel, NLUIntent, ArtificialTransactionCheck } from "@/components/admin/NLUDebugPanel";
 import { WhatsAppButtonsPreview, WhatsAppListMessage, ListSection } from "@/components/admin/WhatsAppInteractivePreview";
-
+import { DocumentTestUploader, ExtractedData } from "@/components/admin/DocumentTestUploader";
+import { ConversationFlowTester } from "@/components/admin/ConversationFlowTester";
 interface ListConfig {
   header?: string;
   body: string;
@@ -1347,32 +1348,161 @@ const AdminSimulator = () => {
     // Handle WhatsApp list/button selections
     if (buttonId.startsWith('relief_')) {
       const reliefType = buttonId.replace('relief_', '');
-      addBotMessage(`📋 ${reliefType.toUpperCase()} Relief information coming soon...`);
+      const reliefInfo: Record<string, string> = {
+        cra: "📋 *Consolidated Relief Allowance (CRA)*\n\nSection 62 of NTA 2025:\n• 20% of gross income\n• Plus ₦200,000 base allowance\n\nThis is automatically applied to reduce your taxable income.",
+        pension: "📋 *Pension Contribution Relief*\n\nSection 63 of NTA 2025:\n• Employee contributions to approved pension schemes\n• Up to 8% of gross earnings\n• Fully deductible from taxable income",
+        housing: "📋 *National Housing Fund (NHF)*\n\nSection 64 of NTA 2025:\n• 2.5% of basic salary contribution\n• Fully tax-deductible\n• Applicable to all employees earning minimum wage or above",
+        children: "📋 *Child Education Allowance*\n\nSection 65 of NTA 2025:\n• ₦2,500 per child in school\n• Maximum of 4 children\n• Requires proof of enrollment",
+        dependent: "📋 *Dependent Relative Allowance*\n\nSection 66 of NTA 2025:\n• ₦2,000 per dependent\n• For non-working relatives you support\n• Maximum of 2 dependents"
+      };
+      addBotMessage(reliefInfo[reliefType] || `📋 ${reliefType.toUpperCase()} Relief - Details not available.`);
       return;
     }
     if (buttonId.startsWith('period_')) {
-      sendTransactionSummaryOptions();
+      const period = buttonId.replace('period_', '');
+      const mockSummaries: Record<string, string> = {
+        week: "📊 *This Week's Transactions*\n\n💰 Total Income: ₦450,000\n📤 Total Expenses: ₦125,000\n📈 Net: ₦325,000\n\nVAT Collected: ₦33,750\nVAT Paid: ₦9,375",
+        month: "📊 *This Month's Transactions*\n\n💰 Total Income: ₦2,150,000\n📤 Total Expenses: ₦580,000\n📈 Net: ₦1,570,000\n\nVAT Collected: ₦161,250\nVAT Paid: ₦43,500",
+        year: "📊 *This Year's Transactions*\n\n💰 Total Income: ₦18,500,000\n📤 Total Expenses: ₦6,200,000\n📈 Net: ₦12,300,000\n\nVAT Collected: ₦1,387,500\nVAT Paid: ₦465,000"
+      };
+      addBotMessage(mockSummaries[period] || "Summary not available.");
       return;
     }
     if (buttonId.startsWith('calc_')) {
-      addBotMessage("Please enter the amount for calculation.\n\nExample: *tax 10000000* or *vat 50000*");
+      const calcType = buttonId.replace('calc_', '');
+      const calcPrompts: Record<string, string> = {
+        employment: "💼 *Employment Income Tax*\n\nPlease enter your annual gross salary.\n\nExample: *tax 5000000*",
+        business: "🏢 *Business Income Tax*\n\nPlease enter your business income and expenses.\n\nExample: *freelance 7200000 expenses 1800000*",
+        pension: "👴 *Pension Income*\n\nPlease enter your annual pension amount.\n\nExample: *pension 2400000*",
+        vat_standard: "📦 *Standard VAT Calculation*\n\nPlease enter the amount and item description.\n\nExample: *vat 50000 electronics*",
+        vat_exempt: "🔍 *VAT Exemption Check*\n\nCommon VAT exempt items:\n• Basic food items (rice, beans, garri)\n• Medical supplies\n• Educational materials\n• Baby products\n\nType *vat [amount] [item]* to check."
+      };
+      addBotMessage(calcPrompts[calcType] || "Please enter the amount for calculation.\n\nExample: *tax 10000000* or *vat 50000*");
       return;
     }
     if (buttonId.startsWith('bank_')) {
-      addBotMessage("🏦 Bank connection feature coming soon!\n\nThis will connect via Mono API for automated transaction tracking.");
+      const bankId = buttonId.replace('bank_', '');
+      const bankNames: Record<string, string> = {
+        gtb: 'Guaranty Trust Bank',
+        access: 'Access Bank',
+        zenith: 'Zenith Bank',
+        first: 'First Bank of Nigeria'
+      };
+      const bankName = bankNames[bankId] || 'Selected Bank';
+      
+      // Simulate Mono connection flow
+      addBotMessage(`🔗 *Connecting to ${bankName}...*\n\n⏳ Initializing secure connection...`);
+      
+      setTimeout(() => {
+        addBotMessage(
+          `✅ *${bankName} Connected Successfully!*\n\n` +
+          `Account: ****5678\n` +
+          `Name: ACME TRADING LTD\n` +
+          `Type: Current Account\n\n` +
+          `📊 Last 30 days:\n` +
+          `• 12 Credits: ₦4,250,000\n` +
+          `• 28 Debits: ₦1,890,000\n` +
+          `• Balance: ₦2,360,000\n\n` +
+          `Auto-sync enabled. Transactions will be categorized automatically.`,
+          [
+            { id: "bank_disconnect", title: "Disconnect" },
+            { id: "bank_sync_now", title: "Sync Now" }
+          ]
+        );
+      }, 1500);
+      return;
+    }
+    if (buttonId === 'bank_disconnect') {
+      addBotMessage("🔌 Bank account disconnected. Type *connect bank* to reconnect.");
+      return;
+    }
+    if (buttonId === 'bank_sync_now') {
+      addBotMessage("🔄 *Syncing transactions...*\n\n5 new transactions found and categorized.");
       return;
     }
     if (buttonId.startsWith('verify_')) {
-      addBotMessage("✅ Verification feature coming soon!\n\nThis will validate your ID against NIMC/CAC databases.");
+      const idType = buttonId.replace('verify_', '');
+      const idPrompts: Record<string, { prompt: string; mockResult: string }> = {
+        tin: {
+          prompt: "Please enter your TIN (Tax Identification Number):",
+          mockResult: "✅ *TIN Verified*\n\nTIN: 12345678-0001\nName: ACME TRADING LIMITED\nStatus: Active\nRegistration Date: 15-Jun-2024\nValid Through: 31-Dec-2025\n\nSource: FIRS Database"
+        },
+        nin: {
+          prompt: "Please enter your NIN (National Identification Number):",
+          mockResult: "✅ *NIN Verified*\n\nNIN: 12345678901\nName: CHUKWU EMEKA JOHN\nGender: Male\nDate of Birth: 15-Mar-1985\nStatus: Active\n\nSource: NIMC Database"
+        },
+        cac: {
+          prompt: "Please enter your CAC/RC Number:",
+          mockResult: "✅ *CAC Verified*\n\nRC Number: RC-1234567\nCompany: ACME TRADING LIMITED\nType: Private Limited Company\nStatus: Active\nIncorporation: 10-Jan-2020\n\nDirectors:\n• CHUKWU EMEKA JOHN (MD)\n• ADEBAYO FUNKE GRACE\n\nSource: CAC Database"
+        }
+      };
+      
+      const info = idPrompts[idType];
+      if (info) {
+        addBotMessage(info.prompt);
+        // Simulate verification after a delay
+        setTimeout(() => {
+          addBotMessage(info.mockResult);
+        }, 2000);
+      }
       return;
     }
     if (buttonId.startsWith('remind_')) {
-      addBotMessage("📅 Reminder feature coming soon!\n\nYou'll receive WhatsApp reminders before tax deadlines.");
+      const reminderType = buttonId.replace('remind_', '');
+      const reminderConfigs: Record<string, { title: string; message: string; date: string }> = {
+        vat: {
+          title: "VAT Filing Reminder",
+          message: "Your VAT return for this period is due.",
+          date: "21st of next month"
+        },
+        tax: {
+          title: "Tax Payment Reminder",
+          message: "Your income tax payment is due.",
+          date: "End of tax year"
+        },
+        custom: {
+          title: "Custom Reminder",
+          message: "What would you like to be reminded about?",
+          date: "You choose"
+        }
+      };
+      
+      const config = reminderConfigs[reminderType];
+      if (config) {
+        if (reminderType === 'custom') {
+          addBotMessage("📝 *Custom Reminder*\n\nWhat would you like to be reminded about?\n\nPlease describe your reminder in a message.");
+        } else {
+          addBotMessage(
+            `✅ *Reminder Set*\n\n` +
+            `📋 ${config.title}\n` +
+            `📅 Due: ${config.date}\n` +
+            `📱 You'll receive a WhatsApp reminder 3 days before.\n\n` +
+            `Reminder: "${config.message}"`,
+            [
+              { id: "remind_edit", title: "Edit" },
+              { id: "remind_cancel", title: "Cancel" }
+            ]
+          );
+        }
+      }
+      return;
+    }
+    if (buttonId === 'remind_edit') {
+      addBotMessage("📝 What would you like to change about your reminder?\n\n• Type a new date\n• Type a new message");
+      return;
+    }
+    if (buttonId === 'remind_cancel') {
+      addBotMessage("❌ Reminder cancelled.");
       return;
     }
     if (buttonId.startsWith('cat_')) {
       const category = buttonId.replace('cat_', '');
-      addBotMessage(`✅ Expense categorized as: *${category.toUpperCase()}*`);
+      const categoryMessages: Record<string, string> = {
+        business: "✅ *Expense Categorized*\n\nCategory: Business Expense\nVAT Reclaimable: Yes\n\nThis expense will be included in your input VAT for the period.",
+        personal: "✅ *Expense Categorized*\n\nCategory: Personal Expense\nVAT Reclaimable: No\n\nPersonal expenses are not tax-deductible.",
+        review: "📋 *Flagged for Review*\n\nThis transaction has been flagged for manual review by your accountant.\n\nReason: Potential Section 191 artificial transaction"
+      };
+      addBotMessage(categoryMessages[category] || `✅ Expense categorized as: *${category.toUpperCase()}*`);
       return;
     }
     if (buttonId === 'upload_now') {
@@ -1421,6 +1551,48 @@ const AdminSimulator = () => {
       setUserState("registered");
     }
   };
+
+  // Handle document from DocumentTestUploader
+  const handleDocumentProcessed = (data: ExtractedData, summary: string) => {
+    // Add a user message indicating document upload
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      text: `📄 [Uploaded ${data.documentType.replace('_', ' ')}]`,
+      sender: "user",
+      timestamp: new Date(),
+      type: "text"
+    };
+    setMessages(prev => [...prev, userMsg]);
+    
+    // Add bot response with extracted data
+    setTimeout(() => {
+      addBotMessage(
+        `✅ *Document Processed*\n\n${summary}\n\n` +
+        "What would you like to do with this data?",
+        [
+          { id: "doc_categorize", title: "Categorize" },
+          { id: "doc_save", title: "Save" },
+          { id: "doc_discard", title: "Discard" }
+        ]
+      );
+    }, 500);
+  };
+
+  // Handle flow tester message injection
+  const handleFlowTesterMessage = (message: string) => {
+    setInputMessage(message);
+    // Trigger send after a brief delay
+    setTimeout(() => {
+      const fakeEvent = { key: 'Enter' } as React.KeyboardEvent;
+      if (inputMessage || message) {
+        // Directly set and send
+        setInputMessage(message);
+      }
+    }, 50);
+  };
+
+  // Get last bot message for flow tester
+  const lastBotMessage = messages.filter(m => m.sender === 'bot').slice(-1)[0]?.text || null;
 
   const resetSimulator = () => {
     setMessages([]);
@@ -1659,11 +1831,31 @@ const AdminSimulator = () => {
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
             className="flex-1"
           />
-          <Button onClick={handleSendMessage} disabled={!inputMessage.trim() || isClassifying}>
+          <Button onClick={handleSendMessage} disabled={!inputMessage.trim() || isClassifying} data-send-button>
             <Send className="w-4 h-4" />
           </Button>
         </div>
       </Card>
+
+      {/* Testing Panel */}
+      <div className="w-72 flex-shrink-0 space-y-4 overflow-y-auto">
+        {/* Flow Tester */}
+        <ConversationFlowTester
+          onSendMessage={(msg) => {
+            setInputMessage(msg);
+            setTimeout(() => {
+              const btn = document.querySelector('[data-send-button]') as HTMLButtonElement;
+              btn?.click();
+            }, 100);
+          }}
+          onClickButton={handleButtonClick}
+          lastBotMessage={lastBotMessage}
+          isTyping={isTyping}
+        />
+
+        {/* Document Uploader */}
+        <DocumentTestUploader onDocumentProcessed={handleDocumentProcessed} />
+      </div>
     </div>
   );
 };
