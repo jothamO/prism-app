@@ -39,6 +39,7 @@ export default function AdminLayout() {
     { name: "Chatbots", path: "/admin/chatbots", icon: Bot },
     { name: "Payments", path: "/admin/payments", icon: CreditCard },
     { name: "Simulator", path: "/admin/simulator", icon: Smartphone },
+    { name: "NLU Testing", path: "/admin/nlu-testing", icon: Brain },
     { name: "VAT Testing", path: "/admin/vat-testing", icon: FlaskConical },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
