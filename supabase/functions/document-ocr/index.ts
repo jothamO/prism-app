@@ -20,12 +20,28 @@ serve(async (req) => {
       );
     }
 
+    // Detect file type from base64 header
+    const isPDF = image.startsWith('JVBERi') || image.startsWith('JVBER'); // %PDF in base64
+    if (isPDF) {
+      return new Response(
+        JSON.stringify({ error: 'PDF files are not supported. Please upload an image (JPEG, PNG, or WebP).' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Detect image MIME type
+    let mimeType = 'image/jpeg';
+    if (image.startsWith('/9j/')) mimeType = 'image/jpeg';
+    else if (image.startsWith('iVBORw')) mimeType = 'image/png';
+    else if (image.startsWith('UklGR')) mimeType = 'image/webp';
+    else if (image.startsWith('R0lGOD')) mimeType = 'image/gif';
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log(`Processing document type: ${documentType}`);
+    console.log(`Processing document type: ${documentType}, MIME: ${mimeType}`);
 
     console.log(`Processing document type: ${documentType}`);
 
@@ -145,7 +161,7 @@ This is a Nigerian tax document (FIRS). Use null for unreadable fields.`
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:image/jpeg;base64,${image}`,
+                  url: `data:${mimeType};base64,${image}`,
                 },
               },
             ],
