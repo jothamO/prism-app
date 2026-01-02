@@ -91,5 +91,8 @@ export class GatewayClient {
 }
 
 // Export singleton instance
-const GATEWAY_URL = import.meta.env.VITE_RAILWAY_GATEWAY_URL || 'https://your-gateway.railway.app';
+// Use RAILWAY_GATEWAY_URL from Supabase secrets (fetched at runtime) or fallback
+const GATEWAY_URL = import.meta.env.VITE_RAILWAY_GATEWAY_URL || 
+                   'https://prism-clawdis-gateway-production.up.railway.app';
 export const gatewayClient = new GatewayClient(GATEWAY_URL);
+export { GATEWAY_URL };

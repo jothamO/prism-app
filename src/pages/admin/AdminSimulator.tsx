@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database, Brain, FlaskConical } from "lucide-react";
+import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database, Brain, FlaskConical, Cloud, CloudOff, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functions";
@@ -10,6 +10,7 @@ import { NLUDebugPanel, NLUIntent, ArtificialTransactionCheck } from "@/componen
 import { WhatsAppButtonsPreview, WhatsAppListMessage, ListSection } from "@/components/admin/WhatsAppInteractivePreview";
 import { DocumentTestUploader, ExtractedData } from "@/components/admin/DocumentTestUploader";
 import { ConversationFlowTester } from "@/components/admin/ConversationFlowTester";
+import { gatewayClient, GATEWAY_URL } from "@/lib/gatewayClient";
 interface ListConfig {
   header?: string;
   body: string;
@@ -178,6 +179,11 @@ const AdminSimulator = () => {
   const [conversationContext, setConversationContext] = useState<Array<{ role: string; content: string }>>([]);
   const [nluEnabled, setNluEnabled] = useState(true);
   
+  // Gateway state
+  const [useGateway, setUseGateway] = useState(false);
+  const [gatewayStatus, setGatewayStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
+  const simulatorUserId = `simulator_${phoneNumber.replace(/[^0-9]/g, '')}`;
+  
   // Bank statement processing state (session-only, not persisted)
   const [processedBankStatement, setProcessedBankStatement] = useState<ProcessedBankStatement | null>(null);
 
@@ -188,6 +194,16 @@ const AdminSimulator = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Gateway health check
+  useEffect(() => {
+    if (useGateway) {
+      setGatewayStatus('unknown');
+      gatewayClient.checkHealth()
+        .then(() => setGatewayStatus('connected'))
+        .catch(() => setGatewayStatus('error'));
+    }
+  }, [useGateway]);
 
   // NLU Classification
   const classifyIntent = async (message: string): Promise<{
@@ -502,13 +518,44 @@ const AdminSimulator = () => {
     // Update conversation context
     setConversationContext(prev => [...prev.slice(-4), { role: 'user', content: inputMessage }]);
 
+    const messageToSend = inputMessage;
     const lowerMessage = inputMessage.toLowerCase().trim();
     setInputMessage("");
+
+    // If gateway mode is enabled, route through Railway Gateway
+    if (useGateway) {
+      setIsTyping(true);
+      try {
+        const response = await gatewayClient.sendMessage({
+          userId: simulatorUserId,
+          platform: 'simulator',
+          message: messageToSend,
+          idempotencyKey: `simulator_${simulatorUserId}_${Date.now()}`,
+          metadata: { testMode, entityType }
+        });
+        
+        setIsTyping(false);
+        
+        // Parse buttons from gateway response
+        const buttons = response.buttons?.flat().map(b => ({ id: b.callback_data, title: b.text }));
+        
+        addBotMessageImmediate(response.message, buttons);
+        setConversationContext(prev => [...prev.slice(-4), { role: 'assistant', content: response.message }]);
+        return;
+      } catch (error) {
+        console.error('[Gateway] Error:', error);
+        setIsTyping(false);
+        addBotMessageImmediate(
+          `⚠️ Gateway connection failed: ${error instanceof Error ? error.message : 'Unknown error'}\n\nFalling back to local mode...`
+        );
+        // Fall through to local processing
+      }
+    }
 
     // Classify intent via NLU for registered users
     let nluResult: Awaited<ReturnType<typeof classifyIntent>> = null;
     if (userState === "registered" && nluEnabled) {
-      nluResult = await classifyIntent(inputMessage);
+      nluResult = await classifyIntent(messageToSend);
     }
 
     // Handle based on user state
@@ -2512,6 +2559,42 @@ const AdminSimulator = () => {
               <Brain className="w-3 h-3" />
               NLU Enabled
             </label>
+          </div>
+
+          {/* Gateway Toggle */}
+          <div className="p-3 bg-muted/50 rounded-lg border space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useGateway"
+                checked={useGateway}
+                onChange={(e) => setUseGateway(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <label htmlFor="useGateway" className="text-sm flex items-center gap-1 font-medium">
+                {useGateway ? <Cloud className="w-3 h-3 text-primary" /> : <CloudOff className="w-3 h-3" />}
+                Use Railway Gateway
+              </label>
+            </div>
+            {useGateway && (
+              <div className="text-xs space-y-1">
+                <div className="flex items-center gap-1">
+                  {gatewayStatus === 'connected' && <CheckCircle className="w-3 h-3 text-green-500" />}
+                  {gatewayStatus === 'error' && <XCircle className="w-3 h-3 text-destructive" />}
+                  {gatewayStatus === 'unknown' && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span className={
+                    gatewayStatus === 'connected' ? 'text-green-600' : 
+                    gatewayStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'
+                  }>
+                    {gatewayStatus === 'connected' ? 'Connected' : 
+                     gatewayStatus === 'error' ? 'Connection failed' : 'Checking...'}
+                  </span>
+                </div>
+                <p className="text-muted-foreground truncate" title={GATEWAY_URL}>
+                  {GATEWAY_URL.replace('https://', '')}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
