@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.simulate-nlu]
 verify_jwt = false
+
+[functions.document-ocr]
+verify_jwt = false
