@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,10 +129,33 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [confidenceScores, setConfidenceScores] = useState<ConfidenceScores | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type - reject PDFs
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        toast({
+          title: "Unsupported file type",
+          description: "PDF files are not supported. Please upload an image (JPEG, PNG, or WebP).",
+          variant: "destructive"
+        });
+        e.target.value = '';
+        return;
+      }
+      
+      // Validate it's an image
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload an image file (JPEG, PNG, or WebP).",
+          variant: "destructive"
+        });
+        e.target.value = '';
+        return;
+      }
+      
       setUploadedFile(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
@@ -338,7 +362,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
           type="file"
           ref={fileInputRef}
           onChange={handleFileSelect}
-          accept="image/*,.pdf"
+          accept="image/jpeg,image/png,image/webp,image/gif"
           className="hidden"
         />
         
