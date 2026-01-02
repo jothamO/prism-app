@@ -8,7 +8,8 @@ import { Type, Static } from '@sinclair/typebox';
 // Platform types
 export const PlatformSchema = Type.Union([
     Type.Literal('whatsapp'),
-    Type.Literal('telegram')
+    Type.Literal('telegram'),
+    Type.Literal('simulator')
 ]);
 
 export type Platform = Static<typeof PlatformSchema>;
