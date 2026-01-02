@@ -20,16 +20,7 @@ serve(async (req) => {
       );
     }
 
-    // Detect file type from base64 header
-    const isPDF = image.startsWith('JVBERi') || image.startsWith('JVBER'); // %PDF in base64
-    if (isPDF) {
-      return new Response(
-        JSON.stringify({ error: 'PDF files are not supported. Please upload an image (JPEG, PNG, or WebP).' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Detect image MIME type
+    // Detect image MIME type from base64 header
     let mimeType = 'image/jpeg';
     if (image.startsWith('/9j/')) mimeType = 'image/jpeg';
     else if (image.startsWith('iVBORw')) mimeType = 'image/png';

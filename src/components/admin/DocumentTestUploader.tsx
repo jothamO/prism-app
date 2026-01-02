@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { convertPDFToImages, type PDFConversionResult } from "@/lib/pdf-to-image";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,8 @@ import {
   Send,
   X,
   Zap,
-  Eye
+  Eye,
+  FileImage
 } from "lucide-react";
 
 export interface ExtractedData {
@@ -128,44 +130,82 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
   const [ocrMode, setOcrMode] = useState<OcrMode>('mock');
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [confidenceScores, setConfidenceScores] = useState<ConfidenceScores | null>(null);
+  const [pdfConversion, setPdfConversion] = useState<PDFConversionResult | null>(null);
+  const [selectedPage, setSelectedPage] = useState<number>(0);
+  const [isConvertingPdf, setIsConvertingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type - reject PDFs
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    if (!file) return;
+    
+    // Check if it's a PDF
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      if (ocrMode === 'mock') {
         toast({
-          title: "Unsupported file type",
-          description: "PDF files are not supported. Please upload an image (JPEG, PNG, or WebP).",
+          title: "PDF requires Real OCR mode",
+          description: "Switch to Real OCR mode to process PDF documents.",
           variant: "destructive"
         });
         e.target.value = '';
         return;
       }
       
-      // Validate it's an image
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload an image file (JPEG, PNG, or WebP).",
-          variant: "destructive"
-        });
-        e.target.value = '';
-        return;
-      }
-      
-      setUploadedFile(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-      setExtractedData(null);
+      // Convert PDF to images
+      setIsConvertingPdf(true);
       setOcrError(null);
+      try {
+        const result = await convertPDFToImages(file, { maxPages: 5 });
+        setPdfConversion(result);
+        setSelectedPage(0);
+        
+        // Create preview from first page
+        const pdfPreviewUrl = `data:image/png;base64,${result.images[0]}`;
+        setPreviewUrl(pdfPreviewUrl);
+        setUploadedFile(file);
+        setExtractedData(null);
+        
+        toast({
+          title: "PDF converted",
+          description: `Converted ${result.images.length} of ${result.pageCount} pages. Select a page to process.`,
+        });
+      } catch (error) {
+        console.error('PDF conversion error:', error);
+        toast({
+          title: "PDF conversion failed",
+          description: "Could not convert PDF to images. Try a different file.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsConvertingPdf(false);
+      }
+      return;
     }
+    
+    // Validate it's an image
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image (JPEG, PNG, WebP) or PDF file.",
+        variant: "destructive"
+      });
+      e.target.value = '';
+      return;
+    }
+    
+    // Handle regular images
+    setPdfConversion(null);
+    setUploadedFile(file);
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    setExtractedData(null);
+    setOcrError(null);
   };
 
   const processDocument = async () => {
-    if (!selectedType || !uploadedFile) return;
+    if (!selectedType) return;
+    if (!uploadedFile && !pdfConversion) return;
     
     setIsProcessing(true);
     setOcrError(null);
@@ -179,7 +219,17 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
     } else {
       // Real OCR mode - call the document-ocr edge function via Supabase SDK
       try {
-        const base64 = await fileToBase64(uploadedFile);
+        let base64: string;
+        
+        if (pdfConversion) {
+          // Use the selected PDF page image
+          base64 = pdfConversion.images[selectedPage];
+        } else if (uploadedFile) {
+          // Regular image
+          base64 = await fileToBase64(uploadedFile);
+        } else {
+          throw new Error('No document to process');
+        }
         
         const { data: result, error } = await supabase.functions.invoke('document-ocr', {
           body: { image: base64, documentType: selectedType }
@@ -259,6 +309,8 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
     setSelectedType(null);
     setOcrError(null);
     setConfidenceScores(null);
+    setPdfConversion(null);
+    setSelectedPage(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -362,27 +414,35 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
           type="file"
           ref={fileInputRef}
           onChange={handleFileSelect}
-          accept="image/jpeg,image/png,image/webp,image/gif"
+          accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
           className="hidden"
         />
         
-        {!uploadedFile ? (
+        {/* PDF Conversion Loading */}
+        {isConvertingPdf && (
+          <div className="p-4 flex items-center justify-center gap-2 text-sm text-muted-foreground border-2 border-dashed border-primary/30 rounded-lg bg-primary/5">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Converting PDF pages...
+          </div>
+        )}
+
+        {!uploadedFile && !isConvertingPdf ? (
           <div
             onClick={() => fileInputRef.current?.click()}
             className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
           >
             <Upload className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
             <p className="text-xs text-muted-foreground">
-              Click or drag to upload
+              Click or drag to upload (Images or PDF)
             </p>
           </div>
-        ) : (
+        ) : uploadedFile && (
           <div className="relative">
-            {previewUrl && uploadedFile.type.startsWith('image/') ? (
+            {previewUrl ? (
               <img 
                 src={previewUrl} 
                 alt="Preview" 
-                className="w-full h-24 object-cover rounded-lg"
+                className="w-full h-32 object-contain rounded-lg bg-muted/30"
               />
             ) : (
               <div className="w-full h-24 bg-muted rounded-lg flex items-center justify-center">
@@ -398,6 +458,40 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
               <X className="w-3 h-3" />
             </Button>
             <p className="text-xs mt-1 truncate">{uploadedFile.name}</p>
+            
+            {/* PDF Page Selector */}
+            {pdfConversion && pdfConversion.images.length > 1 && (
+              <div className="mt-2 p-2 bg-muted/50 rounded-lg">
+                <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                  <FileImage className="w-3 h-3" />
+                  PDF Pages ({pdfConversion.images.length} of {pdfConversion.pageCount})
+                </div>
+                <div className="flex gap-1 overflow-x-auto pb-1">
+                  {pdfConversion.images.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setSelectedPage(index);
+                        setPreviewUrl(`data:image/png;base64,${pdfConversion.images[index]}`);
+                        setExtractedData(null);
+                      }}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        selectedPage === index 
+                          ? 'bg-primary text-primary-foreground' 
+                          : 'bg-background hover:bg-muted border border-border'
+                      }`}
+                    >
+                      Page {index + 1}
+                    </button>
+                  ))}
+                </div>
+                {pdfConversion.pageCount > pdfConversion.images.length && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Only first {pdfConversion.images.length} pages converted
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
