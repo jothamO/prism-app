@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.cross-border-tax]
 verify_jwt = false
+
+[functions.simulate-nlu]
+verify_jwt = false

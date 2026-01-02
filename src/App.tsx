@@ -23,6 +23,7 @@ import AdminVATTesting from "./pages/admin/AdminVATTesting";
 import AdminRelatedParties from "./pages/admin/AdminRelatedParties";
 import AdminFeedback from "./pages/admin/AdminFeedback";
 import AdminProfiles from "./pages/admin/AdminProfiles";
+import AdminNLUTesting from "./pages/admin/AdminNLUTesting";
 
 function App() {
   return (
@@ -67,6 +68,7 @@ function App() {
               <Route path="chatbots" element={<AdminChatbots />} />
               <Route path="payments" element={<AdminPayments />} />
               <Route path="simulator" element={<AdminSimulator />} />
+              <Route path="nlu-testing" element={<AdminNLUTesting />} />
               <Route path="vat-testing" element={<AdminVATTesting />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
