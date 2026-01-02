@@ -24,7 +24,7 @@ import AdminRelatedParties from "./pages/admin/AdminRelatedParties";
 import AdminFeedback from "./pages/admin/AdminFeedback";
 import AdminProfiles from "./pages/admin/AdminProfiles";
 import AdminNLUTesting from "./pages/admin/AdminNLUTesting";
-
+import AdminMLHealth from "./pages/admin/AdminMLHealth";
 function App() {
   return (
     <ThemeProvider>
@@ -60,6 +60,7 @@ function App() {
               <Route path="reviews" element={<AdminReviews />} />
               <Route path="related-parties" element={<AdminRelatedParties />} />
               <Route path="feedback" element={<AdminFeedback />} />
+              <Route path="ml-health" element={<AdminMLHealth />} />
               <Route path="profiles" element={<AdminProfiles />} />
               <Route path="filings" element={<AdminFilings />} />
               <Route path="invoices" element={<AdminInvoices />} />

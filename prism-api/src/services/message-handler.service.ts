@@ -3,6 +3,7 @@ import { TaxIDResolverService } from './tax-id-resolver.service';
 import { MonoService } from './mono.service';
 import { OCRService } from './ocr.service';
 import { InsightsGeneratorService } from './insights-generator.service';
+import { feedbackCollectionService } from './feedback-collection.service';
 
 type Platform = 'telegram' | 'whatsapp';
 
@@ -69,6 +70,10 @@ export class MessageHandlerService {
             return await this.handleBVNInput(userId, text);
         }
 
+        if (state?.expecting === 'category_correction') {
+            return await this.handleCategoryCorrection(userId, text);
+        }
+
         // Default: general query
         return await this.handleGeneralQuery(userId, text);
     }
@@ -82,7 +87,7 @@ export class MessageHandlerService {
             const receiptData = await this.ocrService.extractReceipt(photoUrl);
 
             // Save to database
-            await supabase.from('receipts').insert({
+            const { data: receipt, error } = await supabase.from('receipts').insert({
                 user_id: userId,
                 image_url: photoUrl,
                 merchant: receiptData.merchant,
@@ -90,6 +95,19 @@ export class MessageHandlerService {
                 date: receiptData.date,
                 category: receiptData.category,
                 confidence: receiptData.confidence
+            }).select().single();
+
+            const receiptId = receipt?.id || receiptData.id;
+
+            // Store the AI prediction in conversation context for feedback
+            await this.setConversationContext(userId, {
+                lastReceiptId: receiptId,
+                lastAIPrediction: {
+                    category: receiptData.category,
+                    confidence: receiptData.confidence,
+                    merchant: receiptData.merchant,
+                    amount: receiptData.amount,
+                }
             });
 
             return {
@@ -98,11 +116,12 @@ export class MessageHandlerService {
                     `💰 *Amount:* ₦${receiptData.amount.toLocaleString()}\n` +
                     `📅 *Date:* ${receiptData.date}\n` +
                     `🏷️ *Category:* ${receiptData.category}\n\n` +
-                    `Confidence: ${(receiptData.confidence * 100).toFixed(0)}%`,
+                    `Confidence: ${(receiptData.confidence * 100).toFixed(0)}%\n\n` +
+                    `_Is this category correct?_`,
                 buttons: [
                     [
-                        { text: '✅ Correct', callback_data: `confirm_receipt:${receiptData.id}` },
-                        { text: '✏️ Edit', callback_data: `edit_receipt:${receiptData.id}` }
+                        { text: '✅ Correct', callback_data: `feedback_confirm:${receiptId}` },
+                        { text: '❌ Wrong Category', callback_data: `feedback_edit:${receiptId}` }
                     ]
                 ]
             };
@@ -134,6 +153,16 @@ export class MessageHandlerService {
 
             case 'confirm_receipt':
                 return await this.confirmReceipt(userId, params[0]);
+
+            case 'feedback_confirm':
+                return await this.handleFeedbackConfirm(userId, params[0]);
+
+            case 'feedback_edit':
+                return await this.handleFeedbackEdit(userId, params[0]);
+
+            case 'feedback_category':
+                // Format: feedback_category:receiptId:newCategory
+                return await this.handleFeedbackCategorySelect(userId, params[0], params[1]);
 
             case 'connect_bank':
                 return await this.startMonoConnection(userId);
@@ -554,6 +583,22 @@ export class MessageHandlerService {
     }
 
     /**
+     * Set conversation context (for storing temporary data like AI predictions)
+     */
+    private async setConversationContext(userId: string, context: any) {
+        const state = await this.getConversationState(userId);
+        const existingContext = state?.context || {};
+        
+        await supabase
+            .from('conversation_state')
+            .upsert({
+                [this.platform === 'telegram' ? 'telegram_id' : 'whatsapp_id']: userId,
+                context: { ...existingContext, ...context },
+                updated_at: new Date().toISOString()
+            });
+    }
+
+    /**
      * Update user record
      */
     private async updateUser(userId: string, updates: any) {
@@ -561,5 +606,210 @@ export class MessageHandlerService {
             .from('users')
             .update(updates)
             .eq(this.platform === 'telegram' ? 'telegram_id' : 'whatsapp_id', userId);
+    }
+
+    // ============= Feedback Collection Methods =============
+
+    /**
+     * Handle feedback confirmation (user confirms AI was correct)
+     */
+    private async handleFeedbackConfirm(userId: string, receiptId: string): Promise<MessageResponse> {
+        try {
+            const state = await this.getConversationState(userId);
+            const aiPrediction = state?.context?.lastAIPrediction;
+
+            if (aiPrediction) {
+                // Get user's business ID if available
+                const { data: user } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq(this.platform === 'telegram' ? 'telegram_id' : 'whatsapp_id', userId)
+                    .single();
+
+                const { data: business } = await supabase
+                    .from('businesses')
+                    .select('id')
+                    .eq('user_id', user?.id)
+                    .eq('is_primary', true)
+                    .single();
+
+                // Record feedback as confirmation
+                await feedbackCollectionService.recordCorrection({
+                    userId: user?.id || userId,
+                    businessId: business?.id,
+                    entityType: 'expense_category',
+                    entityId: receiptId,
+                    aiPrediction: aiPrediction,
+                    userCorrection: { category: aiPrediction.category },
+                    itemDescription: aiPrediction.merchant || 'Receipt',
+                    amount: aiPrediction.amount,
+                });
+            }
+
+            // Also confirm the receipt
+            await supabase
+                .from('receipts')
+                .update({ confirmed: true })
+                .eq('id', receiptId);
+
+            return {
+                message: `✅ *Feedback Recorded!*\n\n` +
+                    `Thanks for confirming! This helps our AI improve.\n\n` +
+                    `Send another receipt or type "help" for more options.`
+            };
+        } catch (error) {
+            console.error('Feedback confirm error:', error);
+            return {
+                message: `✅ Receipt confirmed!`
+            };
+        }
+    }
+
+    /**
+     * Handle feedback edit request (user wants to correct category)
+     */
+    private async handleFeedbackEdit(userId: string, receiptId: string): Promise<MessageResponse> {
+        // Store the receipt ID being edited
+        await this.setConversationContext(userId, { editingReceiptId: receiptId });
+        await this.setConversationState(userId, 'category_correction');
+
+        const categories = [
+            { name: 'Food', code: 'food' },
+            { name: 'Transport', code: 'transport' },
+            { name: 'Services', code: 'services' },
+            { name: 'Materials', code: 'materials' },
+            { name: 'Utilities', code: 'utilities' },
+            { name: 'Other', code: 'other' },
+        ];
+
+        return {
+            message: `📝 *Select Correct Category*\n\n` +
+                `What category should this receipt be?`,
+            buttons: [
+                [
+                    { text: '🍚 Food', callback_data: `feedback_category:${receiptId}:food` },
+                    { text: '🚗 Transport', callback_data: `feedback_category:${receiptId}:transport` }
+                ],
+                [
+                    { text: '🔧 Services', callback_data: `feedback_category:${receiptId}:services` },
+                    { text: '🧱 Materials', callback_data: `feedback_category:${receiptId}:materials` }
+                ],
+                [
+                    { text: '💡 Utilities', callback_data: `feedback_category:${receiptId}:utilities` },
+                    { text: '📦 Other', callback_data: `feedback_category:${receiptId}:other` }
+                ]
+            ]
+        };
+    }
+
+    /**
+     * Handle category selection from feedback edit
+     */
+    private async handleFeedbackCategorySelect(userId: string, receiptId: string, newCategory: string): Promise<MessageResponse> {
+        try {
+            const state = await this.getConversationState(userId);
+            const aiPrediction = state?.context?.lastAIPrediction;
+
+            // Get user info
+            const { data: user } = await supabase
+                .from('users')
+                .select('id')
+                .eq(this.platform === 'telegram' ? 'telegram_id' : 'whatsapp_id', userId)
+                .single();
+
+            const { data: business } = await supabase
+                .from('businesses')
+                .select('id')
+                .eq('user_id', user?.id)
+                .eq('is_primary', true)
+                .single();
+
+            // Record the correction feedback
+            if (aiPrediction) {
+                await feedbackCollectionService.recordCorrection({
+                    userId: user?.id || userId,
+                    businessId: business?.id,
+                    entityType: 'expense_category',
+                    entityId: receiptId,
+                    aiPrediction: aiPrediction,
+                    userCorrection: { category: newCategory },
+                    itemDescription: aiPrediction.merchant || 'Receipt',
+                    amount: aiPrediction.amount,
+                });
+            }
+
+            // Update the receipt with corrected category
+            await supabase
+                .from('receipts')
+                .update({ 
+                    category: newCategory,
+                    confirmed: true
+                })
+                .eq('id', receiptId);
+
+            // Clear the conversation state
+            await this.setConversationState(userId, '');
+
+            const categoryLabels: Record<string, string> = {
+                food: '🍚 Food',
+                transport: '🚗 Transport',
+                services: '🔧 Services',
+                materials: '🧱 Materials',
+                utilities: '💡 Utilities',
+                other: '📦 Other',
+            };
+
+            return {
+                message: `✅ *Category Updated!*\n\n` +
+                    `Changed to: ${categoryLabels[newCategory] || newCategory}\n\n` +
+                    `Thanks for the correction! Our AI will learn from this.\n\n` +
+                    `Send another receipt or type "help" for more options.`
+            };
+        } catch (error) {
+            console.error('Category select error:', error);
+            return {
+                message: `❌ Could not update category. Please try again.`
+            };
+        }
+    }
+
+    /**
+     * Handle text-based category correction
+     */
+    private async handleCategoryCorrection(userId: string, text: string): Promise<MessageResponse> {
+        const categoryMap: Record<string, string> = {
+            'food': 'food',
+            '1': 'food',
+            'transport': 'transport',
+            '2': 'transport',
+            'services': 'services',
+            '3': 'services',
+            'materials': 'materials',
+            '4': 'materials',
+            'utilities': 'utilities',
+            '5': 'utilities',
+            'other': 'other',
+            '6': 'other',
+        };
+
+        const category = categoryMap[text.toLowerCase().trim()];
+        
+        if (!category) {
+            return {
+                message: `Please select a valid category:\n\n` +
+                    `1. Food\n2. Transport\n3. Services\n4. Materials\n5. Utilities\n6. Other`
+            };
+        }
+
+        const state = await this.getConversationState(userId);
+        const receiptId = state?.context?.editingReceiptId;
+
+        if (receiptId) {
+            return await this.handleFeedbackCategorySelect(userId, receiptId, category);
+        }
+
+        return {
+            message: `No receipt to update. Send a receipt photo first!`
+        };
     }
 }
