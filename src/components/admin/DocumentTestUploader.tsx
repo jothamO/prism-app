@@ -133,6 +133,10 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
   const [pdfConversion, setPdfConversion] = useState<PDFConversionResult | null>(null);
   const [selectedPage, setSelectedPage] = useState<number>(0);
   const [isConvertingPdf, setIsConvertingPdf] = useState(false);
+  // Batch processing state
+  const [allPagesData, setAllPagesData] = useState<ExtractedData[]>([]);
+  const [processingAllPages, setProcessingAllPages] = useState(false);
+  const [currentProcessingPage, setCurrentProcessingPage] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -290,16 +294,101 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
       `Valid Through: ${data.validThrough}`;
   };
 
+  // Process all PDF pages sequentially
+  const processAllPages = async () => {
+    if (!pdfConversion || !selectedType) return;
+    
+    setProcessingAllPages(true);
+    setAllPagesData([]);
+    setOcrError(null);
+    
+    const allData: ExtractedData[] = [];
+    
+    for (let i = 0; i < pdfConversion.images.length; i++) {
+      setCurrentProcessingPage(i + 1);
+      
+      try {
+        const base64 = pdfConversion.images[i];
+        const { data: result, error } = await supabase.functions.invoke('document-ocr', {
+          body: { image: base64, documentType: selectedType }
+        });
+        
+        if (error) {
+          console.error(`OCR Error on page ${i + 1}:`, error);
+          continue;
+        }
+        
+        if (result?.success && result?.data) {
+          allData.push(result.data);
+        }
+      } catch (error) {
+        console.error(`Error processing page ${i + 1}:`, error);
+      }
+    }
+    
+    setAllPagesData(allData);
+    setProcessingAllPages(false);
+    
+    toast({
+      title: "All pages processed",
+      description: `Successfully extracted data from ${allData.length} of ${pdfConversion.images.length} pages.`,
+    });
+  };
+
+  // Merge all pages data (especially for bank statements with transactions)
+  const mergeAllPagesData = (pages: ExtractedData[]): ExtractedData => {
+    if (pages.length === 0) return pages[0];
+    if (pages.length === 1) return pages[0];
+    
+    // For bank statements, merge transactions
+    if (pages[0].documentType === 'bank_statement') {
+      const allTransactions = pages.flatMap(p => p.transactions || []);
+      return {
+        ...pages[0],
+        transactions: allTransactions,
+        // Use first page's opening and last page's closing
+        openingBalance: pages[0].openingBalance,
+        closingBalance: pages[pages.length - 1].closingBalance,
+      };
+    }
+    
+    // For invoices, combine items
+    if (pages[0].documentType === 'invoice') {
+      const allItems = pages.flatMap(p => p.items || []);
+      const totalSubtotal = pages.reduce((sum, p) => sum + (p.subtotal || 0), 0);
+      const totalVat = pages.reduce((sum, p) => sum + (p.vatAmount || 0), 0);
+      const totalAmount = pages.reduce((sum, p) => sum + (p.total || 0), 0);
+      return {
+        ...pages[0],
+        items: allItems,
+        subtotal: totalSubtotal,
+        vatAmount: totalVat,
+        total: totalAmount,
+      };
+    }
+    
+    // For other types, just return first page
+    return pages[0];
+  };
+
   const sendToChat = () => {
-    if (extractedData) {
+    // If we have all pages data processed, merge and send
+    if (allPagesData.length > 0) {
+      const mergedData = mergeAllPagesData(allPagesData);
+      const summary = generateSummary(mergedData);
+      onDocumentProcessed(mergedData, summary);
+    } else if (extractedData) {
       const summary = generateSummary(extractedData);
       onDocumentProcessed(extractedData, summary);
-      // Reset state
-      setUploadedFile(null);
-      setPreviewUrl(null);
-      setExtractedData(null);
-      setSelectedType(null);
     }
+    // Reset state
+    setUploadedFile(null);
+    setPreviewUrl(null);
+    setExtractedData(null);
+    setSelectedType(null);
+    setAllPagesData([]);
+    setPdfConversion(null);
+    setSelectedPage(0);
   };
 
   const clearAll = () => {
@@ -311,6 +400,9 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
     setConfidenceScores(null);
     setPdfConversion(null);
     setSelectedPage(0);
+    setAllPagesData([]);
+    setProcessingAllPages(false);
+    setCurrentProcessingPage(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -491,25 +583,72 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
         )}
 
         {/* Process Button */}
-        {uploadedFile && selectedType && !extractedData && (
-          <Button 
-            size="sm" 
-            className="w-full gap-2"
-            onClick={processDocument}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Image className="w-3 h-3" />
-                Process Document
-              </>
+        {uploadedFile && selectedType && !extractedData && !processingAllPages && (
+          <div className="space-y-2">
+            <Button 
+              size="sm" 
+              className="w-full gap-2"
+              onClick={processDocument}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Image className="w-3 h-3" />
+                  Process {pdfConversion ? `Page ${selectedPage + 1}` : 'Document'}
+                </>
+              )}
+            </Button>
+            
+            {/* Process All Pages Button (for multi-page PDFs in Real OCR mode) */}
+            {pdfConversion && pdfConversion.images.length > 1 && ocrMode === 'real' && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="w-full gap-2"
+                onClick={processAllPages}
+                disabled={isProcessing}
+              >
+                <FileImage className="w-3 h-3" />
+                Process All {pdfConversion.images.length} Pages
+              </Button>
             )}
-          </Button>
+          </div>
+        )}
+        
+        {/* Batch Processing Progress */}
+        {processingAllPages && (
+          <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span>Processing page {currentProcessingPage} of {pdfConversion?.images.length}...</span>
+            </div>
+            <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${(currentProcessingPage / (pdfConversion?.images.length || 1)) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* All Pages Processed Summary */}
+        {allPagesData.length > 1 && !processingAllPages && (
+          <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+            <div className="flex items-center gap-1 text-green-700 dark:text-green-400 text-xs font-medium">
+              <Check className="w-3 h-3" />
+              {allPagesData.length} pages processed and merged
+            </div>
+            {selectedType === 'bank_statement' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {allPagesData.reduce((sum, p) => sum + (p.transactions?.length || 0), 0)} total transactions extracted
+              </p>
+            )}
+          </div>
         )}
 
         {/* OCR Error display */}

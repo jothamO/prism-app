@@ -1587,7 +1587,9 @@ const AdminSimulator = () => {
 
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const base64 = event.target?.result as string;
+      const base64Full = event.target?.result as string;
+      // Extract just the base64 data (remove data URL prefix)
+      const base64 = base64Full.split(',')[1];
       
       setMessages((prev) => [
         ...prev,
@@ -1603,46 +1605,60 @@ const AdminSimulator = () => {
       setIsTyping(true);
       addBotMessageImmediate("🔍 Processing invoice with OCR...");
 
-      const result = await callInvoiceProcessor('process-image', {
-        imageBase64: base64,
-        userId: userData.id,
-        businessId: userData.businessId
-      });
-
-      setIsTyping(false);
-
-      if (result && result.success) {
-        setPendingInvoice({
-          invoiceNumber: result.invoiceNumber || 'INV-001',
-          customerName: result.customerName || 'Customer',
-          items: result.items || [],
-          subtotal: result.subtotal || 0,
-          vatAmount: result.vatAmount || 0,
-          total: result.total || 0,
-          confidence: result.confidence || 0.85
+      try {
+        const { data: result, error } = await supabase.functions.invoke('document-ocr', {
+          body: { image: base64, documentType: 'invoice' }
         });
 
-        const itemsList = result.items?.map((item: { description: string; quantity: number; unitPrice: number; vatAmount: number }) => 
-          `• ${item.description} x${item.quantity} @ ${formatCurrency(item.unitPrice)}`
-        ).join('\n');
+        setIsTyping(false);
 
-        addBotMessage(
-          `✅ Invoice Extracted (${Math.round((result.confidence || 0.85) * 100)}% confidence)\n` +
-          `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `Invoice #: ${result.invoiceNumber || 'INV-001'}\n` +
-          `Customer: ${result.customerName || 'Customer'}\n\n` +
-          `Items:\n${itemsList || 'No items'}\n\n` +
-          `Subtotal: ${formatCurrency(result.subtotal || 0)}\n` +
-          `VAT (7.5%): ${formatCurrency(result.vatAmount || 0)}\n` +
-          `Total: ${formatCurrency(result.total || 0)}\n\n` +
-          `Is this correct?`,
-          [
-            { id: "confirm", title: "✓ Confirm" },
-            { id: "edit", title: "✎ Edit" }
-          ]
-        );
-        setUserState("awaiting_confirm");
-      } else {
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        if (result && result.success && result.data) {
+          const invoiceData = result.data;
+          setPendingInvoice({
+            invoiceNumber: invoiceData.invoiceNumber || 'INV-001',
+            customerName: invoiceData.vendor || 'Customer',
+            items: invoiceData.items?.map((item: { description: string; qty: number; unitPrice: number; vatRate: number }) => ({
+              description: item.description,
+              quantity: item.qty,
+              unitPrice: item.unitPrice,
+              vatAmount: item.unitPrice * item.qty * (item.vatRate || 0.075)
+            })) || [],
+            subtotal: invoiceData.subtotal || 0,
+            vatAmount: invoiceData.vatAmount || 0,
+            total: invoiceData.total || 0,
+            confidence: result.confidence?.overall || 0.85
+          });
+
+          const itemsList = invoiceData.items?.map((item: { description: string; qty: number; unitPrice: number }) => 
+            `• ${item.description} x${item.qty} @ ${formatCurrency(item.unitPrice)}`
+          ).join('\n');
+
+          addBotMessage(
+            `✅ Invoice Extracted (${Math.round((result.confidence?.overall || 0.85) * 100)}% confidence)\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Invoice #: ${invoiceData.invoiceNumber || 'INV-001'}\n` +
+            `Vendor: ${invoiceData.vendor || 'Unknown'}\n\n` +
+            `Items:\n${itemsList || 'No items'}\n\n` +
+            `Subtotal: ${formatCurrency(invoiceData.subtotal || 0)}\n` +
+            `VAT (7.5%): ${formatCurrency(invoiceData.vatAmount || 0)}\n` +
+            `Total: ${formatCurrency(invoiceData.total || 0)}\n\n` +
+            `Is this correct?`,
+            [
+              { id: "confirm", title: "✓ Confirm" },
+              { id: "edit", title: "✎ Edit" }
+            ]
+          );
+          setUserState("awaiting_confirm");
+        } else {
+          throw new Error(result?.error || 'OCR processing failed');
+        }
+      } catch (err) {
+        setIsTyping(false);
+        console.error('OCR Error:', err);
         addBotMessage(
           "❌ Failed to process invoice. Please try again with a clearer image."
         );
@@ -1976,8 +1992,61 @@ const AdminSimulator = () => {
     }
   };
 
+  // Process bank statement transactions - categorize and generate Mono-style summary
+  const processBankTransactions = async (transactions: Array<{ date: string; description: string; credit?: number; debit?: number }>) => {
+    const categories: Record<string, { transactions: typeof transactions; total: number }> = {
+      sales: { transactions: [], total: 0 },
+      transfers_in: { transactions: [], total: 0 },
+      expenses: { transactions: [], total: 0 },
+      utilities: { transactions: [], total: 0 },
+      salaries: { transactions: [], total: 0 },
+      other: { transactions: [], total: 0 }
+    };
+
+    const reviewItems: typeof transactions = [];
+
+    for (const txn of transactions) {
+      const desc = txn.description.toLowerCase();
+      
+      if (txn.credit && txn.credit > 0) {
+        // Credit categorization
+        if (desc.includes('neft') || desc.includes('transfer from') || desc.includes('payment')) {
+          if (txn.credit > 500000) {
+            categories.sales.transactions.push(txn);
+            categories.sales.total += txn.credit;
+            // Flag large transactions for VAT review
+            reviewItems.push(txn);
+          } else {
+            categories.transfers_in.transactions.push(txn);
+            categories.transfers_in.total += txn.credit;
+          }
+        } else {
+          categories.other.transactions.push(txn);
+          categories.other.total += txn.credit;
+        }
+      } else if (txn.debit && txn.debit > 0) {
+        // Debit categorization
+        if (desc.includes('salary') || desc.includes('payroll')) {
+          categories.salaries.transactions.push(txn);
+          categories.salaries.total += txn.debit;
+        } else if (desc.includes('utility') || desc.includes('ekedc') || desc.includes('ikedc') || desc.includes('water')) {
+          categories.utilities.transactions.push(txn);
+          categories.utilities.total += txn.debit;
+        } else if (desc.includes('pos') || desc.includes('purchase') || desc.includes('vendor')) {
+          categories.expenses.transactions.push(txn);
+          categories.expenses.total += txn.debit;
+        } else {
+          categories.other.transactions.push(txn);
+          categories.other.total += txn.debit;
+        }
+      }
+    }
+
+    return { categories, reviewItems };
+  };
+
   // Handle document from DocumentTestUploader
-  const handleDocumentProcessed = (data: ExtractedData, summary: string) => {
+  const handleDocumentProcessed = async (data: ExtractedData, summary: string) => {
     // Add a user message indicating document upload
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -1988,7 +2057,87 @@ const AdminSimulator = () => {
     };
     setMessages(prev => [...prev, userMsg]);
     
-    // Add bot response with extracted data
+    // Handle bank statements specially - process transactions
+    if (data.documentType === 'bank_statement' && data.transactions && data.transactions.length > 0) {
+      setIsTyping(true);
+      addBotMessageImmediate("🔍 Analyzing transactions...");
+      
+      const { categories, reviewItems } = await processBankTransactions(data.transactions);
+      
+      const totalCredits = data.transactions.reduce((sum, t) => sum + (t.credit || 0), 0);
+      const totalDebits = data.transactions.reduce((sum, t) => sum + (t.debit || 0), 0);
+      const potentialVAT = categories.sales.total * 0.075;
+      const claimableVAT = categories.expenses.total * 0.075;
+      
+      setIsTyping(false);
+      
+      let response = `📊 *Bank Statement Analysis*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `🏦 ${data.bank || 'Bank Statement'}\n` +
+        `Account: ${data.accountName || 'N/A'} (${data.accountNumber || 'N/A'})\n` +
+        `Period: ${data.period || 'N/A'}\n\n` +
+        
+        `💰 *Income Summary:*\n`;
+      
+      if (categories.sales.total > 0) {
+        response += `├─ Potential Sales: ${formatCurrency(categories.sales.total)} (${categories.sales.transactions.length} txns)\n`;
+      }
+      if (categories.transfers_in.total > 0) {
+        response += `├─ Transfers In: ${formatCurrency(categories.transfers_in.total)} (${categories.transfers_in.transactions.length} txns)\n`;
+      }
+      if (categories.other.transactions.filter(t => t.credit).length > 0) {
+        const otherCredits = categories.other.transactions.filter(t => t.credit).reduce((sum, t) => sum + (t.credit || 0), 0);
+        response += `└─ Other Credits: ${formatCurrency(otherCredits)}\n`;
+      }
+      
+      response += `\n📤 *Expense Summary:*\n`;
+      
+      if (categories.expenses.total > 0) {
+        response += `├─ Supplies/Purchases: ${formatCurrency(categories.expenses.total)} (VAT claimable)\n`;
+      }
+      if (categories.utilities.total > 0) {
+        response += `├─ Utilities: ${formatCurrency(categories.utilities.total)}\n`;
+      }
+      if (categories.salaries.total > 0) {
+        response += `├─ Salaries: ${formatCurrency(categories.salaries.total)}\n`;
+      }
+      if (categories.other.transactions.filter(t => t.debit).length > 0) {
+        const otherDebits = categories.other.transactions.filter(t => t.debit).reduce((sum, t) => sum + (t.debit || 0), 0);
+        response += `└─ Other: ${formatCurrency(otherDebits)}\n`;
+      }
+      
+      response += `\n━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📈 Net Position: ${formatCurrency(totalCredits - totalDebits)}\n`;
+      
+      if (potentialVAT > 0 || claimableVAT > 0) {
+        response += `\n💹 *VAT Implications:*\n`;
+        if (potentialVAT > 0) {
+          response += `├─ Output VAT (on sales): ${formatCurrency(potentialVAT)}\n`;
+        }
+        if (claimableVAT > 0) {
+          response += `├─ Input VAT (claimable): ${formatCurrency(claimableVAT)}\n`;
+        }
+        response += `└─ Net VAT: ${formatCurrency(potentialVAT - claimableVAT)}\n`;
+      }
+      
+      if (reviewItems.length > 0) {
+        response += `\n⚠️ *Review Required:*\n`;
+        response += `├─ ${reviewItems.length} potential sales need VAT invoicing\n`;
+        response += `└─ Large transfers may require classification\n`;
+      }
+      
+      addBotMessage(
+        response,
+        [
+          { id: "bank_confirm_sales", title: "Confirm Sales" },
+          { id: "bank_review", title: "Review Items" },
+          { id: "bank_export", title: "Export" }
+        ]
+      );
+      return;
+    }
+    
+    // For other document types, show simple response
     setTimeout(() => {
       addBotMessage(
         `✅ *Document Processed*\n\n${summary}\n\n` +
