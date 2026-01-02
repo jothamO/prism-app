@@ -11,7 +11,9 @@ import {
   Loader2,
   Check,
   Send,
-  X
+  X,
+  Zap,
+  Eye
 } from "lucide-react";
 
 export interface ExtractedData {
@@ -52,6 +54,7 @@ interface DocumentTestUploaderProps {
 }
 
 type DocumentType = 'bank_statement' | 'invoice' | 'tax_document';
+type OcrMode = 'mock' | 'real';
 
 const MOCK_DATA: Record<DocumentType, ExtractedData> = {
   bank_statement: {
@@ -98,12 +101,29 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
 };
 
+// Helper function to convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+  });
+};
+
 export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUploaderProps) => {
   const [selectedType, setSelectedType] = useState<DocumentType | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [ocrMode, setOcrMode] = useState<OcrMode>('mock');
+  const [ocrError, setOcrError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,19 +133,62 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
       setExtractedData(null);
+      setOcrError(null);
     }
   };
 
   const processDocument = async () => {
-    if (!selectedType) return;
+    if (!selectedType || !uploadedFile) return;
     
     setIsProcessing(true);
+    setOcrError(null);
     
-    // Simulate OCR processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+    if (ocrMode === 'mock') {
+      // Mock mode - use sample data
+      await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+      const data = MOCK_DATA[selectedType];
+      setExtractedData(data);
+    } else {
+      // Real OCR mode - call the document-ocr edge function
+      try {
+        const base64 = await fileToBase64(uploadedFile);
+        
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/document-ocr`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              image: base64,
+              documentType: selectedType
+            }),
+          }
+        );
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `OCR failed with status ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          setExtractedData(result.data);
+        } else {
+          throw new Error('Invalid response from OCR service');
+        }
+      } catch (error) {
+        console.error('OCR Error:', error);
+        setOcrError(error instanceof Error ? error.message : 'Failed to process document');
+        // Fallback to mock data on error
+        const data = MOCK_DATA[selectedType];
+        setExtractedData(data);
+      }
+    }
     
-    const data = MOCK_DATA[selectedType];
-    setExtractedData(data);
     setIsProcessing(false);
   };
 
@@ -182,10 +245,38 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-2">
-          <FileText className="w-4 h-4" />
-          Document Test Upload
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Document Test Upload
+          </CardTitle>
+          
+          {/* OCR Mode Toggle */}
+          <div className="flex items-center gap-1.5">
+            <Eye className={`w-3 h-3 ${ocrMode === 'real' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <button
+              onClick={() => setOcrMode(prev => prev === 'mock' ? 'real' : 'mock')}
+              className={`relative w-9 h-5 rounded-full transition-colors ${
+                ocrMode === 'real' ? 'bg-primary' : 'bg-muted'
+              }`}
+              title={ocrMode === 'mock' ? 'Switch to Real OCR' : 'Switch to Mock Mode'}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-background rounded-full shadow transition-transform ${
+                ocrMode === 'real' ? 'translate-x-4' : ''
+              }`} />
+            </button>
+            <Zap className={`w-3 h-3 ${ocrMode === 'mock' ? 'text-amber-500' : 'text-muted-foreground'}`} />
+          </div>
+        </div>
+        
+        {/* Mode indicator badge */}
+        <div className={`text-xs px-2 py-0.5 rounded-full w-fit mt-2 ${
+          ocrMode === 'mock' 
+            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+        }`}>
+          {ocrMode === 'mock' ? '⚡ Mock Mode' : '🔍 Real OCR'}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Document Type Selection */}
@@ -283,6 +374,18 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
               </>
             )}
           </Button>
+        )}
+
+        {/* OCR Error display */}
+        {ocrError && (
+          <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <p className="text-xs text-red-600 dark:text-red-400">
+              ⚠️ {ocrError}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Showing mock data as fallback
+            </p>
+          </div>
         )}
 
         {/* Extracted Data Preview */}
