@@ -7,13 +7,13 @@ interface ReplyButton {
   title: string;
 }
 
-interface ListRow {
+export interface ListRow {
   id: string;
   title: string;
   description?: string;
 }
 
-interface ListSection {
+export interface ListSection {
   title: string;
   rows: ListRow[];
 }
