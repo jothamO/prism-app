@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -124,6 +126,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [ocrMode, setOcrMode] = useState<OcrMode>('mock');
   const [ocrError, setOcrError] = useState<string | null>(null);
+  const [confidenceScores, setConfidenceScores] = useState<ConfidenceScores | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,6 +145,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
     
     setIsProcessing(true);
     setOcrError(null);
+    setConfidenceScores(null);
     
     if (ocrMode === 'mock') {
       // Mock mode - use sample data
@@ -149,36 +153,25 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
       const data = MOCK_DATA[selectedType];
       setExtractedData(data);
     } else {
-      // Real OCR mode - call the document-ocr edge function
+      // Real OCR mode - call the document-ocr edge function via Supabase SDK
       try {
         const base64 = await fileToBase64(uploadedFile);
         
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/document-ocr`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              image: base64,
-              documentType: selectedType
-            }),
-          }
-        );
+        const { data: result, error } = await supabase.functions.invoke('document-ocr', {
+          body: { image: base64, documentType: selectedType }
+        });
         
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || `OCR failed with status ${response.status}`);
+        if (error) {
+          throw new Error(error.message || 'OCR processing failed');
         }
         
-        const result = await response.json();
-        
-        if (result.success && result.data) {
+        if (result?.success && result?.data) {
           setExtractedData(result.data);
+          if (result.confidence) {
+            setConfidenceScores(result.confidence);
+          }
         } else {
-          throw new Error('Invalid response from OCR service');
+          throw new Error(result?.error || 'Invalid response from OCR service');
         }
       } catch (error) {
         console.error('OCR Error:', error);
@@ -186,6 +179,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
         // Fallback to mock data on error
         const data = MOCK_DATA[selectedType];
         setExtractedData(data);
+        setConfidenceScores(null);
       }
     }
     
@@ -239,7 +233,36 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
     setPreviewUrl(null);
     setExtractedData(null);
     setSelectedType(null);
+    setOcrError(null);
+    setConfidenceScores(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Confidence indicator component
+  const ConfidenceIndicator = ({ score, label }: { score: number; label: string }) => {
+    const getColor = (s: number) => {
+      if (s >= 0.9) return 'bg-green-500';
+      if (s >= 0.7) return 'bg-yellow-500';
+      if (s >= 0.5) return 'bg-orange-500';
+      return 'bg-red-500';
+    };
+    
+    const formatLabel = (l: string) => {
+      return l.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+    };
+    
+    return (
+      <div className="flex items-center gap-2 text-xs">
+        <span className="text-muted-foreground w-28 truncate">{formatLabel(label)}</span>
+        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+          <div 
+            className={`h-full ${getColor(score)} transition-all`}
+            style={{ width: `${score * 100}%` }}
+          />
+        </div>
+        <span className="w-8 text-right font-mono text-muted-foreground">{(score * 100).toFixed(0)}%</span>
+      </div>
+    );
   };
 
   return (
@@ -388,6 +411,31 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
           </div>
         )}
 
+        {/* Confidence Scores Display (Real OCR mode only) */}
+        {ocrMode === 'real' && confidenceScores && (
+          <div className="p-3 bg-muted/50 rounded-lg space-y-2 border border-border/50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">AI Confidence Scores</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                confidenceScores.overall >= 0.8 
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                  : confidenceScores.overall >= 0.6
+                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+              }`}>
+                Overall: {(confidenceScores.overall * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {Object.entries(confidenceScores)
+                .filter(([key]) => key !== 'overall')
+                .map(([key, score]) => (
+                  <ConfidenceIndicator key={key} label={key} score={score} />
+                ))}
+            </div>
+          </div>
+        )}
+
         {/* Extracted Data Preview */}
         {extractedData && (
           <div className="space-y-2">
@@ -395,6 +443,8 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
               <div className="flex items-center gap-1 text-green-700 dark:text-green-400 text-xs font-medium mb-1">
                 <Check className="w-3 h-3" />
                 Extracted Successfully
+                {ocrMode === 'real' && ' (Real OCR)'}
+                {ocrMode === 'mock' && ' (Mock Data)'}
               </div>
               <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
                 {generateSummary(extractedData)}
