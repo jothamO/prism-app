@@ -2578,21 +2578,29 @@ const AdminSimulator = () => {
             </div>
             {useGateway && (
               <div className="text-xs space-y-1">
-                <div className="flex items-center gap-1">
-                  {gatewayStatus === 'connected' && <CheckCircle className="w-3 h-3 text-green-500" />}
-                  {gatewayStatus === 'error' && <XCircle className="w-3 h-3 text-destructive" />}
-                  {gatewayStatus === 'unknown' && <Loader2 className="w-3 h-3 animate-spin" />}
-                  <span className={
-                    gatewayStatus === 'connected' ? 'text-green-600' : 
-                    gatewayStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'
-                  }>
-                    {gatewayStatus === 'connected' ? 'Connected' : 
-                     gatewayStatus === 'error' ? 'Connection failed' : 'Checking...'}
-                  </span>
-                </div>
-                <p className="text-muted-foreground truncate" title={GATEWAY_URL}>
-                  {GATEWAY_URL.replace('https://', '')}
-                </p>
+                {GATEWAY_URL === 'NOT_CONFIGURED' ? (
+                  <p className="text-amber-600">
+                    ⚠️ Set VITE_RAILWAY_GATEWAY_URL in .env.local
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1">
+                      {gatewayStatus === 'connected' && <CheckCircle className="w-3 h-3 text-green-500" />}
+                      {gatewayStatus === 'error' && <XCircle className="w-3 h-3 text-destructive" />}
+                      {gatewayStatus === 'unknown' && <Loader2 className="w-3 h-3 animate-spin" />}
+                      <span className={
+                        gatewayStatus === 'connected' ? 'text-green-600' : 
+                        gatewayStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'
+                      }>
+                        {gatewayStatus === 'connected' ? 'Connected' : 
+                         gatewayStatus === 'error' ? 'Connection failed' : 'Checking...'}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground truncate" title={GATEWAY_URL}>
+                      {GATEWAY_URL.replace('https://', '')}
+                    </p>
+                  </>
+                )}
               </div>
             )}
           </div>
