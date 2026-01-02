@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.weekly-savings-email]
 verify_jwt = false
+
+[functions.get-service-key]
+verify_jwt = false
