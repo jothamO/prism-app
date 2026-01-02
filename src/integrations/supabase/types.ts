@@ -119,6 +119,38 @@ export type Database = {
           },
         ]
       }
+      analytics_events: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analytics_summary: {
         Row: {
           created_at: string | null
@@ -186,6 +218,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_charges: {
+        Row: {
+          amount: number
+          base_amount: number
+          category: string
+          confidence: number
+          created_at: string
+          description: string
+          detected_at: string
+          id: string
+          is_deductible: boolean
+          transaction_id: string
+          updated_at: string
+          user_id: string
+          vat_amount: number
+        }
+        Insert: {
+          amount: number
+          base_amount: number
+          category: string
+          confidence?: number
+          created_at?: string
+          description: string
+          detected_at?: string
+          id?: string
+          is_deductible?: boolean
+          transaction_id: string
+          updated_at?: string
+          user_id: string
+          vat_amount?: number
+        }
+        Update: {
+          amount?: number
+          base_amount?: number
+          category?: string
+          confidence?: number
+          created_at?: string
+          description?: string
+          detected_at?: string
+          id?: string
+          is_deductible?: boolean
+          transaction_id?: string
+          updated_at?: string
+          user_id?: string
+          vat_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_charges_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -422,6 +510,65 @@ export type Database = {
           whatsapp_id?: string | null
         }
         Relationships: []
+      }
+      emtl_charges: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          detected_at: string
+          has_vat: boolean
+          id: string
+          is_deductible: boolean
+          linked_transfer_id: string | null
+          reason: string | null
+          status: string
+          transaction_id: string
+          transfer_amount: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          detected_at?: string
+          has_vat?: boolean
+          id?: string
+          is_deductible?: boolean
+          linked_transfer_id?: string | null
+          reason?: string | null
+          status: string
+          transaction_id: string
+          transfer_amount?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          detected_at?: string
+          has_vat?: boolean
+          id?: string
+          is_deductible?: boolean
+          linked_transfer_id?: string | null
+          reason?: string | null
+          status?: string
+          transaction_id?: string
+          transfer_amount?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emtl_charges_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expenses: {
         Row: {
@@ -1258,12 +1405,14 @@ export type Database = {
           created_at: string | null
           id: string
           invoice_id: string | null
+          metadata: Json | null
           notes: string | null
           priority: string | null
           priority_score: number | null
           reasons: string[]
           resolved_at: string | null
           status: string | null
+          type: string | null
           user_id: string | null
         }
         Insert: {
@@ -1271,12 +1420,14 @@ export type Database = {
           created_at?: string | null
           id?: string
           invoice_id?: string | null
+          metadata?: Json | null
           notes?: string | null
           priority?: string | null
           priority_score?: number | null
           reasons: string[]
           resolved_at?: string | null
           status?: string | null
+          type?: string | null
           user_id?: string | null
         }
         Update: {
@@ -1284,12 +1435,14 @@ export type Database = {
           created_at?: string | null
           id?: string
           invoice_id?: string | null
+          metadata?: Json | null
           notes?: string | null
           priority?: string | null
           priority_score?: number | null
           reasons?: string[]
           resolved_at?: string | null
           status?: string | null
+          type?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -1600,6 +1753,7 @@ export type Database = {
           blocked_at: string | null
           blocked_reason: string | null
           business_name: string | null
+          business_sector: string | null
           business_type: string | null
           cac_number: string | null
           company_name: string | null
@@ -1610,6 +1764,7 @@ export type Database = {
           full_name: string | null
           has_active_vat: boolean | null
           id: string
+          is_active: boolean | null
           is_blocked: boolean | null
           last_name: string | null
           nin: string | null
@@ -1636,6 +1791,7 @@ export type Database = {
           blocked_at?: string | null
           blocked_reason?: string | null
           business_name?: string | null
+          business_sector?: string | null
           business_type?: string | null
           cac_number?: string | null
           company_name?: string | null
@@ -1646,6 +1802,7 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          is_active?: boolean | null
           is_blocked?: boolean | null
           last_name?: string | null
           nin?: string | null
@@ -1672,6 +1829,7 @@ export type Database = {
           blocked_at?: string | null
           blocked_reason?: string | null
           business_name?: string | null
+          business_sector?: string | null
           business_type?: string | null
           cac_number?: string | null
           company_name?: string | null
@@ -1682,6 +1840,7 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          is_active?: boolean | null
           is_blocked?: boolean | null
           last_name?: string | null
           nin?: string | null
