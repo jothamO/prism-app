@@ -70,6 +70,39 @@ interface IncomeTaxData {
   tin?: string;
 }
 
+interface BankStatementAnalysisData {
+  bank: string;
+  accountName: string;
+  accountNumber: string;
+  period: string;
+  generatedAt: string;
+  categories: {
+    sales: { count: number; total: number };
+    transfers_in: { count: number; total: number };
+    expenses: { count: number; total: number };
+    utilities: { count: number; total: number };
+    salaries: { count: number; total: number };
+    other: { count: number; total: number };
+  };
+  transactions: Array<{
+    date: string;
+    description: string;
+    credit?: number;
+    debit?: number;
+    category?: string;
+    vatImplication?: string;
+    riskFlag?: string;
+  }>;
+  totals: {
+    credits: number;
+    debits: number;
+    outputVAT: number;
+    inputVAT: number;
+    netVAT: number;
+  };
+  reviewItemsCount: number;
+}
+
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
 };
@@ -617,6 +650,192 @@ const generateIncomeTaxReportHTML = (data: IncomeTaxData): string => {
   `;
 };
 
+const generateBankStatementAnalysisHTML = (data: BankStatementAnalysisData): string => {
+  const timestamp = new Date(data.generatedAt).toLocaleString();
+  
+  const transactionRows = data.transactions.map(txn => `
+    <tr class="${txn.riskFlag ? 'flagged' : ''}">
+      <td>${txn.date}</td>
+      <td>${txn.description.substring(0, 50)}${txn.description.length > 50 ? '...' : ''}</td>
+      <td class="amount credit">${txn.credit ? formatCurrency(txn.credit) : '-'}</td>
+      <td class="amount debit">${txn.debit ? formatCurrency(txn.debit) : '-'}</td>
+      <td>${txn.category || '-'}</td>
+      <td>${txn.riskFlag ? '⚠️' : '✓'}</td>
+    </tr>
+  `).join('');
+
+  const categoryRows = Object.entries(data.categories)
+    .filter(([, val]) => val.count > 0)
+    .map(([key, val]) => `
+      <tr>
+        <td>${key.replace('_', ' ').toUpperCase()}</td>
+        <td>${val.count}</td>
+        <td class="amount">${formatCurrency(val.total)}</td>
+      </tr>
+    `).join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PRISM Bank Statement Analysis Report</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; background: #f5f5f5; }
+    .container { max-width: 1000px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .header { border-bottom: 3px solid #228B22; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header-left h1 { color: #228B22; font-size: 24px; }
+    .header-left p { color: #666; margin-top: 5px; }
+    .header-right { text-align: right; }
+    .header-right .period { font-size: 18px; font-weight: bold; color: #333; }
+    .account-info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+    .account-info h3 { color: #333; margin-bottom: 10px; }
+    .account-info p { color: #666; }
+    .section { margin-bottom: 30px; }
+    .section h3 { color: #228B22; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+    .summary-box { background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; }
+    .summary-box .value { font-size: 24px; font-weight: bold; color: #333; }
+    .summary-box .label { color: #666; font-size: 14px; }
+    .summary-box.highlight { background: #228B22; color: white; }
+    .summary-box.highlight .value { color: white; }
+    .summary-box.highlight .label { color: rgba(255,255,255,0.8); }
+    .summary-box.warning { background: #fff3cd; border: 1px solid #ffc107; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }
+    th { background: #228B22; color: white; padding: 10px; text-align: left; }
+    td { padding: 10px; border-bottom: 1px solid #eee; }
+    .amount { text-align: right; font-family: monospace; }
+    .credit { color: #228B22; }
+    .debit { color: #dc3545; }
+    tr.flagged { background: #fff3cd; }
+    .vat-section { background: #e8f5e9; border: 2px solid #228B22; border-radius: 8px; padding: 20px; margin-bottom: 30px; }
+    .vat-section h3 { color: #228B22; margin-bottom: 15px; }
+    .vat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #c8e6c9; }
+    .vat-row:last-child { border-bottom: none; font-weight: bold; font-size: 18px; }
+    .compliance-section { background: #fff8e1; border: 1px solid #ff9800; border-radius: 8px; padding: 20px; margin-bottom: 30px; }
+    .compliance-section h3 { color: #ff9800; margin-bottom: 10px; }
+    .compliance-section ul { margin-left: 20px; }
+    .compliance-section li { margin-bottom: 5px; }
+    .footer { border-top: 1px solid #eee; padding-top: 20px; color: #666; font-size: 12px; }
+    @media print { 
+      body { background: white; padding: 0; } 
+      .container { box-shadow: none; } 
+      .summary-box.highlight { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <h1>🇳🇬 BANK STATEMENT ANALYSIS REPORT</h1>
+        <p>Generated: ${timestamp}</p>
+      </div>
+      <div class="header-right">
+        <div class="period">${data.period}</div>
+        <p>${data.bank}</p>
+      </div>
+    </div>
+
+    <div class="account-info">
+      <h3>${data.accountName}</h3>
+      <p>Account Number: ${data.accountNumber}</p>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-box">
+        <div class="value">${formatCurrency(data.totals.credits)}</div>
+        <div class="label">Total Credits</div>
+      </div>
+      <div class="summary-box">
+        <div class="value">${formatCurrency(data.totals.debits)}</div>
+        <div class="label">Total Debits</div>
+      </div>
+      <div class="summary-box highlight">
+        <div class="value">${formatCurrency(data.totals.credits - data.totals.debits)}</div>
+        <div class="label">Net Position</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>📊 Category Breakdown</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Transactions</th>
+            <th>Total Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${categoryRows}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="vat-section">
+      <h3>💹 VAT Implications</h3>
+      <div class="vat-row">
+        <span>Output VAT (7.5% on Sales)</span>
+        <span>${formatCurrency(data.totals.outputVAT)}</span>
+      </div>
+      <div class="vat-row">
+        <span>Input VAT (7.5% on Eligible Expenses)</span>
+        <span>(${formatCurrency(data.totals.inputVAT)})</span>
+      </div>
+      <div class="vat-row">
+        <span>Net VAT ${data.totals.netVAT >= 0 ? 'Payable' : 'Refundable'}</span>
+        <span>${formatCurrency(Math.abs(data.totals.netVAT))}</span>
+      </div>
+    </div>
+
+    ${data.reviewItemsCount > 0 ? `
+    <div class="compliance-section">
+      <h3>⚠️ Section 191 Compliance Notes</h3>
+      <p><strong>${data.reviewItemsCount} transaction(s) flagged for review:</strong></p>
+      <ul>
+        <li>Large value transfers (>₦500,000) require verification</li>
+        <li>Ensure transactions are not artificial under Section 191 of the Nigeria Tax Act 2025</li>
+        <li>Maintain supporting documentation for all flagged items</li>
+        <li>Consider professional review before VAT filing</li>
+      </ul>
+    </div>
+    ` : ''}
+
+    <div class="section">
+      <h3>📝 Transaction Details</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Credit</th>
+            <th>Debit</th>
+            <th>Category</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${transactionRows}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <p><strong>Compliance References:</strong></p>
+      <p>• VAT Classification: Nigeria Tax Act 2025, Sections 148, 186, 187</p>
+      <p>• Artificial Transactions: Section 191</p>
+      <p>• Record Keeping: Section 32</p>
+      <br>
+      <p>PRISM - Nigeria Tax Automation Platform</p>
+      <p>This analysis is for informational purposes. Please consult a tax professional for official filings.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -639,6 +858,9 @@ serve(async (req) => {
         break;
       case 'income-tax-computation':
         html = generateIncomeTaxReportHTML(data);
+        break;
+      case 'bank-statement-analysis':
+        html = generateBankStatementAnalysisHTML(data);
         break;
       default:
         throw new Error(`Unknown report type: ${reportType}`);

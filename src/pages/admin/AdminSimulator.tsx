@@ -64,6 +64,38 @@ interface ActiveProject {
   source_relationship: string;
 }
 
+interface ProcessedBankStatement {
+  bank: string;
+  accountName: string;
+  accountNumber: string;
+  period: string;
+  transactions: Array<{
+    date: string;
+    description: string;
+    credit?: number;
+    debit?: number;
+    category?: string;
+    vatImplication?: string;
+    riskFlag?: string;
+  }>;
+  categories: {
+    sales: { transactions: Array<{ date: string; description: string; credit?: number; debit?: number }>; total: number };
+    transfers_in: { transactions: Array<{ date: string; description: string; credit?: number; debit?: number }>; total: number };
+    expenses: { transactions: Array<{ date: string; description: string; credit?: number; debit?: number }>; total: number };
+    utilities: { transactions: Array<{ date: string; description: string; credit?: number; debit?: number }>; total: number };
+    salaries: { transactions: Array<{ date: string; description: string; credit?: number; debit?: number }>; total: number };
+    other: { transactions: Array<{ date: string; description: string; credit?: number; debit?: number }>; total: number };
+  };
+  reviewItems: Array<{ date: string; description: string; credit?: number; debit?: number; category?: string }>;
+  totals: {
+    credits: number;
+    debits: number;
+    outputVAT: number;
+    inputVAT: number;
+    netVAT: number;
+  };
+}
+
 const BUSINESS_HELP_MESSAGE = `Welcome to PRISM! 🇳🇬
 
 *Business Tax Commands:*
@@ -145,6 +177,9 @@ const AdminSimulator = () => {
   const [artificialCheck, setArtificialCheck] = useState<ArtificialTransactionCheck | null>(null);
   const [conversationContext, setConversationContext] = useState<Array<{ role: string; content: string }>>([]);
   const [nluEnabled, setNluEnabled] = useState(true);
+  
+  // Bank statement processing state (session-only, not persisted)
+  const [processedBankStatement, setProcessedBankStatement] = useState<ProcessedBankStatement | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1707,6 +1742,203 @@ const AdminSimulator = () => {
       addBotMessage(calcPrompts[calcType] || "Please enter the amount for calculation.\n\nExample: *tax 10000000* or *vat 50000*");
       return;
     }
+    // Bank statement action buttons
+    if (buttonId === 'bank_confirm_sales') {
+      if (!processedBankStatement || processedBankStatement.categories.sales.transactions.length === 0) {
+        addBotMessage("ℹ️ No sales transactions identified to confirm.");
+        return;
+      }
+      
+      const salesTxns = processedBankStatement.categories.sales.transactions;
+      const salesList = salesTxns.map((txn, i) => 
+        `${i + 1}. ${txn.date} - ${formatCurrency(txn.credit || 0)}\n   └ ${txn.description.substring(0, 45)}${txn.description.length > 45 ? '...' : ''}`
+      ).join('\n');
+      
+      addBotMessage(
+        `📋 *Confirm Sales Transactions*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Found ${salesTxns.length} potential sales:\n\n` +
+        salesList + `\n\n` +
+        `Total: ${formatCurrency(processedBankStatement.categories.sales.total)}\n` +
+        `VAT (7.5%): ${formatCurrency(processedBankStatement.totals.outputVAT)}\n\n` +
+        `Reply with the numbers to confirm (e.g., "1,2,3" or "all")`,
+        [
+          { id: "confirm_all_sales", title: "Confirm All" },
+          { id: "skip_sales_confirm", title: "Skip" }
+        ]
+      );
+      return;
+    }
+    
+    if (buttonId === 'confirm_all_sales') {
+      if (processedBankStatement) {
+        const count = processedBankStatement.categories.sales.transactions.length;
+        const vatAmount = processedBankStatement.totals.outputVAT;
+        
+        addBotMessage(
+          `✅ *${count} Sales Confirmed*\n\n` +
+          `Total Revenue: ${formatCurrency(processedBankStatement.categories.sales.total)}\n` +
+          `Output VAT: ${formatCurrency(vatAmount)}\n\n` +
+          `These transactions have been marked as sales.\n` +
+          `VAT of ${formatCurrency(vatAmount)} will be included in your next filing.\n\n` +
+          `💡 *Next Steps:*\n` +
+          `• Type *summary* to see updated VAT position\n` +
+          `• Issue VAT invoices for each sale\n` +
+          `• Keep records for Section 32 compliance`,
+          [
+            { id: "bank_review", title: "Review Other Items" },
+            { id: "bank_export", title: "Export Report" }
+          ]
+        );
+      }
+      return;
+    }
+    
+    if (buttonId === 'skip_sales_confirm') {
+      addBotMessage(
+        "⏭️ Sales confirmation skipped.\n\n" +
+        "You can return to review these transactions later.\n" +
+        "Type *connect bank* to re-analyze your statement.",
+        [
+          { id: "bank_review", title: "Review Flagged Items" },
+          { id: "bank_export", title: "Export Anyway" }
+        ]
+      );
+      return;
+    }
+    
+    if (buttonId === 'bank_review') {
+      if (!processedBankStatement || processedBankStatement.reviewItems.length === 0) {
+        addBotMessage("✅ No transactions flagged for review. All items have been categorized.");
+        return;
+      }
+      
+      let detailedReview = `🔍 *Flagged Transactions Review*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      
+      processedBankStatement.reviewItems.forEach((txn, i) => {
+        const amount = txn.credit || txn.debit || 0;
+        const riskLevel = amount > 1000000 ? '🔴 HIGH' : amount > 500000 ? '🟡 MEDIUM' : '🟢 LOW';
+        
+        detailedReview += `*${i + 1}. ${txn.date}*\n`;
+        detailedReview += `├─ Amount: ${formatCurrency(amount)}\n`;
+        detailedReview += `├─ Description: ${txn.description.substring(0, 50)}${txn.description.length > 50 ? '...' : ''}\n`;
+        detailedReview += `├─ AI Category: ${txn.category || 'Potential Sale'}\n`;
+        detailedReview += `├─ Risk Level: ${riskLevel}\n`;
+        
+        if (amount > 500000) {
+          detailedReview += `├─ ⚠️ Section 191: Large transfer - verify not artificial\n`;
+        }
+        
+        detailedReview += `└─ Suggested: ${txn.credit ? 'Confirm as Sale or Reclassify' : 'Categorize Expense'}\n\n`;
+      });
+      
+      detailedReview += `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `*Total Items:* ${processedBankStatement.reviewItems.length}\n` +
+        `*Combined Value:* ${formatCurrency(processedBankStatement.reviewItems.reduce((sum, t) => sum + (t.credit || t.debit || 0), 0))}`;
+      
+      addBotMessage(
+        detailedReview,
+        [
+          { id: "review_approve_all", title: "Approve All" },
+          { id: "review_flag_accountant", title: "Flag for Accountant" },
+          { id: "review_dismiss", title: "Dismiss" }
+        ]
+      );
+      return;
+    }
+    
+    if (buttonId === 'review_approve_all') {
+      const count = processedBankStatement?.reviewItems.length || 0;
+      addBotMessage(
+        `✅ *${count} Items Approved*\n\n` +
+        `All flagged transactions have been approved as sales.\n` +
+        `They will be included in your VAT calculations.\n\n` +
+        `Type *summary* to see your updated filing position.`,
+        [{ id: "bank_export", title: "Export Report" }]
+      );
+      return;
+    }
+    
+    if (buttonId === 'review_flag_accountant') {
+      const count = processedBankStatement?.reviewItems.length || 0;
+      addBotMessage(
+        `📝 *${count} Items Flagged for Accountant*\n\n` +
+        `These transactions require professional review:\n` +
+        `• Possible Section 191 artificial transaction concerns\n` +
+        `• Large value transfers need verification\n` +
+        `• VAT treatment to be confirmed\n\n` +
+        `📤 Export the report to share with your accountant.`,
+        [{ id: "bank_export", title: "Export Report" }]
+      );
+      return;
+    }
+    
+    if (buttonId === 'review_dismiss') {
+      addBotMessage("🗑️ Review dismissed. Transactions will be re-analyzed on next import.");
+      return;
+    }
+    
+    if (buttonId === 'bank_export') {
+      if (!processedBankStatement) {
+        addBotMessage("❌ No bank statement data to export. Please upload a statement first.");
+        return;
+      }
+      
+      setIsTyping(true);
+      addBotMessageImmediate("📄 Generating PDF report...");
+      
+      try {
+        const response = await callEdgeFunction<{ html: string }>('generate-pdf-report', {
+          reportType: 'bank-statement-analysis',
+          data: {
+            bank: processedBankStatement.bank,
+            accountName: processedBankStatement.accountName,
+            accountNumber: processedBankStatement.accountNumber,
+            period: processedBankStatement.period,
+            generatedAt: new Date().toISOString(),
+            categories: Object.entries(processedBankStatement.categories).reduce((acc, [key, val]) => ({
+              ...acc,
+              [key]: { count: val.transactions.length, total: val.total }
+            }), {} as Record<string, { count: number; total: number }>),
+            transactions: processedBankStatement.transactions,
+            totals: processedBankStatement.totals,
+            reviewItemsCount: processedBankStatement.reviewItems.length
+          }
+        });
+        
+        // Open HTML report in new tab
+        const blob = new Blob([response.html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        
+        setIsTyping(false);
+        addBotMessage(
+          `✅ *Bank Statement Analysis Report Generated*\n\n` +
+          `The report has opened in a new tab.\n\n` +
+          `📊 *Report includes:*\n` +
+          `• Transaction categorization\n` +
+          `• VAT implications summary\n` +
+          `• Section 191 compliance notes\n` +
+          `• Full audit trail\n\n` +
+          `💡 Use browser print (Ctrl+P) to save as PDF.`,
+          [{ id: "export_again", title: "Export Again" }]
+        );
+      } catch (error) {
+        console.error('Export error:', error);
+        setIsTyping(false);
+        addBotMessage("❌ Failed to generate report. Please try again.");
+      }
+      return;
+    }
+    
+    if (buttonId === 'export_again') {
+      // Re-trigger export
+      handleButtonClick('bank_export');
+      return;
+    }
+    
+    // Legacy bank connection buttons
     if (buttonId.startsWith('bank_')) {
       const bankId = buttonId.replace('bank_', '');
       const bankNames: Record<string, string> = {
@@ -2069,6 +2301,37 @@ const AdminSimulator = () => {
       const potentialVAT = categories.sales.total * 0.075;
       const claimableVAT = categories.expenses.total * 0.075;
       
+      // Store processed data in session state for button handlers
+      const bankStatementData: ProcessedBankStatement = {
+        bank: data.bank || 'Unknown Bank',
+        accountName: data.accountName || 'N/A',
+        accountNumber: data.accountNumber || 'N/A',
+        period: data.period || new Date().toISOString().substring(0, 7),
+        transactions: data.transactions.map(t => ({
+          ...t,
+          category: undefined,
+          vatImplication: undefined,
+          riskFlag: t.credit && t.credit > 500000 ? 'Section 191 - Large transfer' : undefined
+        })),
+        categories: {
+          sales: { transactions: categories.sales.transactions, total: categories.sales.total },
+          transfers_in: { transactions: categories.transfers_in.transactions, total: categories.transfers_in.total },
+          expenses: { transactions: categories.expenses.transactions, total: categories.expenses.total },
+          utilities: { transactions: categories.utilities.transactions, total: categories.utilities.total },
+          salaries: { transactions: categories.salaries.transactions, total: categories.salaries.total },
+          other: { transactions: categories.other.transactions, total: categories.other.total }
+        },
+        reviewItems: reviewItems.map(t => ({ ...t, category: 'Potential Sale' })),
+        totals: {
+          credits: totalCredits,
+          debits: totalDebits,
+          outputVAT: potentialVAT,
+          inputVAT: claimableVAT,
+          netVAT: potentialVAT - claimableVAT
+        }
+      };
+      setProcessedBankStatement(bankStatementData);
+      
       setIsTyping(false);
       
       let response = `📊 *Bank Statement Analysis*\n` +
@@ -2177,6 +2440,7 @@ const AdminSimulator = () => {
     setNluSource(null);
     setArtificialCheck(null);
     setConversationContext([]);
+    setProcessedBankStatement(null);
     toast({ title: "Simulator reset" });
   };
 
