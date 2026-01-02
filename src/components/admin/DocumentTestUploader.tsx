@@ -689,19 +689,35 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
         )}
 
         {/* Extracted Data Preview */}
-        {extractedData && (
+        {(extractedData || allPagesData.length > 0) && (
           <div className="space-y-2">
-            <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-              <div className="flex items-center gap-1 text-green-700 dark:text-green-400 text-xs font-medium mb-1">
-                <Check className="w-3 h-3" />
-                Extracted Successfully
-                {ocrMode === 'real' && ' (Real OCR)'}
-                {ocrMode === 'mock' && ' (Mock Data)'}
+            {/* Single page data */}
+            {extractedData && allPagesData.length === 0 && (
+              <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-1 text-green-700 dark:text-green-400 text-xs font-medium mb-1">
+                  <Check className="w-3 h-3" />
+                  Extracted Successfully
+                  {ocrMode === 'real' && ' (Real OCR)'}
+                  {ocrMode === 'mock' && ' (Mock Data)'}
+                </div>
+                <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                  {generateSummary(extractedData)}
+                </pre>
               </div>
-              <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
-                {generateSummary(extractedData)}
-              </pre>
-            </div>
+            )}
+            
+            {/* Merged multi-page data preview */}
+            {allPagesData.length > 0 && (
+              <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-1 text-green-700 dark:text-green-400 text-xs font-medium mb-1">
+                  <Check className="w-3 h-3" />
+                  {allPagesData.length} Pages Merged (Real OCR)
+                </div>
+                <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                  {generateSummary(mergeAllPagesData(allPagesData))}
+                </pre>
+              </div>
+            )}
             
             <Button 
               size="sm" 
@@ -709,7 +725,7 @@ export const DocumentTestUploader = ({ onDocumentProcessed }: DocumentTestUpload
               onClick={sendToChat}
             >
               <Send className="w-3 h-3" />
-              Send to Chat
+              Send to Chat {allPagesData.length > 1 ? `(${allPagesData.length} pages)` : ''}
             </Button>
           </div>
         )}
