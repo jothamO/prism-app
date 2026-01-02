@@ -1811,9 +1811,70 @@ const AdminSimulator = () => {
       const categoryMessages: Record<string, string> = {
         business: "✅ *Expense Categorized*\n\nCategory: Business Expense\nVAT Reclaimable: Yes\n\nThis expense will be included in your input VAT for the period.",
         personal: "✅ *Expense Categorized*\n\nCategory: Personal Expense\nVAT Reclaimable: No\n\nPersonal expenses are not tax-deductible.",
-        review: "📋 *Flagged for Review*\n\nThis transaction has been flagged for manual review by your accountant.\n\nReason: Potential Section 191 artificial transaction"
+        review: "📋 *Flagged for Review*\n\nThis transaction has been flagged for manual review by your accountant.\n\nReason: Potential Section 191 artificial transaction",
+        sales: "✅ *Document Categorized as Sales Invoice*\n\nThis revenue has been recorded.\nVAT Output: Will be included in VAT liability calculation.\n\nType *summary* to see your updated VAT position.",
+        rental: "✅ *Document Categorized as Rental Income*\n\nThis income has been recorded.\nWHT: 10% Withholding Tax applies to rental income.\n\nType *rental income [amount]* to calculate the tax.",
+        tin: "✅ *TIN Certificate Verified*\n\nYour Tax Identification Number has been recorded.\nThis confirms your registration with FIRS.",
+        assessment: "✅ *Tax Assessment Recorded*\n\nThe assessment notice has been saved.\nPayment deadline and amount will be tracked.\n\nType *set reminder payment* to create a payment reminder."
       };
       addBotMessage(categoryMessages[category] || `✅ Expense categorized as: *${category.toUpperCase()}*`);
+      return;
+    }
+    
+    // Document action buttons from DocumentTestUploader
+    if (buttonId === 'doc_categorize') {
+      addBotMessage(
+        "📋 *Categorize Document*\n\nHow would you like to categorize this document?",
+        undefined,
+        {
+          header: "Select Category",
+          body: "Choose the appropriate category for this document:",
+          footer: "This affects how the data is processed",
+          buttonText: "Choose Category",
+          sections: [
+            {
+              title: "Income Documents",
+              rows: [
+                { id: "cat_sales", title: "Sales Invoice", description: "Revenue from goods/services" },
+                { id: "cat_rental", title: "Rental Income", description: "Property rental receipts" }
+              ]
+            },
+            {
+              title: "Expense Documents",
+              rows: [
+                { id: "cat_business", title: "Business Expense", description: "Deductible operating costs" },
+                { id: "cat_personal", title: "Personal Expense", description: "Non-deductible" }
+              ]
+            },
+            {
+              title: "Tax Documents",
+              rows: [
+                { id: "cat_tin", title: "TIN Certificate", description: "Tax identification" },
+                { id: "cat_assessment", title: "Tax Assessment", description: "FIRS assessment notice" }
+              ]
+            }
+          ]
+        }
+      );
+      return;
+    }
+
+    if (buttonId === 'doc_save') {
+      addBotMessage(
+        "✅ *Document Saved*\n\n" +
+        "The extracted data has been saved to your records.\n\n" +
+        "📊 This information will be included in your next tax calculation.\n\n" +
+        "Type *summary* to see your updated position."
+      );
+      return;
+    }
+
+    if (buttonId === 'doc_discard') {
+      addBotMessage(
+        "🗑️ *Document Discarded*\n\n" +
+        "The extracted data has been discarded and will not be saved.\n\n" +
+        "Upload another document or type a command to continue."
+      );
       return;
     }
     
