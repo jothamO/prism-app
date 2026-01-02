@@ -27,45 +27,99 @@ serve(async (req) => {
 
     console.log(`Processing document type: ${documentType}`);
 
+    console.log(`Processing document type: ${documentType}`);
+
     // Different prompts based on document type
     const prompts: Record<string, string> = {
       bank_statement: `Analyze this bank statement image and extract the following information in JSON format:
 {
-  "documentType": "bank_statement",
-  "bank": "bank name",
-  "accountNumber": "last 4 digits masked as ****XXXX",
-  "accountName": "account holder name",
-  "period": "statement period range",
-  "openingBalance": 0,
-  "closingBalance": 0,
-  "transactions": [{"date": "YYYY-MM-DD", "description": "transaction description", "credit": 0, "debit": 0}]
+  "data": {
+    "documentType": "bank_statement",
+    "bank": "bank name",
+    "accountNumber": "last 4 digits masked as ****XXXX",
+    "accountName": "account holder name",
+    "period": "statement period range",
+    "openingBalance": 0,
+    "closingBalance": 0,
+    "transactions": [{"date": "YYYY-MM-DD", "description": "transaction description", "credit": 0, "debit": 0}]
+  },
+  "confidence": {
+    "bank": 0.95,
+    "accountNumber": 0.90,
+    "accountName": 0.85,
+    "period": 0.80,
+    "openingBalance": 0.75,
+    "closingBalance": 0.75,
+    "transactions": 0.70,
+    "overall": 0.80
+  }
 }
+
+Confidence scores should be 0.0-1.0 based on readability:
+- 0.9-1.0: Clearly readable, high certainty
+- 0.7-0.89: Readable but some uncertainty
+- 0.5-0.69: Partially readable, low certainty
+- 0.0-0.49: Guessed or unreadable
 
 For Nigerian bank statements, handle NGN/₦ amounts. Use null for unreadable fields.`,
 
       invoice: `Analyze this invoice/receipt image and extract the following information in JSON format:
 {
-  "documentType": "invoice",
-  "vendor": "vendor/seller name",
-  "invoiceNumber": "invoice or receipt number",
-  "date": "YYYY-MM-DD",
-  "items": [{"description": "item description", "qty": 1, "unitPrice": 0, "vatRate": 0.075}],
-  "subtotal": 0,
-  "vatAmount": 0,
-  "total": 0
+  "data": {
+    "documentType": "invoice",
+    "vendor": "vendor/seller name",
+    "invoiceNumber": "invoice or receipt number",
+    "date": "YYYY-MM-DD",
+    "items": [{"description": "item description", "qty": 1, "unitPrice": 0, "vatRate": 0.075}],
+    "subtotal": 0,
+    "vatAmount": 0,
+    "total": 0
+  },
+  "confidence": {
+    "vendor": 0.95,
+    "invoiceNumber": 0.90,
+    "date": 0.85,
+    "items": 0.80,
+    "subtotal": 0.85,
+    "vatAmount": 0.80,
+    "total": 0.90,
+    "overall": 0.85
+  }
 }
+
+Confidence scores should be 0.0-1.0 based on readability:
+- 0.9-1.0: Clearly readable, high certainty
+- 0.7-0.89: Readable but some uncertainty
+- 0.5-0.69: Partially readable, low certainty
+- 0.0-0.49: Guessed or unreadable
 
 For Nigerian invoices, handle NGN/₦ amounts. Standard VAT rate is 7.5% (0.075). Use null for unreadable fields.`,
 
       tax_document: `Analyze this tax document image and extract the following information in JSON format:
 {
-  "documentType": "tax_document",
-  "tin": "tax identification number",
-  "taxpayerName": "taxpayer or company name",
-  "registrationDate": "YYYY-MM-DD",
-  "status": "Active or Inactive",
-  "validThrough": "YYYY-MM-DD"
+  "data": {
+    "documentType": "tax_document",
+    "tin": "tax identification number",
+    "taxpayerName": "taxpayer or company name",
+    "registrationDate": "YYYY-MM-DD",
+    "status": "Active or Inactive",
+    "validThrough": "YYYY-MM-DD"
+  },
+  "confidence": {
+    "tin": 0.95,
+    "taxpayerName": 0.90,
+    "registrationDate": 0.85,
+    "status": 0.80,
+    "validThrough": 0.75,
+    "overall": 0.85
+  }
 }
+
+Confidence scores should be 0.0-1.0 based on readability:
+- 0.9-1.0: Clearly readable, high certainty
+- 0.7-0.89: Readable but some uncertainty
+- 0.5-0.69: Partially readable, low certainty
+- 0.0-0.49: Guessed or unreadable
 
 This is a Nigerian tax document (FIRS). Use null for unreadable fields.`
     };
@@ -143,8 +197,12 @@ This is a Nigerian tax document (FIRS). Use null for unreadable fields.`
 
     console.log('Extracted data:', JSON.stringify(extractedData));
 
+    // Handle both new format (with data/confidence) and legacy format
+    const responseData = extractedData.data ? extractedData.data : extractedData;
+    const confidenceData = extractedData.confidence || null;
+
     return new Response(
-      JSON.stringify({ success: true, data: extractedData }),
+      JSON.stringify({ success: true, data: responseData, confidence: confidenceData }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
