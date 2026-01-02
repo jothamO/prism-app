@@ -91,6 +91,38 @@ serve(async (req) => {
         return new Response("ok", { headers: corsHeaders });
     }
 
+    const url = new URL(req.url);
+
+    // Handle webhook setup
+    if (url.searchParams.get("setup") === "true") {
+        console.log("[Telegram] Setting up webhook...");
+        const webhookUrl = `https://rjajxabpndmpcgssymxw.supabase.co/functions/v1/telegram-bot-gateway`;
+        const response = await fetch(
+            `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    url: webhookUrl,
+                    secret_token: Deno.env.get("TELEGRAM_WEBHOOK_SECRET"),
+                }),
+            }
+        );
+        const result = await response.json();
+        console.log("[Telegram] Webhook setup result:", result);
+        return new Response(JSON.stringify(result), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+    }
+
+    // Validate webhook signature
+    const secretToken = req.headers.get("X-Telegram-Bot-Api-Secret-Token");
+    const expectedSecret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");
+    if (expectedSecret && secretToken !== expectedSecret) {
+        console.warn("[Telegram] Unauthorized request - invalid secret token");
+        return new Response("Unauthorized", { status: 401 });
+    }
+
     try {
         const update = await req.json();
         console.log("[Telegram] Received update:", JSON.stringify(update).substring(0, 200));
