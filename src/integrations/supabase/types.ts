@@ -481,6 +481,30 @@ export type Database = {
         }
         Relationships: []
       }
+      chatbot_sessions: {
+        Row: {
+          context: Json | null
+          created_at: string | null
+          platform: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string | null
+          platform: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string | null
+          platform?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversation_state: {
         Row: {
           context: Json | null
