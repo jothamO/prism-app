@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.whatsapp-bot-gateway]
 verify_jwt = false
+
+[functions.seed-ml-data]
+verify_jwt = false

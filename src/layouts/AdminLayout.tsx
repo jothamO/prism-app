@@ -16,7 +16,8 @@ import {
   Link2,
   Brain,
   FolderKanban,
-  Bot
+  Bot,
+  Activity
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -31,6 +32,7 @@ export default function AdminLayout() {
     { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
     { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
     { name: "AI Feedback", path: "/admin/feedback", icon: Brain },
+    { name: "ML Health", path: "/admin/ml-health", icon: Activity },
     { name: "Tax Profiles", path: "/admin/profiles", icon: Users },
     { name: "Filings", path: "/admin/filings", icon: FileText },
     { name: "Invoices", path: "/admin/invoices", icon: FileText },

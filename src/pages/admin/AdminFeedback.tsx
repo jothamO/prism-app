@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Brain, CheckCircle, AlertTriangle, RefreshCw, TrendingUp, Database } from "lucide-react";
-
+import { Brain, CheckCircle, AlertTriangle, RefreshCw, TrendingUp, Database, Sparkles } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 interface FeedbackStats {
   total: number;
   confirmations: number;
@@ -19,6 +19,7 @@ interface PatternStats {
 }
 
 export default function AdminFeedback() {
+  const { toast } = useToast();
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats>({
     total: 0,
     confirmations: 0,
@@ -33,7 +34,43 @@ export default function AdminFeedback() {
     topCategories: [],
   });
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [recentFeedback, setRecentFeedback] = useState<any[]>([]);
+
+  const seedMLData = async () => {
+    if (!confirm("This will seed the ML pipeline with ~50 feedback records and ~30 patterns. Continue?")) {
+      return;
+    }
+    
+    setSeeding(true);
+    try {
+      const response = await supabase.functions.invoke("seed-ml-data");
+      
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      const result = response.data;
+      
+      if (result.success) {
+        toast({
+          title: "ML Data Seeded Successfully!",
+          description: `Created ${result.seeded.feedbackRecords} feedback records and ${result.seeded.patternRecords} patterns.`,
+        });
+        await fetchStats();
+      } else {
+        throw new Error(result.error || "Seeding failed");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Seeding Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   useEffect(() => {
     fetchStats();
@@ -115,13 +152,23 @@ export default function AdminFeedback() {
           <h1 className="text-2xl font-bold text-foreground">AI Feedback & Learning</h1>
           <p className="text-muted-foreground">Monitor AI accuracy and learned business patterns</p>
         </div>
-        <button
-          onClick={fetchStats}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={seedMLData}
+            disabled={seeding}
+            className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors disabled:opacity-50"
+          >
+            {seeding ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {seeding ? "Seeding..." : "Seed Test Data"}
+          </button>
+          <button
+            onClick={fetchStats}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats Grid */}
