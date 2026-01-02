@@ -1,0 +1,51 @@
+{
+    "name": "@prism/gateway",
+    "version": "1.0.0",
+    "description": "PRISM Clawdis Gateway - Tax-restricted AI assistant control plane",
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "lint": "eslint src --ext .ts"
+    },
+    "keywords": [
+        "prism",
+        "tax",
+        "gateway",
+        "clawdis",
+        "nigeria"
+    ],
+    "author": "PRISM Team",
+    "license": "MIT",
+    "dependencies": {
+        "@anthropic-ai/sdk": "^0.32.0",
+        "@sinclair/typebox": "^0.32.0",
+        "@supabase/supabase-js": "^2.39.0",
+        "express": "^4.18.2",
+        "ws": "^8.16.0",
+        "cors": "^2.8.5",
+        "helmet": "^7.1.0",
+        "dotenv": "^16.3.1",
+        "lru-cache": "^10.1.0"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/ws": "^8.5.10",
+        "@types/cors": "^2.8.17",
+        "@types/node": "^20.10.6",
+        "typescript": "^5.3.3",
+        "tsx": "^4.7.0",
+        "jest": "^29.7.0",
+        "@types/jest": "^29.5.11",
+        "ts-jest": "^29.1.1",
+        "eslint": "^8.56.0",
+        "@typescript-eslint/eslint-plugin": "^6.18.0",
+        "@typescript-eslint/parser": "^6.18.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
