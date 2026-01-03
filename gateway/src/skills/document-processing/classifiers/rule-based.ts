@@ -32,7 +32,7 @@ export class RuleBasedClassifier {
         // === Nigerian-Specific Rules (Highest Priority) ===
 
         // EMTL (Electronic Money Transfer Levy)
-        if (nigerianFlags.isUSSD && description.match(/emtl|levy/i)) {
+        if (nigerianFlags.is_ussd_transaction && description.match(/emtl|levy/i)) {
             return {
                 classification: 'expense',
                 category: 'bank_charge_emtl',
@@ -43,35 +43,35 @@ export class RuleBasedClassifier {
         }
 
         // Capital injection detection
-        if (nigerianFlags.isCapitalInjection && isCredit) {
+        if (nigerianFlags.is_capital_injection && isCredit) {
             return {
                 classification: 'capital',
-                category: `capital_${nigerianFlags.capitalType || 'injection'}`,
+                category: `capital_${nigerianFlags.capital_type || 'injection'}`,
                 confidence: 0.85,
                 source: 'rule_based',
-                reasoning: `Capital injection detected: ${nigerianFlags.capitalType}`
+                reasoning: `Capital injection detected: ${nigerianFlags.capital_type}`
             };
         }
 
         // Mobile money receipts (likely sales)
-        if (nigerianFlags.isMobileMoney && isCredit && amount > 1000) {
+        if (nigerianFlags.is_mobile_money && isCredit && amount > 1000) {
             return {
                 classification: 'sale',
-                category: `mobile_money_${nigerianFlags.mobileMoneyProvider || 'sale'}`,
+                category: `mobile_money_${nigerianFlags.mobile_money_provider || 'sale'}`,
                 confidence: 0.82,
                 source: 'rule_based',
-                reasoning: `Mobile money credit via ${nigerianFlags.mobileMoneyProvider || 'provider'}`
+                reasoning: `Mobile money credit via ${nigerianFlags.mobile_money_provider || 'provider'}`
             };
         }
 
         // Foreign currency transactions
-        if (nigerianFlags.isForeignCurrency) {
+        if (nigerianFlags.is_foreign_currency) {
             return {
                 classification: isCredit ? 'sale' : 'expense',
-                category: `foreign_currency_${nigerianFlags.foreignCurrency?.toLowerCase() || 'transaction'}`,
+                category: `foreign_currency_${nigerianFlags.foreign_currency?.toLowerCase() || 'transaction'}`,
                 confidence: 0.75,
                 source: 'rule_based',
-                reasoning: `Foreign currency transaction (${nigerianFlags.foreignCurrency})`
+                reasoning: `Foreign currency transaction (${nigerianFlags.foreign_currency})`
             };
         }
 
@@ -100,7 +100,7 @@ export class RuleBasedClassifier {
         }
 
         // POS Terminal Payment (likely sale if credit)
-        if (nigerianFlags.isPOS || description.match(/pos|payment ?terminal|card ?payment/i)) {
+        if (nigerianFlags.is_pos_transaction || description.match(/pos|payment ?terminal|card ?payment/i)) {
             if (isCredit) {
                 return {
                     classification: 'sale',
