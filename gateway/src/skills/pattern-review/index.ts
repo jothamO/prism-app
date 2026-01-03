@@ -113,9 +113,9 @@ The more corrections you make, the smarter I get! 🚀
      */
     private async handlePatternFeedback(
         message: string,
-        context: SessionContext & { metadata: Record<string, unknown> }
+        context: SessionContext
     ): Promise<Static<typeof MessageResponseSchema>> {
-        const patternId = context.metadata.reviewingPattern;
+        const patternId = context.metadata?.reviewingPattern;
         const feedback = message.toLowerCase();
 
         // TODO: Implement pattern confirmation/rejection logic
