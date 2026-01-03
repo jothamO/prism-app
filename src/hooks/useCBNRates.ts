@@ -38,10 +38,10 @@ export function useCBNRates() {
       
       if (error) throw error;
       
-      // Deduplicate by currency (keep most recent)
+      // Deduplicate by currency (keep most recently updated)
       const latestByCurrency: Record<string, CBNRate> = {};
       data?.forEach(rate => {
-        if (!latestByCurrency[rate.currency] || rate.rate_date > latestByCurrency[rate.currency].rate_date) {
+        if (!latestByCurrency[rate.currency] || rate.updated_at > latestByCurrency[rate.currency].updated_at) {
           latestByCurrency[rate.currency] = rate;
         }
       });
