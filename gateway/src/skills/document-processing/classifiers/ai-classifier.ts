@@ -61,9 +61,9 @@ export class AIClassifier {
                 classification: result.classification,
                 confidence: result.confidence,
                 nigerianFlags: {
-                    isUSSD: nigerianFlags.isUSSD,
-                    isMobileMoney: nigerianFlags.isMobileMoney,
-                    isPOS: nigerianFlags.isPOS
+                    isUSSD: nigerianFlags.is_ussd_transaction,
+                    isMobileMoney: nigerianFlags.is_mobile_money,
+                    isPOS: nigerianFlags.is_pos_transaction
                 }
             });
 
