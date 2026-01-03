@@ -171,25 +171,6 @@ export class NigerianDetectors {
     }
 
     /**
-     * Get CBN exchange rate for a currency and date
-     * TODO: Implement actual CBN API integration
-     */
-    async getCBNRate(currency: string, date: string): Promise<number | null> {
-        // Hardcoded rates for now
-        // In production, fetch from CBN API or database
-        const RATES: Record<string, number> = {
-            'USD': 1550,
-            'GBP': 1950,
-            'EUR': 1650,
-            'ZAR': 85,
-            'CNY': 215,
-            'JPY': 10.5
-        };
-
-        return RATES[currency] || null;
-    }
-
-    /**
      * Detect common Nigerian bank codes in transaction
      */
     detectBankCode(description: string): string | null {

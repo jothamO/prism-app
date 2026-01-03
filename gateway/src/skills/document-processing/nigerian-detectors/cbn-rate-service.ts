@@ -169,7 +169,10 @@ export class CBNRateService {
             .lte('rate_date', endDate.toISOString().split('T')[0])
             .order('rate_date', { ascending: true });
 
-        return data || [];
+        return (data || []).map(row => ({
+            date: row.rate_date,
+            rate: row.rate
+        }));
     }
 
     /**
