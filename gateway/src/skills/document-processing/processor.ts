@@ -137,23 +137,25 @@ export class DocumentProcessor {
             };
         }
 
+        const needsReview = classification.confidence < 0.75 || complianceFlags.length > 0;
+        
         await supabase.from('bank_transactions').insert({
             statement_id: statementId,
             user_id: job.user_id,
-            business_id: job.business_id,
             transaction_date: txn.date,
             description: txn.description,
             debit: txn.debit,
             credit: txn.credit,
             balance: txn.balance,
-            reference_number: txn.reference,
+            reference: txn.reference,
             classification: classification.classification,
             category: classification.category,
             confidence: classification.confidence,
             classification_source: classification.source,
+            user_reviewed: false,
             ...nigerianFlags,
             compliance_flags: complianceFlags,
-            requires_user_confirmation: classification.confidence < 0.75 || complianceFlags.length > 0
+            metadata: { requires_confirmation: needsReview }
         });
     }
 
@@ -167,11 +169,11 @@ export class DocumentProcessor {
                 user_id: job.user_id,
                 business_id: job.business_id,
                 file_url: job.document_url,
-                upload_source: 'gateway',
                 processing_status: 'processing',
                 statement_start_date: transactions[0]?.date,
                 statement_end_date: transactions[transactions.length - 1]?.date,
-                total_transactions: transactions.length
+                transaction_count: transactions.length,
+                metadata: { upload_source: 'gateway' }
             })
             .select()
             .single();
@@ -193,7 +195,7 @@ export class DocumentProcessor {
 
         const sales = transactions.filter(t => t.classification === 'sale');
         const expenses = transactions.filter(t => t.classification === 'expense');
-        const needsReview = transactions.filter(t => t.requires_user_confirmation);
+        const needsReview = transactions.filter(t => t.confidence < 0.75 || !t.user_reviewed);
 
         return {
             transactions: transactions.length,
