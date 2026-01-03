@@ -190,23 +190,47 @@ export class OCRService {
                 maxPages
             });
 
-            // Google Vision batchAnnotateFiles supports PDF directly
-            const request = {
-                requests: [{
-                    inputConfig: {
-                        content: pdfBuffer.toString('base64'),
-                        mimeType: 'application/pdf'
-                    },
-                    features: [{ type: 'DOCUMENT_TEXT_DETECTION' as const }],
-                    // Process first N pages (Vision API limit is typically 5 for sync)
-                    pages: Array.from({ length: maxPages }, (_, i) => i + 1)
-                }]
+            // Generate page numbers (1-indexed, max 5 for sync API)
+            // Use -1 for last page if we want more than 5 pages
+            const effectiveMaxPages = Math.min(maxPages, 5);
+            const pages = effectiveMaxPages <= 5 
+                ? Array.from({ length: effectiveMaxPages }, (_, i) => i + 1)
+                : [1, 2, 3, 4, -1]; // First 4 pages + last page
+
+            // Build request per official Google Cloud Vision Node.js docs
+            // CRITICAL: content must be raw Buffer, NOT base64 string
+            // The Node.js client library handles the encoding internally
+            const inputConfig = {
+                mimeType: 'application/pdf',
+                content: pdfBuffer  // Raw Buffer - client handles encoding
             };
+
+            const fileRequest = {
+                inputConfig,
+                features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+                pages
+            };
+
+            const request = {
+                requests: [fileRequest]
+            };
+
+            logger.info('[OCR Service] Sending PDF to Vision API', {
+                pages,
+                mimeType: 'application/pdf'
+            });
 
             const [result] = await this.client.batchAnnotateFiles(request as any);
             
-            // Extract text from all pages
-            const responses = (result as any).responses?.[0]?.responses || [];
+            // Extract text from all pages - structure per official docs
+            const fileResponse = (result as any).responses?.[0];
+            const responses = fileResponse?.responses || [];
+            
+            if (responses.length === 0) {
+                logger.warn('[OCR Service] No responses from Vision API for PDF');
+                return { text: '', confidence: 0 };
+            }
+
             const pageTexts: string[] = [];
             let totalConfidence = 0;
             let confidenceCount = 0;
@@ -215,9 +239,9 @@ export class OCRService {
                 const pageText = response.fullTextAnnotation?.text || '';
                 pageTexts.push(pageText);
                 
-                // Calculate confidence from this page
-                const pages = response.fullTextAnnotation?.pages || [];
-                for (const page of pages) {
+                // Calculate confidence from pages
+                const pagesData = response.fullTextAnnotation?.pages || [];
+                for (const page of pagesData) {
                     for (const block of (page.blocks || [])) {
                         if (block.confidence !== undefined) {
                             totalConfidence += block.confidence;
@@ -233,15 +257,21 @@ export class OCRService {
             logger.info('[OCR Service] PDF processing complete', {
                 pagesProcessed: pageTexts.length,
                 textLength: fullText.length,
-                confidence
+                confidence,
+                hasText: fullText.length > 0
             });
 
             return {
                 text: fullText,
                 confidence
             };
-        } catch (error) {
-            logger.error('[OCR Service] PDF processing failed:', error);
+        } catch (error: any) {
+            logger.error('[OCR Service] PDF processing failed:', {
+                error: error.message,
+                code: error.code,
+                details: error.details,
+                bufferSize: pdfBuffer.length
+            });
             throw error;
         }
     }
