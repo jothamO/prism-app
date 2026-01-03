@@ -113,7 +113,7 @@ The more corrections you make, the smarter I get! 🚀
      */
     private async handlePatternFeedback(
         message: string,
-        context: SessionContext
+        context: SessionContext & { metadata: Record<string, unknown> }
     ): Promise<Static<typeof MessageResponseSchema>> {
         const patternId = context.metadata.reviewingPattern;
         const feedback = message.toLowerCase();
