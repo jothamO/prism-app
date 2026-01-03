@@ -51,8 +51,8 @@ export class BankStatementExtractor {
             const prompt = this.buildExtractionPrompt(documentContent.ocrConfidence);
 
             const response = await this.claude.messages.create({
-                model: 'claude-haiku-4-5-20251001',
-                max_tokens: 16384,
+                model: 'claude-sonnet-4-5-20250929',
+                max_tokens: 64000,
                 messages: [
                     {
                         role: 'user',
@@ -144,8 +144,8 @@ export class BankStatementExtractor {
                 }
 
                 const response = await this.claude.messages.create({
-                    model: 'claude-haiku-4-5-20251001',
-                    max_tokens: 16384,
+                    model: 'claude-sonnet-4-5-20250929',
+                    max_tokens: 64000,
                     messages: [{ role: 'user', content }]
                 });
 
