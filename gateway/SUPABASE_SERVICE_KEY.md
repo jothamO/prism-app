@@ -56,7 +56,7 @@ Variable Name: NODE_ENV
 Value: production
 
 Variable Name: ALLOWED_ORIGINS
-Value: https://prismtaxassistant.lovable.app
+Value: https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com
 
 Variable Name: MAX_SESSIONS
 Value: 10000
@@ -75,7 +75,8 @@ Value: 1000
 
 The error happened because Railway tried to parse `.env.example` as environment variables.
 
-**Solution**: 
+**Solution**:
+
 1. Delete all environment variables in Railway
 2. Add them one by one using the format above
 3. Click "Deploy" again
