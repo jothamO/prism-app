@@ -71,7 +71,7 @@ export class IdentityVerificationSkill {
         logger.info('[Mono API] Request', { url, method });
         
         const response = await fetch(url, options);
-        const data = await response.json();
+        const data: { message?: string } & Record<string, unknown> = await response.json();
 
         if (!response.ok) {
             logger.error('[Mono API] Error response', { status: response.status, data });
