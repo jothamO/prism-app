@@ -1,20 +1,15 @@
 /**
  * PDF Converter Service
- * Converts PDF documents to images for OCR processing
+ * Extracts text from PDF documents without native dependencies
  */
 
 import { logger } from '../utils/logger';
 
-export interface PDFPage {
-    pageNumber: number;
-    imageBuffer: Buffer;
-    width: number;
-    height: number;
-}
-
-export interface PDFConversionResult {
-    pages: PDFPage[];
+export interface PDFTextResult {
+    text: string;
+    pageTexts: string[];
     pageCount: number;
+    isTextBased: boolean;
 }
 
 /**
@@ -39,19 +34,17 @@ export function isPDF(buffer: Buffer, mediaType?: string): boolean {
 }
 
 /**
- * Convert PDF buffer to array of PNG images using pdf-lib and canvas
- * This is a server-side implementation for Node.js
+ * Extract text directly from PDF using pdfjs-dist
+ * Works for text-based PDFs without needing image rendering
  */
-export async function convertPDFToImages(pdfBuffer: Buffer, options: {
-    scale?: number;
+export async function extractTextFromPDF(pdfBuffer: Buffer, options: {
     maxPages?: number;
-} = {}): Promise<PDFConversionResult> {
-    const { scale = 2.0, maxPages = 50 } = options;
+} = {}): Promise<PDFTextResult> {
+    const { maxPages = 50 } = options;
     
     try {
-        logger.info('[PDF Converter] Starting PDF conversion', {
+        logger.info('[PDF Converter] Starting PDF text extraction', {
             bufferSize: pdfBuffer.length,
-            scale,
             maxPages
         });
 
@@ -73,72 +66,77 @@ export async function convertPDFToImages(pdfBuffer: Buffer, options: {
             processingPages: pageCount
         });
 
-        const pages: PDFPage[] = [];
-
-        // Import canvas for Node.js rendering
-        const { createCanvas } = await import('canvas');
+        const pageTexts: string[] = [];
+        let totalCharCount = 0;
 
         for (let i = 1; i <= pageCount; i++) {
             try {
                 const page = await pdfDocument.getPage(i);
-                const viewport = page.getViewport({ scale });
+                const textContent = await page.getTextContent();
                 
-                // Create canvas for rendering
-                const canvas = createCanvas(viewport.width, viewport.height);
-                const context = canvas.getContext('2d');
+                // Extract text from text content items
+                const pageText = textContent.items
+                    .filter((item: any) => 'str' in item)
+                    .map((item: any) => item.str)
+                    .join(' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
                 
-                // Render PDF page to canvas
-                await page.render({
-                    canvasContext: context as any,
-                    viewport: viewport
-                }).promise;
+                pageTexts.push(pageText);
+                totalCharCount += pageText.length;
                 
-                // Convert canvas to PNG buffer
-                const pngBuffer = canvas.toBuffer('image/png');
-                
-                pages.push({
+                logger.info('[PDF Converter] Page text extracted', {
                     pageNumber: i,
-                    imageBuffer: pngBuffer,
-                    width: viewport.width,
-                    height: viewport.height
-                });
-                
-                logger.info('[PDF Converter] Page converted', {
-                    pageNumber: i,
-                    width: viewport.width,
-                    height: viewport.height,
-                    imageSize: pngBuffer.length
+                    textLength: pageText.length
                 });
             } catch (pageError) {
-                logger.error('[PDF Converter] Failed to convert page', {
+                logger.error('[PDF Converter] Failed to extract page text', {
                     pageNumber: i,
                     error: pageError
                 });
-                // Continue with other pages
+                pageTexts.push(''); // Add empty string for failed pages
             }
         }
 
-        logger.info('[PDF Converter] Conversion complete', {
-            totalPagesConverted: pages.length
+        const fullText = pageTexts.join('\n\n--- Page Break ---\n\n');
+        
+        // Heuristic: if we got substantial text, it's a text-based PDF
+        // Bank statements typically have at least 500 chars per page
+        const isTextBased = totalCharCount > 100 && (totalCharCount / pageCount) > 50;
+
+        logger.info('[PDF Converter] Text extraction complete', {
+            totalPagesProcessed: pageTexts.length,
+            totalCharCount,
+            isTextBased
         });
 
         return {
-            pages,
-            pageCount: pages.length
+            text: fullText,
+            pageTexts,
+            pageCount: pageTexts.length,
+            isTextBased
         };
     } catch (error) {
-        logger.error('[PDF Converter] Conversion failed:', error);
-        throw new Error(`PDF conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        logger.error('[PDF Converter] Text extraction failed:', error);
+        throw new Error(`PDF text extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 
 /**
- * Extract base64 images from PDF for Claude API
+ * Get PDF page count without full extraction
  */
-export async function convertPDFToBase64Images(pdfBuffer: Buffer, options: {
-    scale?: number;
-    maxPages?: number;
-} = {}): Promise<string[]> {
-    const result = await convertPDFToImages(pdfBuffer, options);
-    return result.pages.map(page => page.imageBuffer.toString('base64'));
+export async function getPDFPageCount(pdfBuffer: Buffer): Promise<number> {
+    try {
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+        const loadingTask = pdfjsLib.getDocument({
+            data: new Uint8Array(pdfBuffer),
+            useSystemFonts: true,
+            disableFontFace: true
+        });
+        const pdfDocument = await loadingTask.promise;
+        return pdfDocument.numPages;
+    } catch (error) {
+        logger.error('[PDF Converter] Failed to get page count:', error);
+        return 0;
+    }
 }
