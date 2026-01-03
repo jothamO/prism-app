@@ -49,9 +49,10 @@ async function fetchFromCBNWithFirecrawl(): Promise<{ rates: CBNRate[]; rawHtml?
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        url: 'https://www.cbn.gov.ng/rates/ExchRateByCurrency.asp',
+        url: 'https://www.cbn.gov.ng/rates/ExchRateByCurrency.html',
         formats: ['html'],
-        waitFor: 5000, // Wait 5 seconds for Kendo grid to load
+        waitFor: 8000, // Wait 8 seconds for Kendo grid to load
+        onlyMainContent: false,
       }),
     });
 
@@ -170,20 +171,22 @@ function parseKendoGridRates(html: string): CBNRate[] {
   return rates;
 }
 
-// Manual fallback rates (updated periodically)
+// Manual fallback rates (updated 2026-01-02)
 function getFallbackRates(): CBNRate[] {
   const today = new Date().toISOString().split('T')[0];
   
-  // Fallback rates - should be updated manually as a last resort
+  // Fallback rates - updated with current CBN values
   return [
     { currency: 'USD', buyingRate: 1429.85, centralRate: 1430.35, sellingRate: 1430.85, date: today },
-    { currency: 'GBP', buyingRate: 1803.06, centralRate: 1803.56, sellingRate: 1804.06, date: today },
-    { currency: 'EUR', buyingRate: 1479.51, centralRate: 1480.01, sellingRate: 1480.51, date: today },
-    { currency: 'CHF', buyingRate: 1588.18, centralRate: 1588.68, sellingRate: 1589.18, date: today },
-    { currency: 'JPY', buyingRate: 9.06, centralRate: 9.07, sellingRate: 9.08, date: today },
-    { currency: 'CNY', buyingRate: 195.65, centralRate: 195.75, sellingRate: 195.85, date: today },
-    { currency: 'ZAR', buyingRate: 77.64, centralRate: 77.74, sellingRate: 77.84, date: today },
-    { currency: 'SAR', buyingRate: 381.21, centralRate: 381.31, sellingRate: 381.41, date: today },
+    { currency: 'GBP', buyingRate: 1924.43, centralRate: 1925.11, sellingRate: 1925.78, date: today },
+    { currency: 'EUR', buyingRate: 1677.07, centralRate: 1677.66, sellingRate: 1678.24, date: today },
+    { currency: 'CHF', buyingRate: 1803.09, centralRate: 1803.72, sellingRate: 1804.35, date: today },
+    { currency: 'JPY', buyingRate: 9.11, centralRate: 9.12, sellingRate: 9.12, date: today },
+    { currency: 'CNY', buyingRate: 204.43, centralRate: 204.50, sellingRate: 204.57, date: today },
+    { currency: 'ZAR', buyingRate: 86.60, centralRate: 86.63, sellingRate: 86.66, date: today },
+    { currency: 'SAR', buyingRate: 381.25, centralRate: 381.39, sellingRate: 381.52, date: today },
+    { currency: 'DKK', buyingRate: 224.50, centralRate: 224.58, sellingRate: 224.65, date: today },
+    { currency: 'XOF', buyingRate: 2.57, centralRate: 2.58, sellingRate: 2.59, date: today },
   ];
 }
 
