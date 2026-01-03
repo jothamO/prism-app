@@ -281,6 +281,225 @@ export type Database = {
           },
         ]
       }
+      bank_statements: {
+        Row: {
+          account_number: string | null
+          bank_name: string | null
+          business_id: string | null
+          classification_accuracy: number | null
+          classified_count: number | null
+          closing_balance: number | null
+          created_at: string | null
+          currency: string | null
+          error_message: string | null
+          file_hash: string | null
+          file_name: string | null
+          file_url: string
+          id: string
+          metadata: Json | null
+          opening_balance: number | null
+          processing_completed_at: string | null
+          processing_started_at: string | null
+          processing_status: string | null
+          statement_end_date: string | null
+          statement_start_date: string | null
+          total_credits: number | null
+          total_debits: number | null
+          transaction_count: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          account_number?: string | null
+          bank_name?: string | null
+          business_id?: string | null
+          classification_accuracy?: number | null
+          classified_count?: number | null
+          closing_balance?: number | null
+          created_at?: string | null
+          currency?: string | null
+          error_message?: string | null
+          file_hash?: string | null
+          file_name?: string | null
+          file_url: string
+          id?: string
+          metadata?: Json | null
+          opening_balance?: number | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          processing_status?: string | null
+          statement_end_date?: string | null
+          statement_start_date?: string | null
+          total_credits?: number | null
+          total_debits?: number | null
+          transaction_count?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          account_number?: string | null
+          bank_name?: string | null
+          business_id?: string | null
+          classification_accuracy?: number | null
+          classified_count?: number | null
+          closing_balance?: number | null
+          created_at?: string | null
+          currency?: string | null
+          error_message?: string | null
+          file_hash?: string | null
+          file_name?: string | null
+          file_url?: string
+          id?: string
+          metadata?: Json | null
+          opening_balance?: number | null
+          processing_completed_at?: string | null
+          processing_started_at?: string | null
+          processing_status?: string | null
+          statement_end_date?: string | null
+          statement_start_date?: string | null
+          total_credits?: number | null
+          total_debits?: number | null
+          transaction_count?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_statements_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_transactions: {
+        Row: {
+          balance: number | null
+          category: string | null
+          classification: string | null
+          classification_source: string | null
+          compliance_flags: Json | null
+          confidence: number | null
+          created_at: string | null
+          credit: number | null
+          debit: number | null
+          description: string
+          id: string
+          is_bank_charge: boolean | null
+          is_emtl: boolean | null
+          is_expense: boolean | null
+          is_nigerian_bank_charge: boolean | null
+          is_revenue: boolean | null
+          is_stamp_duty: boolean | null
+          is_tax_relevant: boolean | null
+          is_transfer: boolean | null
+          linked_expense_id: string | null
+          linked_invoice_id: string | null
+          metadata: Json | null
+          reference: string | null
+          statement_id: string | null
+          transaction_date: string
+          updated_at: string | null
+          user_correction: Json | null
+          user_id: string
+          user_reviewed: boolean | null
+          value_date: string | null
+          vat_amount: number | null
+          vat_applicable: boolean | null
+        }
+        Insert: {
+          balance?: number | null
+          category?: string | null
+          classification?: string | null
+          classification_source?: string | null
+          compliance_flags?: Json | null
+          confidence?: number | null
+          created_at?: string | null
+          credit?: number | null
+          debit?: number | null
+          description: string
+          id?: string
+          is_bank_charge?: boolean | null
+          is_emtl?: boolean | null
+          is_expense?: boolean | null
+          is_nigerian_bank_charge?: boolean | null
+          is_revenue?: boolean | null
+          is_stamp_duty?: boolean | null
+          is_tax_relevant?: boolean | null
+          is_transfer?: boolean | null
+          linked_expense_id?: string | null
+          linked_invoice_id?: string | null
+          metadata?: Json | null
+          reference?: string | null
+          statement_id?: string | null
+          transaction_date: string
+          updated_at?: string | null
+          user_correction?: Json | null
+          user_id: string
+          user_reviewed?: boolean | null
+          value_date?: string | null
+          vat_amount?: number | null
+          vat_applicable?: boolean | null
+        }
+        Update: {
+          balance?: number | null
+          category?: string | null
+          classification?: string | null
+          classification_source?: string | null
+          compliance_flags?: Json | null
+          confidence?: number | null
+          created_at?: string | null
+          credit?: number | null
+          debit?: number | null
+          description?: string
+          id?: string
+          is_bank_charge?: boolean | null
+          is_emtl?: boolean | null
+          is_expense?: boolean | null
+          is_nigerian_bank_charge?: boolean | null
+          is_revenue?: boolean | null
+          is_stamp_duty?: boolean | null
+          is_tax_relevant?: boolean | null
+          is_transfer?: boolean | null
+          linked_expense_id?: string | null
+          linked_invoice_id?: string | null
+          metadata?: Json | null
+          reference?: string | null
+          statement_id?: string | null
+          transaction_date?: string
+          updated_at?: string | null
+          user_correction?: Json | null
+          user_id?: string
+          user_reviewed?: boolean | null
+          value_date?: string | null
+          vat_amount?: number | null
+          vat_applicable?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_linked_expense_id_fkey"
+            columns: ["linked_expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_linked_invoice_id_fkey"
+            columns: ["linked_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bot_commands: {
         Row: {
           command: string
@@ -415,10 +634,12 @@ export type Database = {
       businesses: {
         Row: {
           annual_turnover: number | null
+          business_type: string | null
           classification: string | null
           classification_year: number | null
           created_at: string
           id: string
+          industry: string | null
           is_default: boolean | null
           is_primary: boolean | null
           is_professional_services: boolean | null
@@ -437,10 +658,12 @@ export type Database = {
         }
         Insert: {
           annual_turnover?: number | null
+          business_type?: string | null
           classification?: string | null
           classification_year?: number | null
           created_at?: string
           id?: string
+          industry?: string | null
           is_default?: boolean | null
           is_primary?: boolean | null
           is_professional_services?: boolean | null
@@ -459,10 +682,12 @@ export type Database = {
         }
         Update: {
           annual_turnover?: number | null
+          business_type?: string | null
           classification?: string | null
           classification_year?: number | null
           created_at?: string
           id?: string
+          industry?: string | null
           is_default?: boolean | null
           is_primary?: boolean | null
           is_professional_services?: boolean | null
@@ -534,6 +759,77 @@ export type Database = {
           whatsapp_id?: string | null
         }
         Relationships: []
+      }
+      document_processing_jobs: {
+        Row: {
+          attempts: number | null
+          completed_at: string | null
+          created_at: string | null
+          document_type: string
+          document_url: string | null
+          error_message: string | null
+          failed_at: string | null
+          id: string
+          max_attempts: number | null
+          metadata: Json | null
+          priority: number | null
+          processing_status: string | null
+          queued_at: string | null
+          result: Json | null
+          started_at: string | null
+          statement_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          document_type: string
+          document_url?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          id?: string
+          max_attempts?: number | null
+          metadata?: Json | null
+          priority?: number | null
+          processing_status?: string | null
+          queued_at?: string | null
+          result?: Json | null
+          started_at?: string | null
+          statement_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          document_type?: string
+          document_url?: string | null
+          error_message?: string | null
+          failed_at?: string | null
+          id?: string
+          max_attempts?: number | null
+          metadata?: Json | null
+          priority?: number | null
+          processing_status?: string | null
+          queued_at?: string | null
+          result?: Json | null
+          started_at?: string | null
+          statement_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_processing_jobs_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statements"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       emtl_charges: {
         Row: {
@@ -1974,6 +2270,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_pattern_usage: {
+        Args: { pattern_id: string }
+        Returns: undefined
       }
       upsert_business_pattern: {
         Args: {
