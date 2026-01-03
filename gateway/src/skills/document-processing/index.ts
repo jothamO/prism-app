@@ -21,6 +21,32 @@ export class DocumentProcessingSkill {
     name = 'document-processing';
 
     /**
+     * Look up user's database UUID from their platform-specific ID
+     */
+    private async getUserUUID(platformUserId: string, platform: string): Promise<string | null> {
+        const columnMap: Record<string, string> = {
+            'telegram': 'telegram_id',
+            'whatsapp': 'whatsapp_id',
+            'simulator': 'telegram_id'  // Simulator uses telegram_id for testing
+        };
+        
+        const column = columnMap[platform] || 'telegram_id';
+        
+        const { data, error } = await supabase
+            .from('users')
+            .select('id')
+            .eq(column, platformUserId)
+            .maybeSingle();
+        
+        if (error) {
+            logger.error('[DocumentProcessing] Failed to lookup user UUID:', error);
+            return null;
+        }
+        
+        return data?.id || null;
+    }
+
+    /**
      * Handle document processing request
      */
     async handle(
@@ -38,9 +64,23 @@ export class DocumentProcessingSkill {
                 };
             }
 
-            // Create processing job
+            // Resolve platform user ID to database UUID
+            const userUUID = await this.getUserUUID(context.userId, context.platform);
+            
+            if (!userUUID) {
+                logger.error('[DocumentProcessing] User not found in database', {
+                    platformUserId: context.userId,
+                    platform: context.platform
+                });
+                return {
+                    message: "❌ Please complete onboarding first by sending /start before uploading documents.",
+                    metadata: { skill: this.name, error: 'user_not_found' }
+                };
+            }
+
+            // Create processing job with proper UUID
             const job = await this.createProcessingJob({
-                userId: context.userId,
+                userId: userUUID,
                 businessId: context.metadata?.businessId,
                 documentUrl,
                 documentType: context.metadata?.documentType || 'bank_statement'
@@ -50,7 +90,8 @@ export class DocumentProcessingSkill {
             await this.queueProcessing(job.id);
 
             logger.info(`[DocumentProcessing] Job created: ${job.id}`, {
-                userId: context.userId,
+                platformUserId: context.userId,
+                userUUID,
                 documentType: job.document_type
             });
 
