@@ -2,20 +2,80 @@
  * Rule-Based Classifier
  * Nigerian-specific classification rules
  * Tier 2: Fast, high confidence for known patterns
+ * 
+ * Enhanced with Nigerian transaction detection integration
  */
 
 import { logger } from '../../../utils/logger';
 import type { ClassificationResult } from './business-pattern';
+import { NigerianDetectors } from '../nigerian-detectors';
 
 export class RuleBasedClassifier {
+    private nigerianDetectors: NigerianDetectors;
+
+    constructor() {
+        this.nigerianDetectors = new NigerianDetectors();
+    }
+
     /**
-     * Classify transaction using rule-based logic
+     * Classify transaction using rule-based logic with Nigerian context
      */
-    async classify(txn: any): Promise<ClassificationResult> {
+    async classify(txn: any, context?: { userId?: string; businessId?: string }): Promise<ClassificationResult> {
         const description = (txn.description || '').toLowerCase();
         const isCredit = txn.credit && txn.credit > 0;
         const isDebit = txn.debit && txn.debit > 0;
         const amount = txn.credit || txn.debit || 0;
+
+        // Get Nigerian flags for enhanced detection
+        const nigerianFlags = await this.nigerianDetectors.detect(txn, context);
+
+        // === Nigerian-Specific Rules (Highest Priority) ===
+
+        // EMTL (Electronic Money Transfer Levy)
+        if (nigerianFlags.isUSSD && description.match(/emtl|levy/i)) {
+            return {
+                classification: 'expense',
+                category: 'bank_charge_emtl',
+                confidence: 0.98,
+                source: 'rule_based',
+                reasoning: 'EMTL levy on USSD transaction'
+            };
+        }
+
+        // Capital injection detection
+        if (nigerianFlags.isCapitalInjection && isCredit) {
+            return {
+                classification: 'capital',
+                category: `capital_${nigerianFlags.capitalType || 'injection'}`,
+                confidence: 0.85,
+                source: 'rule_based',
+                reasoning: `Capital injection detected: ${nigerianFlags.capitalType}`
+            };
+        }
+
+        // Mobile money receipts (likely sales)
+        if (nigerianFlags.isMobileMoney && isCredit && amount > 1000) {
+            return {
+                classification: 'sale',
+                category: `mobile_money_${nigerianFlags.mobileMoneyProvider || 'sale'}`,
+                confidence: 0.82,
+                source: 'rule_based',
+                reasoning: `Mobile money credit via ${nigerianFlags.mobileMoneyProvider || 'provider'}`
+            };
+        }
+
+        // Foreign currency transactions
+        if (nigerianFlags.isForeignCurrency) {
+            return {
+                classification: isCredit ? 'sale' : 'expense',
+                category: `foreign_currency_${nigerianFlags.foreignCurrency?.toLowerCase() || 'transaction'}`,
+                confidence: 0.75,
+                source: 'rule_based',
+                reasoning: `Foreign currency transaction (${nigerianFlags.foreignCurrency})`
+            };
+        }
+
+        // === Standard Nigerian Rules ===
 
         // Salary/Wages
         if (description.match(/salary|wages|pay ?roll|staff ?pay/i)) {
@@ -40,12 +100,12 @@ export class RuleBasedClassifier {
         }
 
         // POS Terminal Payment (likely sale if credit)
-        if (description.match(/pos|payment ?terminal|card ?payment/i)) {
+        if (nigerianFlags.isPOS || description.match(/pos|payment ?terminal|card ?payment/i)) {
             if (isCredit) {
                 return {
                     classification: 'sale',
                     category: 'pos_sale',
-                    confidence: 0.85,
+                    confidence: 0.88,
                     source: 'rule_based',
                     reasoning: 'POS terminal credit = customer payment'
                 };
