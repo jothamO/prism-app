@@ -42,6 +42,13 @@ export const config = {
         maxTokens: 4000
     },
 
+    // Mono API (Identity Verification)
+    mono: {
+        secretKey: process.env.MONO_SECRET_KEY || '',
+        publicKey: process.env.MONO_PUBLIC_KEY || '',
+        baseUrl: 'https://api.withmono.com/v3'
+    },
+
     // CORS
     allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['https://prismtaxassistant.lovable.app'],
 

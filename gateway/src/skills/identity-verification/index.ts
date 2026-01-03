@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../../utils/logger';
-import { supabase } from '../../config';
+import { supabase, config } from '../../config';
 import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
@@ -17,11 +17,71 @@ export interface VerificationResult {
         businessName?: string;
         registrationNumber?: string;
         status?: string;
+        directors?: Array<{ name: string; designation?: string }>;
+        address?: string;
+        dateOfBirth?: string;
+        phone?: string;
     };
     error?: string;
 }
 
+interface MonoLookupResponse {
+    status: string;
+    message: string;
+    data?: any;
+}
+
 export class IdentityVerificationSkill {
+    private monoSecretKey: string;
+    private monoBaseUrl: string;
+
+    constructor() {
+        this.monoSecretKey = config.mono.secretKey;
+        this.monoBaseUrl = config.mono.baseUrl;
+    }
+
+    /**
+     * Check if Mono API is configured
+     */
+    private isMonoConfigured(): boolean {
+        return !!this.monoSecretKey && this.monoSecretKey.length > 0;
+    }
+
+    /**
+     * Make authenticated request to Mono API
+     */
+    private async monoRequest<T>(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: object): Promise<T> {
+        const url = `${this.monoBaseUrl}${endpoint}`;
+        
+        const headers: Record<string, string> = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'mono-sec-key': this.monoSecretKey
+        };
+
+        const options: RequestInit = {
+            method,
+            headers
+        };
+
+        if (body && method === 'POST') {
+            options.body = JSON.stringify(body);
+        }
+
+        logger.info('[Mono API] Request', { url, method });
+        
+        const response = await fetch(url, options);
+        const data = await response.json();
+
+        if (!response.ok) {
+            logger.error('[Mono API] Error response', { status: response.status, data });
+            throw new Error(data.message || `Mono API error: ${response.status}`);
+        }
+
+        logger.info('[Mono API] Success', { endpoint });
+        return data as T;
+    }
+
     /**
      * Handle identity verification request
      */
@@ -52,8 +112,10 @@ export class IdentityVerificationSkill {
             }
 
             // Show verification options
+            const monoStatus = this.isMonoConfigured() ? '✅ Live API' : '⚠️ Demo Mode';
+            
             return {
-                message: `🆔 Identity Verification\n\n` +
+                message: `🆔 Identity Verification (${monoStatus})\n\n` +
                     `I can verify the following IDs via Mono:\n\n` +
                     `*Personal IDs:*\n` +
                     `• NIN - National Identification Number\n` +
@@ -69,7 +131,7 @@ export class IdentityVerificationSkill {
                     [{ text: '🏢 Verify CAC', callback_data: 'verify_cac' }],
                     [{ text: '📋 Verify TIN', callback_data: 'verify_tin' }]
                 ],
-                metadata: { skill: 'identity-verification' }
+                metadata: { skill: 'identity-verification', monoConfigured: this.isMonoConfigured() }
             };
         } catch (error) {
             logger.error('[Identity Skill] Error:', error);
@@ -87,7 +149,6 @@ export class IdentityVerificationSkill {
         message: string,
         context: SessionContext
     ): Promise<Static<typeof MessageResponseSchema>> {
-        // Extract NIN from message
         const ninMatch = message.match(/\b(\d{11})\b/);
         
         if (!ninMatch) {
@@ -98,26 +159,64 @@ export class IdentityVerificationSkill {
         }
 
         const nin = ninMatch[1];
-        logger.info('[Identity Skill] Verifying NIN', { userId: context.userId, nin: nin.substring(0, 4) + '***' });
+        const maskedNin = nin.substring(0, 4) + '****' + nin.substring(8);
+        logger.info('[Identity Skill] Verifying NIN', { userId: context.userId, maskedNin });
 
-        // For now, simulate verification (would call Mono API in production)
-        // In production: Use MONO_SECRET_KEY to call Mono v3 Lookup API
-        
-        return {
-            message: `🆔 NIN Verification\n` +
-                `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                `NIN: ${nin.substring(0, 4)}****${nin.substring(8)}\n\n` +
-                `⏳ *Verification in progress...*\n\n` +
-                `This typically takes 5-10 seconds.\n` +
-                `You'll receive a confirmation once verified.\n\n` +
-                `💡 NIN verification via NIMC database.`,
-            metadata: {
-                skill: 'identity-verification',
-                idType: 'nin',
-                status: 'pending',
-                maskedId: nin.substring(0, 4) + '****' + nin.substring(8)
-            }
-        };
+        // Check if Mono is configured
+        if (!this.isMonoConfigured()) {
+            return this.demoVerificationResponse('nin', maskedNin);
+        }
+
+        try {
+            // Call Mono NIN Lookup API
+            const response = await this.monoRequest<MonoLookupResponse>(
+                '/lookup/nin',
+                'POST',
+                { nin }
+            );
+
+            const data = response.data;
+            
+            // Store verification in database
+            await this.storeVerification(context.userId, 'nin', nin, data);
+
+            return {
+                message: `🆔 NIN Verification ✅\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `*Name:* ${data?.first_name || ''} ${data?.middle_name || ''} ${data?.last_name || ''}\n` +
+                    `*Gender:* ${data?.gender || 'N/A'}\n` +
+                    `*DOB:* ${data?.birthdate || 'N/A'}\n` +
+                    `*Phone:* ${data?.phone || 'N/A'}\n\n` +
+                    `✅ NIN verified successfully via NIMC.\n\n` +
+                    `💡 This information is now saved to your profile.`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'nin',
+                    status: 'verified',
+                    verificationSource: 'mono',
+                    data: {
+                        fullName: `${data?.first_name || ''} ${data?.last_name || ''}`.trim(),
+                        phone: data?.phone,
+                        dateOfBirth: data?.birthdate
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('[Identity Skill] NIN verification failed', { error });
+            return {
+                message: `🆔 NIN Verification ❌\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `NIN: ${maskedNin}\n\n` +
+                    `❌ Verification failed: ${(error as Error).message}\n\n` +
+                    `Please check the NIN and try again.`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'nin',
+                    status: 'failed',
+                    error: (error as Error).message
+                }
+            };
+        }
     }
 
     /**
@@ -138,22 +237,59 @@ export class IdentityVerificationSkill {
         }
 
         const tin = tinMatch[1];
-        logger.info('[Identity Skill] Verifying TIN', { userId: context.userId, tin: tin.substring(0, 4) + '***' });
+        const maskedTin = tin.substring(0, 4) + '****';
+        logger.info('[Identity Skill] Verifying TIN', { userId: context.userId, maskedTin });
 
-        return {
-            message: `📋 TIN Verification\n` +
-                `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                `TIN: ${tin.substring(0, 4)}****\n\n` +
-                `⏳ *Verifying with FIRS...*\n\n` +
-                `This confirms your tax registration status.\n\n` +
-                `💡 TIN verification via FIRS JTB database.`,
-            metadata: {
-                skill: 'identity-verification',
-                idType: 'tin',
-                status: 'pending',
-                maskedId: tin.substring(0, 4) + '****'
-            }
-        };
+        if (!this.isMonoConfigured()) {
+            return this.demoVerificationResponse('tin', maskedTin);
+        }
+
+        try {
+            // Call Mono TIN Lookup API
+            const response = await this.monoRequest<MonoLookupResponse>(
+                '/lookup/tin',
+                'POST',
+                { number: tin, channel: 'tin' }
+            );
+
+            const data = response.data;
+            
+            await this.storeVerification(context.userId, 'tin', tin, data);
+
+            return {
+                message: `📋 TIN Verification ✅\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `*Name:* ${data?.taxpayer_name || 'N/A'}\n` +
+                    `*TIN:* ${data?.tin || maskedTin}\n` +
+                    `*Status:* ${data?.status || 'N/A'}\n` +
+                    `*Tax Office:* ${data?.tax_office || 'N/A'}\n\n` +
+                    `✅ TIN verified via FIRS JTB.\n\n` +
+                    `💡 Your tax registration is confirmed.`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'tin',
+                    status: 'verified',
+                    verificationSource: 'mono',
+                    data: {
+                        fullName: data?.taxpayer_name,
+                        registrationNumber: data?.tin
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('[Identity Skill] TIN verification failed', { error });
+            return {
+                message: `📋 TIN Verification ❌\n\n` +
+                    `TIN: ${maskedTin}\n\n` +
+                    `❌ Verification failed: ${(error as Error).message}`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'tin',
+                    status: 'failed',
+                    error: (error as Error).message
+                }
+            };
+        }
     }
 
     /**
@@ -163,7 +299,6 @@ export class IdentityVerificationSkill {
         message: string,
         context: SessionContext
     ): Promise<Static<typeof MessageResponseSchema>> {
-        // Match RC number or BN number
         const cacMatch = message.match(/\b(?:RC|BN)?[\s-]?(\d{5,10})\b/i);
         
         if (!cacMatch) {
@@ -178,27 +313,96 @@ export class IdentityVerificationSkill {
 
         const regNumber = cacMatch[1];
         const prefix = message.toUpperCase().includes('BN') ? 'BN' : 'RC';
+        const fullRegNumber = `${prefix}${regNumber}`;
         
-        logger.info('[Identity Skill] Verifying CAC', { userId: context.userId, regNumber: prefix + regNumber });
+        logger.info('[Identity Skill] Verifying CAC', { userId: context.userId, regNumber: fullRegNumber });
 
-        return {
-            message: `🏢 CAC Verification\n` +
-                `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                `Registration: ${prefix}${regNumber}\n\n` +
-                `⏳ *Verifying with CAC...*\n\n` +
-                `This will confirm:\n` +
-                `• Business name\n` +
-                `• Registration status\n` +
-                `• Directors (if Company)\n\n` +
-                `💡 Verification via CAC Public Registry.`,
-            metadata: {
-                skill: 'identity-verification',
-                idType: 'cac',
-                status: 'pending',
-                registrationType: prefix,
-                registrationNumber: regNumber
+        if (!this.isMonoConfigured()) {
+            return this.demoVerificationResponse('cac', fullRegNumber);
+        }
+
+        try {
+            // Search for company
+            const searchResponse = await this.monoRequest<MonoLookupResponse>(
+                `/lookup/cac/search?query=${encodeURIComponent(regNumber)}`,
+                'GET'
+            );
+
+            const companies = searchResponse.data || [];
+            
+            if (companies.length === 0) {
+                return {
+                    message: `🏢 CAC Verification\n\n` +
+                        `Registration: ${fullRegNumber}\n\n` +
+                        `❌ No company found with this registration number.\n\n` +
+                        `Please check the number and try again.`,
+                    metadata: {
+                        skill: 'identity-verification',
+                        idType: 'cac',
+                        status: 'not_found'
+                    }
+                };
             }
-        };
+
+            const company = companies[0];
+            
+            // Get directors if available
+            let directorsText = '';
+            if (company.id) {
+                try {
+                    const directorsResponse = await this.monoRequest<MonoLookupResponse>(
+                        `/lookup/cac/company/${company.id}/directors`,
+                        'GET'
+                    );
+                    const directors = directorsResponse.data || [];
+                    if (directors.length > 0) {
+                        directorsText = '\n\n*Directors:*\n' + 
+                            directors.slice(0, 3).map((d: any) => `• ${d.name}`).join('\n');
+                    }
+                } catch (e) {
+                    logger.warn('[Identity Skill] Could not fetch directors', { error: e });
+                }
+            }
+
+            await this.storeVerification(context.userId, 'cac', fullRegNumber, company);
+
+            return {
+                message: `🏢 CAC Verification ✅\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `*Company:* ${company.name || 'N/A'}\n` +
+                    `*RC Number:* ${company.rc_number || fullRegNumber}\n` +
+                    `*Status:* ${company.status || 'Active'}\n` +
+                    `*Type:* ${company.company_type || 'N/A'}\n` +
+                    `*Address:* ${company.address || 'N/A'}` +
+                    directorsText + `\n\n` +
+                    `✅ Business verified via CAC Public Registry.`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'cac',
+                    status: 'verified',
+                    verificationSource: 'mono',
+                    data: {
+                        businessName: company.name,
+                        registrationNumber: company.rc_number || fullRegNumber,
+                        status: company.status,
+                        address: company.address
+                    }
+                }
+            };
+        } catch (error) {
+            logger.error('[Identity Skill] CAC verification failed', { error });
+            return {
+                message: `🏢 CAC Verification ❌\n\n` +
+                    `Registration: ${fullRegNumber}\n\n` +
+                    `❌ Verification failed: ${(error as Error).message}`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'cac',
+                    status: 'failed',
+                    error: (error as Error).message
+                }
+            };
+        }
     }
 
     /**
@@ -224,21 +428,129 @@ export class IdentityVerificationSkill {
         }
 
         const bvn = bvnMatch[1];
-        logger.info('[Identity Skill] BVN verification requested', { userId: context.userId });
+        const maskedBvn = bvn.substring(0, 4) + '****' + bvn.substring(8);
+        logger.info('[Identity Skill] BVN verification requested', { userId: context.userId, maskedBvn });
+
+        if (!this.isMonoConfigured()) {
+            return this.demoVerificationResponse('bvn', maskedBvn);
+        }
+
+        try {
+            // Call Mono BVN Accounts Lookup
+            const response = await this.monoRequest<MonoLookupResponse>(
+                '/lookup/bvn/accounts',
+                'POST',
+                { bvn }
+            );
+
+            const accounts = response.data || [];
+            
+            await this.storeVerification(context.userId, 'bvn', bvn, { accounts });
+
+            const accountsList = accounts.slice(0, 3).map((a: any) => 
+                `• ${a.bank_name}: ${a.account_number?.slice(-4) || '****'}`
+            ).join('\n');
+
+            return {
+                message: `🏦 BVN Verification ✅\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                    `BVN: ${maskedBvn}\n\n` +
+                    `*Linked Accounts:*\n${accountsList || 'No accounts found'}\n\n` +
+                    `✅ BVN verified via NIBSS.\n\n` +
+                    `⚠️ This data is protected under CBN regulations.`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'bvn',
+                    status: 'verified',
+                    verificationSource: 'mono',
+                    accountCount: accounts.length
+                }
+            };
+        } catch (error) {
+            logger.error('[Identity Skill] BVN verification failed', { error });
+            return {
+                message: `🏦 BVN Verification ❌\n\n` +
+                    `BVN: ${maskedBvn}\n\n` +
+                    `❌ Verification failed: ${(error as Error).message}`,
+                metadata: {
+                    skill: 'identity-verification',
+                    idType: 'bvn',
+                    status: 'failed',
+                    error: (error as Error).message
+                }
+            };
+        }
+    }
+
+    /**
+     * Store verification result in database
+     */
+    private async storeVerification(
+        userId: string,
+        idType: string,
+        idValue: string,
+        data: any
+    ): Promise<void> {
+        try {
+            // Update user's verification data
+            const { error } = await supabase
+                .from('users')
+                .update({
+                    verification_status: 'verified',
+                    verification_source: 'mono',
+                    verified_at: new Date().toISOString(),
+                    verification_data: {
+                        [idType]: {
+                            verified: true,
+                            verifiedAt: new Date().toISOString(),
+                            maskedId: idValue.length > 8 
+                                ? idValue.substring(0, 4) + '****' + idValue.slice(-4)
+                                : idValue.substring(0, 4) + '****',
+                            data: data
+                        }
+                    }
+                })
+                .eq('id', userId);
+
+            if (error) {
+                logger.warn('[Identity Skill] Failed to store verification', { error, userId });
+            } else {
+                logger.info('[Identity Skill] Verification stored', { userId, idType });
+            }
+        } catch (e) {
+            logger.error('[Identity Skill] Store verification error', { error: e });
+        }
+    }
+
+    /**
+     * Return demo response when Mono is not configured
+     */
+    private demoVerificationResponse(
+        idType: string,
+        maskedId: string
+    ): Static<typeof MessageResponseSchema> {
+        const typeLabels: Record<string, string> = {
+            'nin': '🆔 NIN',
+            'tin': '📋 TIN',
+            'cac': '🏢 CAC',
+            'bvn': '🏦 BVN'
+        };
 
         return {
-            message: `🏦 BVN Verification\n` +
+            message: `${typeLabels[idType] || '🆔'} Verification (Demo)\n` +
                 `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                `BVN: ${bvn.substring(0, 4)}****${bvn.substring(8)}\n\n` +
-                `⏳ *Verifying with NIBSS...*\n\n` +
-                `This confirms your bank identity.\n\n` +
-                `⚠️ BVN data is sensitive and protected\n` +
-                `under CBN regulations.`,
+                `ID: ${maskedId}\n\n` +
+                `⚠️ *Demo Mode*\n\n` +
+                `MONO_SECRET_KEY is not configured.\n` +
+                `Live verification is disabled.\n\n` +
+                `💡 Add MONO_SECRET_KEY to Railway\n` +
+                `environment variables to enable\n` +
+                `real ID verification.`,
             metadata: {
                 skill: 'identity-verification',
-                idType: 'bvn',
-                status: 'pending',
-                maskedId: bvn.substring(0, 4) + '****' + bvn.substring(8)
+                idType,
+                status: 'demo',
+                monoConfigured: false
             }
         };
     }
