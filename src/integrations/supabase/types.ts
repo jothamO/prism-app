@@ -2282,6 +2282,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      find_similar_pattern: {
+        Args: {
+          p_business_id: string
+          p_description: string
+          p_threshold?: number
+        }
+        Returns: {
+          category: string
+          confidence: number
+          id: string
+          item_pattern: string
+          similarity: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

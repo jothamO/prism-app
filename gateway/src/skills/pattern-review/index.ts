@@ -4,11 +4,11 @@
  * Command: "review patterns" or "show what you learned"
  */
 
-import { logger } from '../../../utils/logger';
-import type { SessionContext } from '../../../session-manager';
+import { logger } from '../../utils/logger';
+import type { SessionContext } from '../../session-manager';
 import type { Static } from '@sinclair/typebox';
-import type { MessageResponseSchema } from '../../../protocol';
-import { PatternLearner, type LearnedPattern } from '../feedback/pattern-learner';
+import type { MessageResponseSchema } from '../../protocol';
+import { PatternLearner, type LearnedPattern } from '../document-processing/feedback/pattern-learner';
 
 export class PatternReviewSkill {
     name = 'pattern-review';
@@ -50,9 +50,9 @@ export class PatternReviewSkill {
                 message: this.formatPatternsMessage(patterns),
                 metadata: {
                     skill: this.name,
-                    patterns: patterns.map(p => ({
+                    patterns: patterns.map((p: LearnedPattern) => ({
                         id: p.id,
-                        pattern: p.item_pattern,
+                        pattern: p.itemPattern,
                         category: p.category,
                         confidence: p.confidence
                     }))
@@ -62,7 +62,7 @@ export class PatternReviewSkill {
             logger.error('[PatternReview] Error:', error);
             return {
                 message: "❌ Failed to retrieve patterns. Please try again.",
-                metadata: { skill: this.name, error: error.message }
+                metadata: { skill: this.name, error: error instanceof Error ? error.message : String(error) }
             };
         }
     }
@@ -83,13 +83,13 @@ export class PatternReviewSkill {
             return `${Math.floor(daysDiff / 30)} months ago`;
         };
 
-        const patternsList = patterns.map((p, i) => {
+        const patternsList = patterns.map((p: LearnedPattern, i: number) => {
             const confidenceEmoji = p.confidence >= 0.9 ? '🟢' : p.confidence >= 0.75 ? '🟡' : '🟠';
 
-            return `${i + 1}. ${confidenceEmoji} "${p.item_pattern}" → **${p.category}**
+            return `${i + 1}. ${confidenceEmoji} "${p.itemPattern}" → **${p.category}**
    • Confidence: ${Math.round(p.confidence * 100)}%
    • Seen: ${p.occurrences} time${p.occurrences !== 1 ? 's' : ''}
-   • Last: ${formatDate(p.last_seen_at)}`;
+   • Last: ${formatDate(p.lastSeenAt)}`;
         }).join('\n\n');
 
         return `
