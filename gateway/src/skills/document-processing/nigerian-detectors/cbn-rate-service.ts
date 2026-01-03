@@ -30,25 +30,27 @@ export class CBNRateService {
 
     /**
      * Get exchange rate for a currency on a specific date
+     * Priority: 1. Cache 2. Edge Function 3. Fallback
      */
     async getRate(currency: string, date: Date = new Date()): Promise<ExchangeRate> {
         try {
             // Try cache first
             const cachedRate = await this.getCachedRate(currency, date);
             if (cachedRate) {
+                logger.info(`[CBNRateService] Using cached rate for ${currency}: ${cachedRate.rate}`);
                 return cachedRate;
             }
 
-            // Try CBN API (if available)
-            // TODO: Implement actual CBN API integration when available
-            // const apiRate = await this.fetchFromCBN(currency, date);
-            // if (apiRate) {
-            //     await this.cacheRate(apiRate);
-            //     return apiRate;
-            // }
+            // Try to get recent rate (within last 7 days) from database
+            const recentRate = await this.getRecentRate(currency);
+            if (recentRate) {
+                logger.info(`[CBNRateService] Using recent rate for ${currency}: ${recentRate.rate} from ${recentRate.date}`);
+                return recentRate;
+            }
 
             // Fallback to hardcoded rates
             const fallbackRate = this.getFallbackRate(currency, date);
+            logger.warn(`[CBNRateService] Using fallback rate for ${currency}: ${fallbackRate.rate}`);
 
             // Cache the fallback rate for the day
             await this.cacheRate(fallbackRate);
@@ -58,6 +60,34 @@ export class CBNRateService {
             logger.error('[CBNRateService] Failed to get rate:', error);
             return this.getFallbackRate(currency, date);
         }
+    }
+
+    /**
+     * Get most recent rate from database (within last 7 days)
+     */
+    private async getRecentRate(currency: string): Promise<ExchangeRate | null> {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const { data } = await supabase
+            .from('cbn_exchange_rates')
+            .select('*')
+            .eq('currency', currency)
+            .gte('rate_date', sevenDaysAgo.toISOString().split('T')[0])
+            .order('rate_date', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (data) {
+            return {
+                currency: data.currency,
+                rate: data.rate,
+                date: data.rate_date,
+                source: data.source === 'cbn_scrape' ? 'cbn_api' : 'cached'
+            };
+        }
+
+        return null;
     }
 
     /**

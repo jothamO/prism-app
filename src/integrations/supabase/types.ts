@@ -782,6 +782,39 @@ export type Database = {
         }
         Relationships: []
       }
+      cbn_rate_logs: {
+        Row: {
+          created_at: string | null
+          currencies_updated: number | null
+          error_message: string | null
+          fetch_date: string
+          id: string
+          raw_response: Json | null
+          source: string
+          success: boolean
+        }
+        Insert: {
+          created_at?: string | null
+          currencies_updated?: number | null
+          error_message?: string | null
+          fetch_date?: string
+          id?: string
+          raw_response?: Json | null
+          source?: string
+          success: boolean
+        }
+        Update: {
+          created_at?: string | null
+          currencies_updated?: number | null
+          error_message?: string | null
+          fetch_date?: string
+          id?: string
+          raw_response?: Json | null
+          source?: string
+          success?: boolean
+        }
+        Relationships: []
+      }
       chatbot_sessions: {
         Row: {
           context: Json | null
@@ -2337,7 +2370,37 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      transaction_analytics: {
+        Row: {
+          ai_classified_count: number | null
+          avg_confidence: number | null
+          bank_charge_count: number | null
+          business_id: string | null
+          emtl_count: number | null
+          foreign_currency_count: number | null
+          mobile_money_count: number | null
+          pattern_classified_count: number | null
+          period: string | null
+          pos_count: number | null
+          rule_classified_count: number | null
+          total_count: number | null
+          total_credits: number | null
+          total_debits: number | null
+          total_vat: number | null
+          user_id: string | null
+          ussd_count: number | null
+          vat_applicable_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       find_similar_pattern: {
@@ -2365,6 +2428,7 @@ export type Database = {
         Args: { pattern_id: string }
         Returns: undefined
       }
+      refresh_transaction_analytics: { Args: never; Returns: undefined }
       upsert_business_pattern: {
         Args: {
           p_amount?: number

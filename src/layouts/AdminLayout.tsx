@@ -17,7 +17,8 @@ import {
   Brain,
   FolderKanban,
   Bot,
-  Activity
+  Activity,
+  Sparkles
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -43,6 +44,7 @@ export default function AdminLayout() {
     { name: "Simulator", path: "/admin/simulator", icon: Smartphone },
     { name: "NLU Testing", path: "/admin/nlu-testing", icon: Brain },
     { name: "VAT Testing", path: "/admin/vat-testing", icon: FlaskConical },
+    { name: "Patterns", path: "/admin/patterns", icon: Sparkles },
     { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
 
