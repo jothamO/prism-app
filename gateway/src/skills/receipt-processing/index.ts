@@ -139,34 +139,42 @@ export class ReceiptProcessingSkill {
     }
 
     /**
-     * Extract data from receipt image using AI
+     * Extract data from receipt image using OCR + AI
      */
     private async extractReceiptData(imageUrl: string): Promise<ExtractedReceipt | null> {
         try {
-            // Fetch image and convert to base64
-            const response = await fetch(imageUrl);
-            const arrayBuffer = await response.arrayBuffer();
-            const base64 = Buffer.from(arrayBuffer).toString('base64');
-            const mediaType = response.headers.get('content-type') || 'image/jpeg';
+            // Import OCR service
+            const { ocrService } = await import('../../services/ocr-service');
 
-            const aiResponse = await this.anthropic.messages.create({
-                model: config.anthropic.model,
-                max_tokens: 1024,
-                messages: [{
-                    role: 'user',
-                    content: [
-                        {
-                            type: 'image',
-                            source: {
-                                type: 'base64',
-                                media_type: (mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                                data: base64
-                            }
-                        },
-                        {
-                            type: 'text',
-                            text: `Extract receipt information from this image.
+            // Download image
+            const { buffer, mediaType } = await ocrService.downloadImage(imageUrl);
+            const base64 = buffer.toString('base64');
 
+            let extractedText: string | null = null;
+            let ocrConfidence = 0;
+
+            // Try Google Cloud Vision OCR if available
+            if (ocrService.isAvailable() && config.vision.enabled) {
+                try {
+                    logger.info('[Receipt Skill] Using Google Cloud Vision OCR');
+                    const ocrResult = await ocrService.extractReceiptText(buffer);
+
+                    if (ocrResult.text && ocrResult.text.length > 20) {
+                        extractedText = ocrResult.text;
+                        ocrConfidence = ocrResult.confidence;
+                        logger.info('[Receipt Skill] OCR successful', {
+                            textLength: ocrResult.text.length,
+                            confidence: ocrResult.confidence
+                        });
+                    }
+                } catch (ocrError) {
+                    logger.error('[Receipt Skill] OCR failed, falling back to vision:', ocrError);
+                }
+            }
+
+            // Build AI request - use text if OCR succeeded, otherwise use image
+            const promptText = `Extract receipt information from this ${extractedText ? 'text' : 'image'}.
+${extractedText ? `\nOCR Extracted Text (${(ocrConfidence * 100).toFixed(0)}% confidence):\n${extractedText}\n` : ''}
 Return a JSON object with:
 {
   "vendor": "store/business name",
@@ -182,9 +190,26 @@ If Nigerian receipt, look for:
 - VAT @ 7.5%
 - Common vendors: Shoprite, Spar, Total, NNPC, MTN, etc.
 
-Return ONLY the JSON, no other text.`
-                        }
-                    ]
+Return ONLY the JSON, no other text.`;
+
+            const aiResponse = await this.anthropic.messages.create({
+                model: config.anthropic.model,
+                max_tokens: 1024,
+                messages: [{
+                    role: 'user',
+                    content: extractedText
+                        ? [{ type: 'text' as const, text: promptText }]
+                        : [
+                            {
+                                type: 'image' as const,
+                                source: {
+                                    type: 'base64' as const,
+                                    media_type: (mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                                    data: base64
+                                }
+                            },
+                            { type: 'text' as const, text: promptText }
+                        ]
                 }]
             });
 
@@ -200,13 +225,19 @@ Return ONLY the JSON, no other text.`
             }
 
             const parsed = JSON.parse(jsonMatch[0]);
+
+            // Combine OCR confidence with AI confidence
+            const finalConfidence = extractedText
+                ? (ocrConfidence * 0.4 + (parsed.confidence || 0.5) * 0.6)
+                : (parsed.confidence || 0.5);
+
             return {
                 vendor: parsed.vendor || 'Unknown Vendor',
                 amount: parsed.amount || 0,
                 date: parsed.date || new Date().toISOString().split('T')[0],
                 category: parsed.category || 'other',
                 vatAmount: parsed.vatAmount,
-                confidence: parsed.confidence || 0.5,
+                confidence: finalConfidence,
                 items: parsed.items
             };
         } catch (error) {
