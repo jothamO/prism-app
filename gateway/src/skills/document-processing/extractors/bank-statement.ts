@@ -52,7 +52,7 @@ export class BankStatementExtractor {
 
             const response = await this.claude.messages.create({
                 model: 'claude-3-5-haiku-20241022',
-                max_tokens: 45000,
+                max_tokens: 8192,
                 messages: [
                     {
                         role: 'user',
@@ -145,7 +145,7 @@ export class BankStatementExtractor {
 
                 const response = await this.claude.messages.create({
                     model: 'claude-3-5-haiku-20241022',
-                    max_tokens: 45000,
+                    max_tokens: 8192,
                     messages: [{ role: 'user', content }]
                 });
 
