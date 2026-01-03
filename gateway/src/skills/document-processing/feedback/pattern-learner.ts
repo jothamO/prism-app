@@ -18,12 +18,13 @@ export interface PatternUpdate {
 
 export interface LearnedPattern {
     id: string;
-    itemPattern: string;
+    itemPattern: string;           // DB: item_pattern
     category: string;
     confidence: number;
-    occurrences: number;
-    correctPredictions: number;
-    lastSeenAt: string;
+    occurrences: number;           // DB: occurrence_count
+    correctPredictions: number;    // DB: correct_predictions
+    lastSeenAt: string;            // DB: last_used_at
+    averageAmount?: number;        // Calculated: total_amount / occurrence_count
 }
 
 export class PatternLearner {
@@ -76,7 +77,21 @@ export class PatternLearner {
             throw error;
         }
 
-        return data;
+        if (!data) return null;
+
+        // Map DB columns to interface
+        return {
+            id: data.id,
+            itemPattern: data.item_pattern,
+            category: data.category,
+            confidence: data.confidence,
+            occurrences: data.occurrence_count,
+            correctPredictions: data.correct_predictions,
+            lastSeenAt: data.last_used_at,
+            averageAmount: data.occurrence_count > 0 
+                ? data.total_amount / data.occurrence_count 
+                : undefined
+        };
     }
 
     /**
@@ -98,18 +113,21 @@ export class PatternLearner {
             currentConfidence: existing.confidence
         });
 
-        // Update pattern
+        // Calculate new total amount
+        const existingTotal = (existing.averageAmount || 0) * existing.occurrences;
+        const newTotal = update.amount 
+            ? existingTotal + update.amount
+            : existingTotal;
+
+        // Update pattern using correct DB column names
         const { error } = await supabase
             .from('business_classification_patterns')
             .update({
-                occurrences: newOccurrences,
+                occurrence_count: newOccurrences,
                 correct_predictions: newCorrectPredictions,
                 confidence: newConfidence,
-                average_amount: update.amount
-                    ? this.updateMovingAverage(existing.average_amount, update.amount, existing.occurrences)
-                    : existing.average_amount,
-                last_seen_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                total_amount: newTotal,
+                last_used_at: new Date().toISOString()
             })
             .eq('id', existing.id);
 
@@ -126,15 +144,14 @@ export class PatternLearner {
         const { error } = await supabase
             .from('business_classification_patterns')
             .insert({
-                user_id: update.userId,
                 business_id: update.businessId,
                 item_pattern: normalizedPattern,
                 category: update.category,
                 confidence: 0.70, // Initial confidence
-                occurrences: 1,
+                occurrence_count: 1,
                 correct_predictions: update.isCorrection ? 0 : 1,
-                average_amount: update.amount,
-                last_seen_at: new Date().toISOString()
+                total_amount: update.amount || 0,
+                last_used_at: new Date().toISOString()
             });
 
         if (error) throw error;
@@ -221,10 +238,23 @@ export class PatternLearner {
             .select('*')
             .eq('business_id', businessId)
             .order('confidence', { ascending: false })
-            .order('occurrences', { ascending: false })
+            .order('occurrence_count', { ascending: false })
             .limit(limit);
 
         if (error) throw error;
-        return data || [];
+
+        // Map DB columns to interface
+        return (data || []).map(row => ({
+            id: row.id,
+            itemPattern: row.item_pattern,
+            category: row.category,
+            confidence: row.confidence,
+            occurrences: row.occurrence_count,
+            correctPredictions: row.correct_predictions,
+            lastSeenAt: row.last_used_at,
+            averageAmount: row.occurrence_count > 0 
+                ? row.total_amount / row.occurrence_count 
+                : undefined
+        }));
     }
 }
