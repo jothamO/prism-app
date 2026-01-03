@@ -1,11 +1,29 @@
 /**
  * Gateway Configuration
+ * Centralized config for environment variables and settings
  */
 
 import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 
+// Load environment variables
 dotenv.config();
 
+// Required environment variables
+const requiredEnvVars = [
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_KEY',
+    'ANTHROPIC_API_KEY'
+];
+
+// Validate required environment variables
+for (const varName of requiredEnvVars) {
+    if (!process.env[varName]) {
+        throw new Error(`Missing required environment variable: ${varName}`);
+    }
+}
+
+// Export configuration
 export const config = {
     // Server
     port: parseInt(process.env.PORT || '18789', 10),
@@ -13,36 +31,67 @@ export const config = {
 
     // Supabase
     supabase: {
-        url: process.env.SUPABASE_URL || '',
-        serviceKey: process.env.SUPABASE_SERVICE_KEY || ''
+        url: process.env.SUPABASE_URL!,
+        serviceKey: process.env.SUPABASE_SERVICE_KEY!
     },
 
-    // Anthropic
+    // Anthropic/Claude
     anthropic: {
-        apiKey: process.env.ANTHROPIC_API_KEY || ''
+        apiKey: process.env.ANTHROPIC_API_KEY!,
+        model: 'claude-3-5-haiku-20241022',
+        maxTokens: 4000
     },
 
-    // Security
-    allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean),
+    // CORS
+    allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['https://prismtaxassistant.lovable.app'],
 
-    // Session Cache
-    sessionCache: {
+    // Sessions
+    sessions: {
         maxSessions: parseInt(process.env.MAX_SESSIONS || '10000', 10),
         ttlMinutes: parseInt(process.env.SESSION_TTL_MINUTES || '60', 10)
     },
 
     // Idempotency
     idempotency: {
-        ttlMinutes: parseInt(process.env.IDEMPOTENCY_TTL_MINUTES || '5', 10),
-        maxKeys: parseInt(process.env.MAX_IDEMPOTENCY_KEYS || '1000', 10)
+        ttlMinutes: parseInt(process.env.IDEMPOTENCY_TTL_MINUTES || '60', 10),
+        maxKeys: parseInt(process.env.MAX_IDEMPOTENCY_KEYS || '10000', 10)
+    },
+
+    // Document Processing
+    documentProcessing: {
+        // Classification thresholds
+        businessPatternThreshold: 0.85,
+        ruleBasedThreshold: 0.75,
+        aiThreshold: 0.75,
+
+        // User review triggers
+        lowConfidenceThreshold: 0.75,
+        highValueThreshold: 1_000_000, // ₦1M
+
+        // Nigerian-specific
+        defaultCurrency: 'NGN',
+        section191Threshold: 5_000_000, // ₦5M
+        vatRate: 0.075,
+        vatRegistrationThreshold: 25_000_000, // ₦25M
+
+        // Processing limits
+        maxTransactionsPerStatement: 500,
+        maxFileSizeMB: 10,
+        processingTimeoutSeconds: 120
     }
 };
 
-// Validation
-if (!config.supabase.url || !config.supabase.serviceKey) {
-    throw new Error('Missing Supabase credentials');
-}
+// Initialize Supabase client
+export const supabase = createClient(
+    config.supabase.url,
+    config.supabase.serviceKey,
+    {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    }
+);
 
-if (!config.anthropic.apiKey) {
-    throw new Error('Missing Anthropic API key');
-}
+// Export for convenience
+export default config;

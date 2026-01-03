@@ -58,11 +58,15 @@ export const SessionSchema = Type.Object({
     userId: Type.String(),
     platform: PlatformSchema,
     context: Type.Record(Type.String(), Type.Any()),
+    metadata: Type.Optional(Type.Record(Type.String(), Type.Any())),
     createdAt: Type.String(),
     updatedAt: Type.String()
 });
 
 export type Session = Static<typeof SessionSchema>;
+
+// SessionContext (same as Session but used for skill context)
+export type SessionContext = Session;
 
 // Error response
 export const ErrorResponseSchema = Type.Object({

@@ -20,8 +20,8 @@ export class SessionManager {
         );
 
         this.cache = new LRUCache<string, Session>({
-            max: config.sessionCache.maxSessions,
-            ttl: config.sessionCache.ttlMinutes * 60 * 1000, // Convert to ms
+            max: config.sessions.maxSessions,
+            ttl: config.sessions.ttlMinutes * 60 * 1000, // Convert to ms
             updateAgeOnGet: true
         });
     }
@@ -111,6 +111,17 @@ export class SessionManager {
         this.cache.set(cacheKey, session);
 
         return session;
+    }
+
+    /**
+     * Update session metadata (alias for updateContext)
+     */
+    async updateSession(
+        userId: string,
+        platform: Platform,
+        metadata: Record<string, any>
+    ): Promise<Session> {
+        return this.updateContext(userId, platform, metadata);
     }
 
     /**

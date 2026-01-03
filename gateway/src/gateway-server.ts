@@ -236,15 +236,20 @@ export class GatewayServer {
             session = await this.sessionManager.upsertSession(request.userId, request.platform, {});
         }
 
-        // TODO: Route to appropriate skill based on message content
-        // For now, return a simple echo response
-        return {
-            message: `Gateway received: ${request.message}\n\nThis is a placeholder. Skill routing will be implemented next.`,
-            metadata: {
-                sessionId: `${request.platform}:${request.userId}`,
-                timestamp: new Date().toISOString()
-            }
-        };
+        // Route to appropriate skill
+        const { skillRouter } = await import('./skills/skill-router');
+        const response = await skillRouter.route(request.message, session);
+
+        // Update session with metadata from response
+        if (response.metadata) {
+            await this.sessionManager.updateSession(request.userId, request.platform, {
+                ...session.metadata,
+                lastSkill: response.metadata.skill,
+                lastResponse: new Date().toISOString()
+            });
+        }
+
+        return response;
     }
 
     /**
@@ -253,14 +258,30 @@ export class GatewayServer {
     private async handleDocumentUpload(request: DocumentUpload): Promise<MessageResponse> {
         logger.info(`Document upload from ${request.platform}:${request.userId}`);
 
-        // TODO: Implement document processing skill
-        return {
-            message: `📄 Document received!\n\nType: ${request.documentType}\n\nProcessing will be implemented in Phase 2.`,
+        // Get or create session
+        let session = await this.sessionManager.getSession(request.userId, request.platform);
+        if (!session) {
+            session = await this.sessionManager.upsertSession(request.userId, request.platform, {});
+        }
+
+        // Add document metadata to session context
+        const contextWithDocument = {
+            ...session,
             metadata: {
+                ...session.metadata,
                 documentUrl: request.documentUrl,
-                timestamp: new Date().toISOString()
+                documentType: request.documentType
             }
         };
+
+        // Route to document processing skill
+        const { skillRouter } = await import('./skills/skill-router');
+        const response = await skillRouter.route(
+            `Process ${request.documentType}`,
+            contextWithDocument
+        );
+
+        return response;
     }
 
     /**
