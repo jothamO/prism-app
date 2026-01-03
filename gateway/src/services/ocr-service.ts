@@ -79,11 +79,11 @@ export class OCRService {
         try {
             logger.info('[OCR Service] Extracting document text');
 
-            const image = typeof imageData === 'string'
-                ? { source: { imageUri: imageData } }
-                : { content: imageData.toString('base64') };
+            const request = typeof imageData === 'string'
+                ? { image: { source: { imageUri: imageData } } }
+                : { image: { content: imageData.toString('base64') } };
 
-            const [result] = await this.client.documentTextDetection(image);
+            const [result] = await this.client.documentTextDetection(request);
 
             const fullText = result.fullTextAnnotation?.text || '';
             const confidence = this.calculateConfidence(result);
@@ -92,7 +92,7 @@ export class OCRService {
             logger.info('[OCR Service] Document text extracted', {
                 textLength: fullText.length,
                 confidence,
-                pageCount: pages.length
+                pageCount: pages?.length ?? 0
             });
 
             return { text: fullText, confidence, pages };
@@ -114,11 +114,11 @@ export class OCRService {
         try {
             logger.info('[OCR Service] Extracting receipt text');
 
-            const image = typeof imageData === 'string'
-                ? { source: { imageUri: imageData } }
-                : { content: imageData.toString('base64') };
+            const request = typeof imageData === 'string'
+                ? { image: { source: { imageUri: imageData } } }
+                : { image: { content: imageData.toString('base64') } };
 
-            const [result] = await this.client.textDetection(image);
+            const [result] = await this.client.textDetection(request);
 
             const annotations = result.textAnnotations || [];
             const fullText = annotations[0]?.description || '';
@@ -127,7 +127,7 @@ export class OCRService {
             let totalConfidence = 0;
             let count = 0;
             annotations.slice(1).forEach(annotation => {
-                if (annotation.confidence !== undefined) {
+                if (annotation.confidence !== undefined && annotation.confidence !== null) {
                     totalConfidence += annotation.confidence;
                     count++;
                 }
