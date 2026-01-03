@@ -670,10 +670,12 @@ export type Database = {
       }
       businesses: {
         Row: {
+          account_setup: string | null
           annual_turnover: number | null
           business_stage: string | null
           business_type: string | null
           cac_registration_number: string | null
+          capital_source: string | null
           classification: string | null
           classification_year: number | null
           created_at: string
@@ -686,6 +688,9 @@ export type Database = {
           last_classified_at: string | null
           name: string
           next_filing_date: string | null
+          onboarding_completed: boolean | null
+          onboarding_completed_at: string | null
+          receives_capital_support: boolean | null
           registration_number: string
           registration_type: string | null
           tax_rate: number | null
@@ -697,10 +702,12 @@ export type Database = {
           vat_registered: boolean | null
         }
         Insert: {
+          account_setup?: string | null
           annual_turnover?: number | null
           business_stage?: string | null
           business_type?: string | null
           cac_registration_number?: string | null
+          capital_source?: string | null
           classification?: string | null
           classification_year?: number | null
           created_at?: string
@@ -713,6 +720,9 @@ export type Database = {
           last_classified_at?: string | null
           name: string
           next_filing_date?: string | null
+          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          receives_capital_support?: boolean | null
           registration_number: string
           registration_type?: string | null
           tax_rate?: number | null
@@ -724,10 +734,12 @@ export type Database = {
           vat_registered?: boolean | null
         }
         Update: {
+          account_setup?: string | null
           annual_turnover?: number | null
           business_stage?: string | null
           business_type?: string | null
           cac_registration_number?: string | null
+          capital_source?: string | null
           classification?: string | null
           classification_year?: number | null
           created_at?: string
@@ -740,6 +752,9 @@ export type Database = {
           last_classified_at?: string | null
           name?: string
           next_filing_date?: string | null
+          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          receives_capital_support?: boolean | null
           registration_number?: string
           registration_type?: string | null
           tax_rate?: number | null
@@ -1471,6 +1486,45 @@ export type Database = {
           },
         ]
       }
+      onboarding_progress: {
+        Row: {
+          business_id: string | null
+          completed: boolean | null
+          completed_steps: Json | null
+          current_step: number | null
+          data: Json | null
+          id: string
+          last_updated_at: string | null
+          started_at: string | null
+          total_steps: number | null
+          user_id: string
+        }
+        Insert: {
+          business_id?: string | null
+          completed?: boolean | null
+          completed_steps?: Json | null
+          current_step?: number | null
+          data?: Json | null
+          id?: string
+          last_updated_at?: string | null
+          started_at?: string | null
+          total_steps?: number | null
+          user_id: string
+        }
+        Update: {
+          business_id?: string | null
+          completed?: boolean | null
+          completed_steps?: Json | null
+          current_step?: number | null
+          data?: Json | null
+          id?: string
+          last_updated_at?: string | null
+          started_at?: string | null
+          total_steps?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profile_corrections: {
         Row: {
           ai_prediction: Json
@@ -2179,6 +2233,7 @@ export type Database = {
       users: {
         Row: {
           age: number | null
+          auto_categorize: boolean | null
           blocked_at: string | null
           blocked_reason: string | null
           business_name: string | null
@@ -2193,10 +2248,12 @@ export type Database = {
           full_name: string | null
           has_active_vat: boolean | null
           id: string
+          insight_frequency: string | null
           is_active: boolean | null
           is_blocked: boolean | null
           last_name: string | null
           nin: string | null
+          notification_preferences: Json | null
           onboarding_completed: boolean | null
           onboarding_step: number | null
           platform: string | null
@@ -2217,6 +2274,7 @@ export type Database = {
         }
         Insert: {
           age?: number | null
+          auto_categorize?: boolean | null
           blocked_at?: string | null
           blocked_reason?: string | null
           business_name?: string | null
@@ -2231,10 +2289,12 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
           last_name?: string | null
           nin?: string | null
+          notification_preferences?: Json | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           platform?: string | null
@@ -2255,6 +2315,7 @@ export type Database = {
         }
         Update: {
           age?: number | null
+          auto_categorize?: boolean | null
           blocked_at?: string | null
           blocked_reason?: string | null
           business_name?: string | null
@@ -2269,10 +2330,12 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
           last_name?: string | null
           nin?: string | null
+          notification_preferences?: Json | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           platform?: string | null

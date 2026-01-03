@@ -14,6 +14,10 @@ import { vatCalculationSkill } from './vat-calculation';
 import { taxCalculationSkill } from './tax-calculation';
 import { identityVerificationSkill } from './identity-verification';
 import { receiptProcessingSkill } from './receipt-processing';
+import { enhancedOnboardingSkill } from './enhanced-onboarding';
+
+// Import personality layer
+import { PersonalityFormatter } from '../utils/personality';
 
 export class SkillRouter {
     /**
@@ -76,6 +80,14 @@ export class SkillRouter {
                 return await identityVerificationSkill.handle(message, context);
             }
 
+            // Enhanced onboarding (for new users or incomplete onboarding)
+            if (context.metadata?.needsOnboarding || 
+                context.metadata?.awaitingOnboarding ||
+                this.matchesPattern(lowerMessage, /^(start|onboard|setup|get started|begin)$/i)) {
+                logger.info('[Router] Routing to enhanced-onboarding skill', { userId: context.userId });
+                return await enhancedOnboardingSkill.handle(message, context);
+            }
+
             // Tax savings queries (coming soon)
             if (this.matchesPattern(lowerMessage, /save|tax saving|deduction|claim|vat input/i)) {
                 logger.info('[Router] Tax savings query detected', { userId: context.userId });
@@ -108,10 +120,13 @@ export class SkillRouter {
                 return this.getHelpMessage();
             }
 
-            // Default: conversational response with available commands
+            // Default: conversational response with personality
             logger.info('[Router] No skill matched, using default response', { userId: context.userId });
+            const timeOfDay = this.getTimeOfDay();
+            const greeting = PersonalityFormatter.greet(context.metadata?.userName, timeOfDay);
+
             return {
-                message: `I'm PRISM, your Nigerian tax assistant! 🇳🇬
+                message: `${greeting}
 
 I can help you with:
 
@@ -147,6 +162,16 @@ Reply "help" for more options.`,
      */
     private matchesPattern(message: string, pattern: RegExp): boolean {
         return pattern.test(message);
+    }
+
+    /**
+     * Get time of day for greetings
+     */
+    private getTimeOfDay(): 'morning' | 'afternoon' | 'evening' {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'morning';
+        if (hour < 17) return 'afternoon';
+        return 'evening';
     }
 
     /**
