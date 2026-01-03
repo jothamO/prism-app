@@ -20,7 +20,7 @@
     ],
     "author": "PRISM Team",
     "license": "MIT",
-    "dependencies": {
+"dependencies": {
         "@anthropic-ai/sdk": "^0.32.0",
         "@google-cloud/vision": "^4.3.2",
         "@sinclair/typebox": "^0.32.0",
@@ -30,7 +30,9 @@
         "cors": "^2.8.5",
         "helmet": "^7.1.0",
         "dotenv": "^16.3.1",
-        "lru-cache": "^10.1.0"
+        "lru-cache": "^10.1.0",
+        "pdfjs-dist": "^4.0.0",
+        "canvas": "^2.11.2"
     },
     "devDependencies": {
         "@types/express": "^4.17.21",

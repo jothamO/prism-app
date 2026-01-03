@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../../utils/logger';
 import { ocrService } from '../../../services/ocr-service';
 import { config } from '../../../config';
+import { isPDF, convertPDFToImages } from '../../../services/pdf-converter';
 
 export interface ExtractedTransaction {
     date: string;
@@ -31,6 +32,7 @@ export class BankStatementExtractor {
     /**
      * Extract transactions from bank statement document
      * Uses hybrid approach: Vision API for OCR, Claude for interpretation
+     * Now supports multi-page PDFs
      */
     async extract(documentUrl: string): Promise<ExtractedTransaction[]> {
         try {
@@ -38,6 +40,11 @@ export class BankStatementExtractor {
 
             // Get document content - prefer OCR if available
             const documentContent = await this.getDocumentContent(documentUrl);
+
+            // Handle multi-page PDF with Claude vision (when OCR failed)
+            if (documentContent.pageImages && documentContent.pageImages.length > 0 && !documentContent.data) {
+                return await this.extractFromMultiplePages(documentContent.pageImages);
+            }
 
             // Use Claude to extract structured transaction data
             const prompt = this.buildExtractionPrompt(documentContent.ocrConfidence);
@@ -84,6 +91,97 @@ export class BankStatementExtractor {
             logger.error('[Extractor] Extraction failed:', error);
             throw error;
         }
+    }
+
+    /**
+     * Extract transactions from multiple PDF page images using Claude vision
+     */
+    private async extractFromMultiplePages(pageImages: string[]): Promise<ExtractedTransaction[]> {
+        logger.info('[Extractor] Processing multi-page PDF with Claude vision', {
+            pageCount: pageImages.length
+        });
+
+        const allTransactions: ExtractedTransaction[] = [];
+        const prompt = this.buildExtractionPrompt();
+
+        // Process pages in batches (Claude can handle multiple images per request)
+        const batchSize = 5; // Process 5 pages at a time to stay within limits
+        
+        for (let i = 0; i < pageImages.length; i += batchSize) {
+            const batch = pageImages.slice(i, i + batchSize);
+            
+            logger.info('[Extractor] Processing page batch', {
+                startPage: i + 1,
+                endPage: i + batch.length
+            });
+
+            try {
+                // Build content array with all images in batch
+                const content: any[] = [
+                    { type: 'text' as const, text: `${prompt}\n\nThese are pages ${i + 1} to ${i + batch.length} of a bank statement. Extract all transactions from all pages.` }
+                ];
+                
+                for (const pageImage of batch) {
+                    content.push({
+                        type: 'image' as const,
+                        source: {
+                            type: 'base64' as const,
+                            media_type: 'image/png' as const,
+                            data: pageImage
+                        }
+                    });
+                }
+
+                const response = await this.claude.messages.create({
+                    model: 'claude-3-5-haiku-20241022',
+                    max_tokens: 4000,
+                    messages: [{ role: 'user', content }]
+                });
+
+                const responseContent = response.content[0];
+                if (responseContent.type === 'text') {
+                    const batchTransactions = this.parseExtractedData(responseContent.text);
+                    allTransactions.push(...batchTransactions);
+                    
+                    logger.info('[Extractor] Batch processed', {
+                        pagesProcessed: batch.length,
+                        transactionsFound: batchTransactions.length
+                    });
+                }
+            } catch (batchError) {
+                logger.error('[Extractor] Batch processing failed', {
+                    startPage: i + 1,
+                    error: batchError
+                });
+                // Continue with next batch
+            }
+        }
+
+        // Deduplicate transactions (same date + description + amount)
+        const deduplicated = this.deduplicateTransactions(allTransactions);
+
+        logger.info('[Extractor] Multi-page extraction complete', {
+            totalTransactions: allTransactions.length,
+            afterDeduplication: deduplicated.length
+        });
+
+        return deduplicated;
+    }
+
+    /**
+     * Remove duplicate transactions from multi-page extraction
+     */
+    private deduplicateTransactions(transactions: ExtractedTransaction[]): ExtractedTransaction[] {
+        const seen = new Map<string, ExtractedTransaction>();
+        
+        for (const txn of transactions) {
+            const key = `${txn.date}|${txn.description}|${txn.debit || ''}|${txn.credit || ''}`;
+            if (!seen.has(key)) {
+                seen.set(key, txn);
+            }
+        }
+        
+        return Array.from(seen.values());
     }
 
     /**
@@ -141,6 +239,7 @@ Extract the data now.
 
     /**
      * Get document content using OCR (preferred) or fallback to Claude vision
+     * Now supports PDF files by converting them to images first
      */
     private async getDocumentContent(url: string): Promise<{
         type: 'image' | 'text';
@@ -148,50 +247,158 @@ Extract the data now.
         mediaType?: string;
         ocrUsed?: boolean;
         ocrConfidence?: number;
+        pageImages?: string[]; // For multi-page PDFs
     }> {
         try {
-            // Download the image first
+            // Download the document first
             const { buffer, mediaType } = await ocrService.downloadImage(url);
 
-            // Try Google Cloud Vision OCR if available
-            if (ocrService.isAvailable() && config.vision.enabled) {
-                try {
-                    logger.info('[Extractor] Using Google Cloud Vision OCR');
-                    const ocrResult = await ocrService.extractDocumentText(buffer);
-
-                    if (ocrResult.text && ocrResult.text.length > 50) {
-                        logger.info('[Extractor] OCR successful', {
-                            textLength: ocrResult.text.length,
-                            confidence: ocrResult.confidence
-                        });
-
-                        return {
-                            type: 'text',
-                            data: ocrResult.text,
-                            ocrUsed: true,
-                            ocrConfidence: ocrResult.confidence
-                        };
-                    }
-
-                    logger.warn('[Extractor] OCR returned insufficient text, falling back to vision');
-                } catch (ocrError) {
-                    logger.error('[Extractor] OCR failed, falling back to vision:', ocrError);
-                }
-            } else {
-                logger.info('[Extractor] OCR not available, using Claude vision');
+            // Check if it's a PDF - if so, convert to images
+            if (isPDF(buffer, mediaType)) {
+                logger.info('[Extractor] PDF detected, converting to images');
+                return await this.processPDFDocument(buffer);
             }
 
-            // Fallback to Claude's vision capability
-            return {
-                type: 'image',
-                data: buffer.toString('base64'),
-                mediaType,
-                ocrUsed: false
-            };
+            // For regular images, use existing OCR flow
+            return await this.processImageDocument(buffer, mediaType);
         } catch (error) {
             logger.error('[Extractor] Failed to get document content:', error);
             throw error;
         }
+    }
+
+    /**
+     * Process PDF document by converting to images and running OCR on each page
+     */
+    private async processPDFDocument(pdfBuffer: Buffer): Promise<{
+        type: 'text';
+        data: string;
+        ocrUsed: boolean;
+        ocrConfidence: number;
+        pageImages?: string[];
+    }> {
+        try {
+            // Convert PDF pages to images
+            const conversionResult = await convertPDFToImages(pdfBuffer, {
+                scale: 2.0, // Higher resolution for better OCR
+                maxPages: 50
+            });
+
+            if (conversionResult.pages.length === 0) {
+                throw new Error('No pages could be extracted from PDF');
+            }
+
+            logger.info('[Extractor] PDF converted', {
+                pageCount: conversionResult.pages.length
+            });
+
+            // If OCR is available, process each page
+            if (ocrService.isAvailable() && config.vision.enabled) {
+                const allTexts: string[] = [];
+                let totalConfidence = 0;
+                let confidenceCount = 0;
+
+                for (const page of conversionResult.pages) {
+                    try {
+                        logger.info('[Extractor] OCR processing page', { pageNumber: page.pageNumber });
+                        const ocrResult = await ocrService.extractDocumentText(page.imageBuffer);
+                        
+                        if (ocrResult.text && ocrResult.text.length > 10) {
+                            allTexts.push(`--- Page ${page.pageNumber} ---\n${ocrResult.text}`);
+                            totalConfidence += ocrResult.confidence;
+                            confidenceCount++;
+                        }
+                    } catch (pageError) {
+                        logger.error('[Extractor] OCR failed for page', {
+                            pageNumber: page.pageNumber,
+                            error: pageError
+                        });
+                        // Continue with other pages
+                    }
+                }
+
+                if (allTexts.length > 0) {
+                    const avgConfidence = confidenceCount > 0 ? totalConfidence / confidenceCount : 0.85;
+                    
+                    logger.info('[Extractor] PDF OCR complete', {
+                        pagesProcessed: allTexts.length,
+                        totalTextLength: allTexts.join('\n').length,
+                        avgConfidence
+                    });
+
+                    return {
+                        type: 'text',
+                        data: allTexts.join('\n\n'),
+                        ocrUsed: true,
+                        ocrConfidence: avgConfidence
+                    };
+                }
+            }
+
+            // Fallback: Return page images for Claude vision processing
+            logger.info('[Extractor] Using Claude vision for PDF pages');
+            const pageImages = conversionResult.pages.map(p => p.imageBuffer.toString('base64'));
+            
+            // For multi-page, we'll process each page and combine results
+            // Return first page for now, but store all for multi-page handling
+            return {
+                type: 'text',
+                data: '', // Will trigger multi-page vision processing
+                ocrUsed: false,
+                ocrConfidence: 0,
+                pageImages
+            };
+        } catch (error) {
+            logger.error('[Extractor] PDF processing failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Process regular image document using existing OCR flow
+     */
+    private async processImageDocument(buffer: Buffer, mediaType: string): Promise<{
+        type: 'image' | 'text';
+        data: string;
+        mediaType?: string;
+        ocrUsed?: boolean;
+        ocrConfidence?: number;
+    }> {
+        // Try Google Cloud Vision OCR if available
+        if (ocrService.isAvailable() && config.vision.enabled) {
+            try {
+                logger.info('[Extractor] Using Google Cloud Vision OCR');
+                const ocrResult = await ocrService.extractDocumentText(buffer);
+
+                if (ocrResult.text && ocrResult.text.length > 50) {
+                    logger.info('[Extractor] OCR successful', {
+                        textLength: ocrResult.text.length,
+                        confidence: ocrResult.confidence
+                    });
+
+                    return {
+                        type: 'text',
+                        data: ocrResult.text,
+                        ocrUsed: true,
+                        ocrConfidence: ocrResult.confidence
+                    };
+                }
+
+                logger.warn('[Extractor] OCR returned insufficient text, falling back to vision');
+            } catch (ocrError) {
+                logger.error('[Extractor] OCR failed, falling back to vision:', ocrError);
+            }
+        } else {
+            logger.info('[Extractor] OCR not available, using Claude vision');
+        }
+
+        // Fallback to Claude's vision capability
+        return {
+            type: 'image',
+            data: buffer.toString('base64'),
+            mediaType,
+            ocrUsed: false
+        };
     }
 
     /**
