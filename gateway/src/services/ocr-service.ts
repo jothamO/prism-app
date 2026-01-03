@@ -176,6 +176,77 @@ export class OCRService {
     }
 
     /**
+     * Process PDF document using Google Cloud Vision's native PDF support
+     * Uses batchAnnotateFiles for direct PDF OCR without image conversion
+     */
+    async processPDF(pdfBuffer: Buffer, maxPages: number = 5): Promise<OCRResult> {
+        if (!this.client) {
+            throw new Error('OCR Service not initialized');
+        }
+
+        try {
+            logger.info('[OCR Service] Processing PDF with Vision API', {
+                bufferSize: pdfBuffer.length,
+                maxPages
+            });
+
+            // Google Vision batchAnnotateFiles supports PDF directly
+            const request = {
+                requests: [{
+                    inputConfig: {
+                        content: pdfBuffer.toString('base64'),
+                        mimeType: 'application/pdf'
+                    },
+                    features: [{ type: 'DOCUMENT_TEXT_DETECTION' as const }],
+                    // Process first N pages (Vision API limit is typically 5 for sync)
+                    pages: Array.from({ length: maxPages }, (_, i) => i + 1)
+                }]
+            };
+
+            const [result] = await this.client.batchAnnotateFiles(request as any);
+            
+            // Extract text from all pages
+            const responses = (result as any).responses?.[0]?.responses || [];
+            const pageTexts: string[] = [];
+            let totalConfidence = 0;
+            let confidenceCount = 0;
+
+            for (const response of responses) {
+                const pageText = response.fullTextAnnotation?.text || '';
+                pageTexts.push(pageText);
+                
+                // Calculate confidence from this page
+                const pages = response.fullTextAnnotation?.pages || [];
+                for (const page of pages) {
+                    for (const block of (page.blocks || [])) {
+                        if (block.confidence !== undefined) {
+                            totalConfidence += block.confidence;
+                            confidenceCount++;
+                        }
+                    }
+                }
+            }
+
+            const fullText = pageTexts.join('\n\n--- Page Break ---\n\n');
+            const confidence = confidenceCount > 0 ? totalConfidence / confidenceCount : 0.85;
+
+            logger.info('[OCR Service] PDF processing complete', {
+                pagesProcessed: pageTexts.length,
+                textLength: fullText.length,
+                confidence
+            });
+
+            return {
+                text: fullText,
+                confidence
+            };
+        } catch (error) {
+            logger.error('[OCR Service] PDF processing failed:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Calculate overall confidence from Vision API response
      */
     private calculateConfidence(result: any): number {

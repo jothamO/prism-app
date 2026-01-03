@@ -1,13 +1,14 @@
 /**
  * Bank Statement Extractor
  * Uses Google Cloud Vision for OCR + Claude Haiku for structured extraction
+ * Supports both text-based and scanned PDFs without native dependencies
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../../utils/logger';
 import { ocrService } from '../../../services/ocr-service';
 import { config } from '../../../config';
-import { isPDF, convertPDFToImages } from '../../../services/pdf-converter';
+import { isPDF, extractTextFromPDF } from '../../../services/pdf-converter';
 
 export interface ExtractedTransaction {
     date: string;
@@ -268,7 +269,12 @@ Extract the data now.
     }
 
     /**
-     * Process PDF document by converting to images and running OCR on each page
+     * Process PDF document using hybrid approach:
+     * 1. First try extracting text directly (for text-based PDFs)
+     * 2. If that fails, use Google Vision's native PDF OCR
+     * 3. As last resort, report as unprocessable
+     * 
+     * This approach eliminates the need for the 'canvas' package
      */
     private async processPDFDocument(pdfBuffer: Buffer): Promise<{
         type: 'text';
@@ -278,76 +284,65 @@ Extract the data now.
         pageImages?: string[];
     }> {
         try {
-            // Convert PDF pages to images
-            const conversionResult = await convertPDFToImages(pdfBuffer, {
-                scale: 2.0, // Higher resolution for better OCR
-                maxPages: 50
-            });
-
-            if (conversionResult.pages.length === 0) {
-                throw new Error('No pages could be extracted from PDF');
-            }
-
-            logger.info('[Extractor] PDF converted', {
-                pageCount: conversionResult.pages.length
-            });
-
-            // If OCR is available, process each page
-            if (ocrService.isAvailable() && config.vision.enabled) {
-                const allTexts: string[] = [];
-                let totalConfidence = 0;
-                let confidenceCount = 0;
-
-                for (const page of conversionResult.pages) {
-                    try {
-                        logger.info('[Extractor] OCR processing page', { pageNumber: page.pageNumber });
-                        const ocrResult = await ocrService.extractDocumentText(page.imageBuffer);
-                        
-                        if (ocrResult.text && ocrResult.text.length > 10) {
-                            allTexts.push(`--- Page ${page.pageNumber} ---\n${ocrResult.text}`);
-                            totalConfidence += ocrResult.confidence;
-                            confidenceCount++;
-                        }
-                    } catch (pageError) {
-                        logger.error('[Extractor] OCR failed for page', {
-                            pageNumber: page.pageNumber,
-                            error: pageError
-                        });
-                        // Continue with other pages
-                    }
-                }
-
-                if (allTexts.length > 0) {
-                    const avgConfidence = confidenceCount > 0 ? totalConfidence / confidenceCount : 0.85;
-                    
-                    logger.info('[Extractor] PDF OCR complete', {
-                        pagesProcessed: allTexts.length,
-                        totalTextLength: allTexts.join('\n').length,
-                        avgConfidence
+            // Step 1: Try direct text extraction (works for text-based PDFs)
+            logger.info('[Extractor] Attempting PDF text extraction');
+            
+            try {
+                const textResult = await extractTextFromPDF(pdfBuffer, { maxPages: 50 });
+                
+                if (textResult.isTextBased && textResult.text.length > 100) {
+                    logger.info('[Extractor] PDF is text-based, extracted directly', {
+                        pageCount: textResult.pageCount,
+                        textLength: textResult.text.length
                     });
-
+                    
                     return {
                         type: 'text',
-                        data: allTexts.join('\n\n'),
-                        ocrUsed: true,
-                        ocrConfidence: avgConfidence
+                        data: textResult.text,
+                        ocrUsed: false,
+                        ocrConfidence: 0.95 // High confidence for native text extraction
                     };
                 }
+                
+                logger.info('[Extractor] PDF appears to be scanned/image-based', {
+                    extractedChars: textResult.text.length,
+                    isTextBased: textResult.isTextBased
+                });
+            } catch (textError) {
+                logger.warn('[Extractor] PDF text extraction failed:', textError);
             }
 
-            // Fallback: Return page images for Claude vision processing
-            logger.info('[Extractor] Using Claude vision for PDF pages');
-            const pageImages = conversionResult.pages.map(p => p.imageBuffer.toString('base64'));
+            // Step 2: Use Google Vision's native PDF processing
+            if (ocrService.isAvailable() && config.vision.enabled) {
+                try {
+                    logger.info('[Extractor] Using Google Vision PDF OCR');
+                    const ocrResult = await ocrService.processPDF(pdfBuffer, 5);
+                    
+                    if (ocrResult.text && ocrResult.text.length > 50) {
+                        logger.info('[Extractor] Google Vision PDF OCR successful', {
+                            textLength: ocrResult.text.length,
+                            confidence: ocrResult.confidence
+                        });
+                        
+                        return {
+                            type: 'text',
+                            data: ocrResult.text,
+                            ocrUsed: true,
+                            ocrConfidence: ocrResult.confidence
+                        };
+                    }
+                    
+                    logger.warn('[Extractor] Vision API returned insufficient text');
+                } catch (visionError) {
+                    logger.error('[Extractor] Google Vision PDF OCR failed:', visionError);
+                }
+            } else {
+                logger.warn('[Extractor] Google Vision not available for PDF OCR');
+            }
+
+            // Step 3: No canvas fallback - report the issue
+            throw new Error('Unable to process PDF: text extraction failed and Google Vision OCR unavailable or insufficient');
             
-            // For multi-page, we'll process each page and combine results
-            // Return first page for now, but store all for multi-page handling
-            return {
-                type: 'text',
-                data: '', // Will trigger multi-page vision processing
-                ocrUsed: false,
-                ocrConfidence: 0,
-                pageImages
-            };
         } catch (error) {
             logger.error('[Extractor] PDF processing failed:', error);
             throw error;
