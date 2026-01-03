@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.seed-ml-data]
 verify_jwt = false
+
+[functions.cbn-rate-fetcher]
+verify_jwt = false

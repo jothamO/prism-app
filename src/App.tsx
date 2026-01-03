@@ -25,6 +25,8 @@ import AdminFeedback from "./pages/admin/AdminFeedback";
 import AdminProfiles from "./pages/admin/AdminProfiles";
 import AdminNLUTesting from "./pages/admin/AdminNLUTesting";
 import AdminMLHealth from "./pages/admin/AdminMLHealth";
+import AdminPatterns from "./pages/admin/AdminPatterns";
+
 function App() {
   return (
     <ThemeProvider>
@@ -71,6 +73,7 @@ function App() {
               <Route path="simulator" element={<AdminSimulator />} />
               <Route path="nlu-testing" element={<AdminNLUTesting />} />
               <Route path="vat-testing" element={<AdminVATTesting />} />
+              <Route path="patterns" element={<AdminPatterns />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
             
