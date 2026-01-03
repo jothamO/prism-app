@@ -5,9 +5,8 @@
  */
 
 import { logger } from '../../utils/logger';
-import type { SessionContext } from '../../session-manager';
 import type { Static } from '@sinclair/typebox';
-import type { MessageResponseSchema } from '../../protocol';
+import type { MessageResponseSchema, SessionContext } from '../../protocol';
 import { PatternLearner, type LearnedPattern } from '../document-processing/feedback/pattern-learner';
 
 export class PatternReviewSkill {
