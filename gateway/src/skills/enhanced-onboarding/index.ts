@@ -15,6 +15,7 @@ export interface OnboardingState {
     currentStep: number;
     totalSteps: number;
     completedSteps: string[];
+    completed: boolean;
     data: {
         businessStage?: 'pre_revenue' | 'early' | 'growing' | 'established';
         accountSetup?: 'mixed' | 'separate' | 'multiple';
@@ -66,7 +67,7 @@ export class EnhancedOnboardingSkill {
             logger.error('[EnhancedOnboarding] Error:', error);
             return {
                 message: "❌ Something went wrong with onboarding. Let me restart for you.",
-                metadata: { skill: this.name, error: error.message }
+                metadata: { skill: this.name, error: error instanceof Error ? error.message : String(error) }
             };
         }
     }
