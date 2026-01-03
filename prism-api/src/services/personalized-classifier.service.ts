@@ -4,10 +4,13 @@
  * 
  * Uses business-specific patterns learned from user corrections
  * Falls back to AI if no pattern match
+ * 
+ * Enhanced with Nigerian transaction detection
  */
 
 import { supabase } from '../config/database';
-import { classifierService } from './classifier.service';
+import { classifierService, EnhancedClassificationResult } from './classifier.service';
+import { nigerianTransactionService, NigerianFlags, TaxImplications } from './nigerian-transaction.service';
 
 export interface Classification {
     classification: string;
@@ -16,6 +19,9 @@ export interface Classification {
     source: 'business_pattern' | 'ai' | 'hybrid' | 'rule_based';
     reasoning?: string;
     needsConfirmation?: boolean;
+    nigerianFlags?: NigerianFlags;
+    taxImplications?: TaxImplications;
+    transactionType?: string;
 }
 
 export class PersonalizedClassifierService {
@@ -30,13 +36,22 @@ export class PersonalizedClassifierService {
         userId?: string;
         description: string;
         amount?: number;
+        isCredit?: boolean;
         metadata?: any;
     }): Promise<Classification> {
+        // Get Nigerian-specific context upfront
+        const nigerianContext = nigerianTransactionService.getEnhancedContext(
+            data.description,
+            data.isCredit ?? false,
+            data.amount
+        );
+
         // Step 1: Try business-specific patterns (if business ID provided)
         if (data.businessId) {
             const businessPattern = await this.findBusinessPattern(
                 data.businessId,
-                data.description
+                data.description,
+                nigerianContext.nigerianFlags
             );
 
             // High confidence pattern = use it!
@@ -47,7 +62,10 @@ export class PersonalizedClassifierService {
                     confidence: businessPattern.confidence,
                     source: 'business_pattern',
                     reasoning: `Matches your ${businessPattern.occurrences}x pattern: "${businessPattern.item_pattern}"`,
-                    needsConfirmation: data.amount && data.amount > 500_000
+                    needsConfirmation: data.amount && data.amount > 500_000,
+                    nigerianFlags: nigerianContext.nigerianFlags,
+                    taxImplications: nigerianContext.taxImplications,
+                    transactionType: nigerianContext.transactionTypeDescription
                 };
             }
 
@@ -62,7 +80,10 @@ export class PersonalizedClassifierService {
                         ...aiClassification,
                         confidence: Math.min(aiClassification.confidence + 0.20, 0.99),
                         source: 'hybrid',
-                        reasoning: `AI + your pattern agree: "${businessPattern.item_pattern}" → ${businessPattern.category}`
+                        reasoning: `AI + your pattern agree: "${businessPattern.item_pattern}" → ${businessPattern.category}`,
+                        nigerianFlags: nigerianContext.nigerianFlags,
+                        taxImplications: nigerianContext.taxImplications,
+                        transactionType: nigerianContext.transactionTypeDescription
                     };
                 }
 
@@ -70,7 +91,10 @@ export class PersonalizedClassifierService {
                 if (aiClassification.confidence > businessPattern.confidence + 0.25) {
                     return {
                         ...aiClassification,
-                        reasoning: aiClassification.reasoning + ` (Overriding weak pattern match)`
+                        reasoning: aiClassification.reasoning + ` (Overriding weak pattern match)`,
+                        nigerianFlags: nigerianContext.nigerianFlags,
+                        taxImplications: nigerianContext.taxImplications,
+                        transactionType: nigerianContext.transactionTypeDescription
                     };
                 }
 
@@ -81,25 +105,53 @@ export class PersonalizedClassifierService {
                     confidence: businessPattern.confidence,
                     source: 'business_pattern',
                     reasoning: `Your pattern: "${businessPattern.item_pattern}" (AI uncertain)`,
-                    needsConfirmation: true
+                    needsConfirmation: true,
+                    nigerianFlags: nigerianContext.nigerianFlags,
+                    taxImplications: nigerianContext.taxImplications,
+                    transactionType: nigerianContext.transactionTypeDescription
                 };
             }
         }
 
         // Step 2: No business pattern or low confidence - use AI classifier
+        // AI classifier already includes Nigerian context
         return await this.callAIClassifier(data);
     }
 
     /**
      * Find business-specific pattern (exact or fuzzy match)
+     * Enhanced with Nigerian transaction type context
      */
     private async findBusinessPattern(
         businessId: string,
-        description: string
+        description: string,
+        nigerianFlags?: NigerianFlags
     ): Promise<any | null> {
         const normalized = description.toLowerCase().trim();
+        
+        // Build pattern key with Nigerian context for better matching
+        const txnTypePrefix = nigerianFlags?.is_pos_transaction ? 'pos:' :
+            nigerianFlags?.is_mobile_money ? `mm_${nigerianFlags.mobile_money_provider}:` :
+            nigerianFlags?.is_ussd_transaction ? 'ussd:' : '';
 
-        // Try exact match first (fastest, most accurate)
+        // Try exact match first with transaction type prefix
+        if (txnTypePrefix) {
+            const { data: typedExact } = await supabase
+                .from('business_classification_patterns')
+                .select('*')
+                .eq('business_id', businessId)
+                .eq('item_pattern', txnTypePrefix + normalized)
+                .order('confidence', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (typedExact && typedExact.confidence > 0.50) {
+                this.recordPatternUsage(typedExact.id, true);
+                return typedExact;
+            }
+        }
+
+        // Try exact match without prefix
         const { data: exact } = await supabase
             .from('business_classification_patterns')
             .select('*')
@@ -203,12 +255,15 @@ export class PersonalizedClassifierService {
     }
 
     /**
-     * Call existing AI classifier
+     * Call existing AI classifier (now with Nigerian context)
      */
     private async callAIClassifier(data: any): Promise<Classification> {
         const result = await classifierService.classify({
             narration: data.description,
+            description: data.description,
             amount: data.amount,
+            credit: data.isCredit ? data.amount : 0,
+            debit: data.isCredit ? 0 : data.amount,
             date: new Date().toISOString()
         });
 
@@ -218,7 +273,10 @@ export class PersonalizedClassifierService {
             confidence: result.confidence,
             source: 'ai',
             reasoning: result.reasoning || result.reason,
-            needsConfirmation: result.needsConfirmation
+            needsConfirmation: result.needsConfirmation,
+            nigerianFlags: result.nigerianFlags,
+            taxImplications: result.taxImplications,
+            transactionType: result.transactionType
         };
     }
 

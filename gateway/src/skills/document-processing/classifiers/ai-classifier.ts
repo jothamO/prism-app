@@ -1,29 +1,42 @@
 /**
  * AI Classifier
- * Uses Claude Haiku 4.5 for intelligent classification
+ * Uses Claude for intelligent classification
  * Tier 3: When patterns and rules don't match
+ * 
+ * Enhanced with Nigerian transaction context
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../../utils/logger';
 import type { ClassificationResult } from './business-pattern';
 import { supabase } from '../../../config';
+import { NigerianDetectors } from '../nigerian-detectors';
 
 export class AIClassifier {
-    constructor(private claude: Anthropic) { }
+    private nigerianDetectors: NigerianDetectors;
+
+    constructor(private claude: Anthropic) {
+        this.nigerianDetectors = new NigerianDetectors();
+    }
 
     /**
-     * Classify transaction using AI
+     * Classify transaction using AI with Nigerian context
      */
     async classify(
         txn: any,
         context: { userId: string; businessId?: string }
     ): Promise<ClassificationResult> {
         try {
+            // Get Nigerian-specific flags
+            const nigerianFlags = await this.nigerianDetectors.detect(txn, {
+                userId: context.userId,
+                businessId: context.businessId
+            });
+
             // Get business context for better classification
             const businessContext = await this.getBusinessContext(context.businessId);
 
-            const prompt = this.buildClassificationPrompt(txn, businessContext);
+            const prompt = this.buildClassificationPrompt(txn, businessContext, nigerianFlags);
 
             const response = await this.claude.messages.create({
                 model: 'claude-sonnet-4-5-20250929',
@@ -46,7 +59,12 @@ export class AIClassifier {
             logger.info('[AIClassifier] Classification complete', {
                 txn: txn.description,
                 classification: result.classification,
-                confidence: result.confidence
+                confidence: result.confidence,
+                nigerianFlags: {
+                    isUSSD: nigerianFlags.isUSSD,
+                    isMobileMoney: nigerianFlags.isMobileMoney,
+                    isPOS: nigerianFlags.isPOS
+                }
             });
 
             return {
@@ -68,11 +86,18 @@ export class AIClassifier {
     }
 
     /**
-     * Build classification prompt
+     * Build classification prompt with Nigerian context
      */
-    private buildClassificationPrompt(txn: any, businessContext: any): string {
+    private buildClassificationPrompt(txn: any, businessContext: any, nigerianFlags: any): string {
         const isCredit = txn.credit && txn.credit > 0;
         const amount = txn.credit || txn.debit || 0;
+
+        // Determine transaction type description
+        const txnType = nigerianFlags.isUSSD ? 'USSD Transfer' :
+            nigerianFlags.isMobileMoney ? `Mobile Money (${nigerianFlags.mobileMoneyProvider || 'unknown'})` :
+            nigerianFlags.isPOS ? 'POS Terminal' :
+            nigerianFlags.isForeignCurrency ? `Foreign Currency (${nigerianFlags.foreignCurrency})` :
+            'Standard';
 
         return `
 Classify this Nigerian bank transaction for VAT/tax purposes.
@@ -83,8 +108,16 @@ Transaction:
 - Amount: ₦${amount.toLocaleString()}
 - Type: ${isCredit ? 'Credit (money in)' : 'Debit (money out)'}
 ${txn.reference ? `- Reference: ${txn.reference}` : ''}
+- Transaction Channel: ${txnType}
 
-BusinessContext:
+Nigerian Context:
+- USSD Transaction: ${nigerianFlags.isUSSD ? 'Yes' : 'No'}
+- Mobile Money: ${nigerianFlags.isMobileMoney ? `Yes (${nigerianFlags.mobileMoneyProvider})` : 'No'}
+- POS Terminal: ${nigerianFlags.isPOS ? 'Yes' : 'No'}
+- Foreign Currency: ${nigerianFlags.isForeignCurrency ? `Yes (${nigerianFlags.foreignCurrency})` : 'No'}
+${nigerianFlags.isCapitalInjection ? `- Capital Injection: Yes (${nigerianFlags.capitalType})` : ''}
+
+Business Context:
 ${businessContext ? `- Type: ${businessContext.type}
 - Industry: ${businessContext.industry}
 - Name: ${businessContext.name}` : '- No business context available'}
