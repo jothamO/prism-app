@@ -8,6 +8,7 @@ import { Session as SessionContext } from '../../protocol';
 import { supabase } from '../../config';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
+import { PersonalityFormatter } from '../../utils/personality';
 
 export interface DocumentProcessingRequest {
     userId: string;
@@ -95,8 +96,13 @@ export class DocumentProcessingSkill {
                 documentType: job.document_type
             });
 
+            // Check for first upload milestone
+            const isFirstUpload = !context.metadata?.hasUploadedBefore;
+            const milestoneMsg = isFirstUpload ? PersonalityFormatter.milestone('first_upload') : 
+                "📄 Bank statement received! Processing...\n\nI'll analyze your transactions and ping you when ready (usually <60 seconds).";
+
             return {
-                message: "📄 Bank statement received! Processing...\n\nI'll analyze your transactions and ping you when ready (usually <60 seconds).",
+                message: milestoneMsg,
                 metadata: {
                     skill: this.name,
                     jobId: job.id,
@@ -106,7 +112,7 @@ export class DocumentProcessingSkill {
         } catch (error) {
             logger.error('[DocumentProcessing] Handle error:', error);
             return {
-                message: "❌ Failed to process document. Please try again or contact support.",
+                message: PersonalityFormatter.error("Failed to process document. Please try again or contact support.", true),
                 metadata: { skill: this.name, error: (error as Error).message }
             };
         }

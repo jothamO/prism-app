@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger';
 import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
+import { PersonalityFormatter } from '../../utils/personality';
 
 const STANDARD_RATE = 0.075; // 7.5% per Tax Act 2025 Section 148
 
@@ -195,7 +196,7 @@ export class VATCalculationSkill {
         } catch (error) {
             logger.error('[VAT Skill] Error:', error);
             return {
-                message: "❌ Failed to calculate VAT. Please try again with format: `vat [amount] [description]`",
+                message: PersonalityFormatter.error("Failed to calculate VAT. Please try again with format: `vat [amount] [description]`", true),
                 metadata: { skill: 'vat-calculation', error: (error as Error).message }
             };
         }

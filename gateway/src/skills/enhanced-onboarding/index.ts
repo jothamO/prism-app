@@ -4,11 +4,12 @@
  * Master Plan Phase 4 (lines 408-422)
  */
 
-import { logger } from '../../../utils/logger';
-import type { SessionContext } from '../../../session-manager';
+import { logger } from '../../utils/logger';
+import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
-import type { MessageResponseSchema } from '../../../protocol';
-import { supabase } from '../../../config';
+import type { MessageResponseSchema } from '../../protocol';
+import { supabase } from '../../config';
+import { PersonalityFormatter } from '../../utils/personality';
 
 export interface OnboardingState {
     currentStep: number;
@@ -383,7 +384,7 @@ Ready to upload your statement?
                 .eq('id', businessId);
         }
 
-        if (progress.data.insightFrequency || progress.data.auto Categorize !== undefined) {
+        if (progress.data.insightFrequency || progress.data.autoCategorize !== undefined) {
             await supabase
                 .from('users')
                 .update({
