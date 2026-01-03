@@ -376,6 +376,8 @@ export type Database = {
       bank_transactions: {
         Row: {
           balance: number | null
+          business_id: string | null
+          capital_type: string | null
           category: string | null
           classification: string | null
           classification_source: string | null
@@ -388,6 +390,7 @@ export type Database = {
           foreign_currency: string | null
           id: string
           is_bank_charge: boolean | null
+          is_capital_injection: boolean | null
           is_emtl: boolean | null
           is_expense: boolean | null
           is_foreign_currency: boolean | null
@@ -407,6 +410,7 @@ export type Database = {
           statement_id: string | null
           transaction_date: string
           updated_at: string | null
+          user_classification: string | null
           user_correction: Json | null
           user_id: string
           user_reviewed: boolean | null
@@ -416,6 +420,8 @@ export type Database = {
         }
         Insert: {
           balance?: number | null
+          business_id?: string | null
+          capital_type?: string | null
           category?: string | null
           classification?: string | null
           classification_source?: string | null
@@ -428,6 +434,7 @@ export type Database = {
           foreign_currency?: string | null
           id?: string
           is_bank_charge?: boolean | null
+          is_capital_injection?: boolean | null
           is_emtl?: boolean | null
           is_expense?: boolean | null
           is_foreign_currency?: boolean | null
@@ -447,6 +454,7 @@ export type Database = {
           statement_id?: string | null
           transaction_date: string
           updated_at?: string | null
+          user_classification?: string | null
           user_correction?: Json | null
           user_id: string
           user_reviewed?: boolean | null
@@ -456,6 +464,8 @@ export type Database = {
         }
         Update: {
           balance?: number | null
+          business_id?: string | null
+          capital_type?: string | null
           category?: string | null
           classification?: string | null
           classification_source?: string | null
@@ -468,6 +478,7 @@ export type Database = {
           foreign_currency?: string | null
           id?: string
           is_bank_charge?: boolean | null
+          is_capital_injection?: boolean | null
           is_emtl?: boolean | null
           is_expense?: boolean | null
           is_foreign_currency?: boolean | null
@@ -487,6 +498,7 @@ export type Database = {
           statement_id?: string | null
           transaction_date?: string
           updated_at?: string | null
+          user_classification?: string | null
           user_correction?: Json | null
           user_id?: string
           user_reviewed?: boolean | null
@@ -495,6 +507,13 @@ export type Database = {
           vat_applicable?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bank_transactions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bank_transactions_linked_expense_id_fkey"
             columns: ["linked_expense_id"]
@@ -652,12 +671,15 @@ export type Database = {
       businesses: {
         Row: {
           annual_turnover: number | null
+          business_stage: string | null
           business_type: string | null
+          cac_registration_number: string | null
           classification: string | null
           classification_year: number | null
           created_at: string
           id: string
           industry: string | null
+          informal_business: boolean | null
           is_default: boolean | null
           is_primary: boolean | null
           is_professional_services: boolean | null
@@ -676,12 +698,15 @@ export type Database = {
         }
         Insert: {
           annual_turnover?: number | null
+          business_stage?: string | null
           business_type?: string | null
+          cac_registration_number?: string | null
           classification?: string | null
           classification_year?: number | null
           created_at?: string
           id?: string
           industry?: string | null
+          informal_business?: boolean | null
           is_default?: boolean | null
           is_primary?: boolean | null
           is_professional_services?: boolean | null
@@ -700,12 +725,15 @@ export type Database = {
         }
         Update: {
           annual_turnover?: number | null
+          business_stage?: string | null
           business_type?: string | null
+          cac_registration_number?: string | null
           classification?: string | null
           classification_year?: number | null
           created_at?: string
           id?: string
           industry?: string | null
+          informal_business?: boolean | null
           is_default?: boolean | null
           is_primary?: boolean | null
           is_professional_services?: boolean | null
@@ -721,6 +749,36 @@ export type Database = {
           user_id?: string
           vat_enabled?: boolean | null
           vat_registered?: boolean | null
+        }
+        Relationships: []
+      }
+      cbn_exchange_rates: {
+        Row: {
+          created_at: string | null
+          currency: string
+          id: string
+          rate: number
+          rate_date: string
+          source: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          currency: string
+          id?: string
+          rate: number
+          rate_date: string
+          source: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          currency?: string
+          id?: string
+          rate?: number
+          rate_date?: string
+          source?: string
+          updated_at?: string | null
         }
         Relationships: []
       }

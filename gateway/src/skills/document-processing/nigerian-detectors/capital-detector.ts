@@ -179,7 +179,7 @@ export class CapitalDetector {
             // Check revenue history before this transaction
             const { data: previousRevenue } = await supabase
                 .from('bank_transactions')
-                .select('amount')
+                .select('credit')
                 .eq('business_id', businessId)
                 .eq('classification', 'sale')
                 .lt('transaction_date', transactionDate)
@@ -188,7 +188,7 @@ export class CapitalDetector {
 
             const hasSignificantRevenue = previousRevenue &&
                 previousRevenue.length >= 5 &&
-                previousRevenue.reduce((sum, t) => sum + (t.amount || 0), 0) > 1_000_000;
+                previousRevenue.reduce((sum, t) => sum + (t.credit || 0), 0) > 1_000_000;
 
             // Pre-revenue + large transfer = Likely capital
             if (isPreRevenue && amount >= 500_000 && !hasSignificantRevenue) {
