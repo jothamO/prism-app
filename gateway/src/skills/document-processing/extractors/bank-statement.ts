@@ -52,7 +52,7 @@ export class BankStatementExtractor {
 
             const response = await this.claude.messages.create({
                 model: 'claude-3-5-haiku-20241022',
-                max_tokens: 4000,
+                max_tokens: 45000,
                 messages: [
                     {
                         role: 'user',
@@ -81,11 +81,21 @@ export class BankStatementExtractor {
 
             const transactions = this.parseExtractedData(content.text);
 
+            // Verify extraction quality
+            const debits = transactions.filter(t => t.debit && t.debit > 0);
+            const credits = transactions.filter(t => t.credit && t.credit > 0);
+
             logger.info('[Extractor] Extracted transactions', {
                 count: transactions.length,
+                debits: debits.length,
+                credits: credits.length,
                 ocrUsed: documentContent.ocrUsed,
                 ocrConfidence: documentContent.ocrConfidence
             });
+
+            if (debits.length === 0 && credits.length > 5) {
+                logger.warn('[Extractor] WARNING: No debit transactions found - may indicate extraction issue');
+            }
 
             return transactions;
         } catch (error) {
@@ -135,7 +145,7 @@ export class BankStatementExtractor {
 
                 const response = await this.claude.messages.create({
                     model: 'claude-3-5-haiku-20241022',
-                    max_tokens: 4000,
+                    max_tokens: 45000,
                     messages: [{ role: 'user', content }]
                 });
 
@@ -196,27 +206,59 @@ export class BankStatementExtractor {
         return `
 You are extracting transaction data from a Nigerian bank statement.${confidenceNote}
 
-Extract ALL transactions in the statement and return them as a JSON array.
+CRITICAL: Extract ALL transactions - both CREDITS and DEBITS. Do not skip any rows.
+
+Nigerian bank statements typically show:
+- DEBITS: Money going out (withdrawals, transfers, payments, charges, fees, airtime, POS purchases)
+- CREDITS: Money coming in (deposits, transfers received, refunds)
 
 For each transaction, extract:
 - date: YYYY-MM-DD format
-- description: Full transaction description/narration
-- debit: Amount debited (if applicable)
-- credit: Amount credited (if applicable)
+- description: Full transaction description/narration  
+- debit: Amount debited (money OUT) - look for "DR" column or amounts in debit column
+- credit: Amount credited (money IN) - look for "CR" column or amounts in credit column
 - balance: Account balance after transaction
 - reference: Transaction reference number (if visible)
 
+Nigerian bank charge patterns to look for (these are DEBITS):
+- SMS Alert Fee, SMS Notification
+- VAT on fees
+- Stamp Duty
+- EMTL (Electronic Money Transfer Levy) - usually ₦50
+- Account maintenance fee
+- Card maintenance fee
+- Transfer fees
+- POS charges
+
+Common DEBIT transaction patterns:
+- "Transfer to [NAME]" - outgoing transfer
+- "ATM WDL" or "ATM Withdrawal" - ATM withdrawal  
+- "POS" - Point of sale purchase
+- "Airtime" - mobile recharge
+- "Third party merchant" - third party payments
+- Bill payments
+- "NIP" transfers out
+
+Common CREDIT transaction patterns:
+- "Transfer from [NAME]" - incoming transfer
+- "Salary" - salary credit
+- "Reversal" - refund
+
 Important:
 - Convert all amounts to numbers (remove commas, currency symbols)
-- Handle Nigerian bank formats (GTBank, Access, Zenith, First Bank, UBA, etc.)
+- Handle Nigerian bank formats (GTBank, Access, Zenith, First Bank, UBA, Fidelity, etc.)
 - Preserve exact description text (important for classification)
 - If a field is not available, omit it or use null
+
+IMPORTANT: Count your transactions. A typical monthly statement has 20-50 transactions.
+If you only found 10-15, you may have missed the debit transactions. Go back and check!
 
 Return ONLY valid JSON in this exact format:
 {
   "bank": "Bank Name",
   "accountNumber": "1234567890",
   "period": "Month Year",
+  "transactionCount": {"debits": 31, "credits": 11},
   "transactions": [
     {
       "date": "2025-12-01",
@@ -227,14 +269,14 @@ Return ONLY valid JSON in this exact format:
     },
     {
       "date": "2025-12-05",
-      "description": "POS TERMINAL PAYMENT",
+      "description": "Salary Credit",
       "credit": 125000,
       "balance": 575000
     }
   ]
 }
 
-Extract the data now.
+Extract ALL transactions now - ensure you capture every debit AND credit row.
 `.trim();
     }
 
