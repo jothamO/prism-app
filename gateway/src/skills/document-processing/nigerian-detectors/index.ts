@@ -4,6 +4,9 @@
  * Phase 3: Capital detection, informal sector, CBN rates
  */
 
+import { CapitalDetector, CapitalDetectionResult } from './capital-detector';
+import { CBNRateService } from './cbn-rate-service';
+
 export interface NigerianFlags {
     is_ussd_transaction: boolean;
     is_mobile_money: boolean;
@@ -15,14 +18,23 @@ export interface NigerianFlags {
     capital_type?: string;
 }
 
+export interface DetectionContext {
+    businessId?: string;
+    userId?: string;
+}
+
 export class NigerianDetectors {
+    private capitalDetector = new CapitalDetector();
+    private cbnService = new CBNRateService();
+
     /**
      * Detect all Nigerian-specific features in a transaction
      */
-    async detect(txn: any): Promise<NigerianFlags> {
+    async detect(txn: any, context?: DetectionContext): Promise<NigerianFlags> {
         const description = (txn.description || '').toLowerCase();
 
-        return {
+        // Base detection flags
+        const baseFlags: NigerianFlags = {
             is_ussd_transaction: this.detectUSSD(description),
             is_mobile_money: this.detectMobileMoney(description) !== null,
             mobile_money_provider: this.detectMobileMoney(description) || undefined,
@@ -30,6 +42,47 @@ export class NigerianDetectors {
             is_foreign_currency: this.detectForeignCurrency(description) !== null,
             foreign_currency: this.detectForeignCurrency(description) || undefined
         };
+
+        // Phase 3: Capital injection detection (only for credits with business context)
+        if (context?.businessId && txn.credit && txn.credit > 0) {
+            try {
+                const capitalResult = await this.capitalDetector.detect({
+                    description: txn.description || '',
+                    amount: txn.credit,
+                    date: txn.date || txn.transaction_date || new Date().toISOString(),
+                    userId: context.userId || '',
+                    businessId: context.businessId
+                });
+
+                if (capitalResult.isCapital && capitalResult.confidence >= 0.70) {
+                    baseFlags.is_capital_injection = true;
+                    baseFlags.capital_type = capitalResult.capitalType;
+                }
+            } catch (error) {
+                // Log but don't fail - capital detection is enhancement
+                console.warn('[NigerianDetectors] Capital detection failed:', error);
+            }
+        }
+
+        return baseFlags;
+    }
+
+    /**
+     * Convert foreign currency to Naira using CBN rates
+     */
+    async convertToNaira(amount: number, currency: string, date?: Date): Promise<{
+        naira: number;
+        rate: number;
+        source: string;
+    }> {
+        return this.cbnService.convertToNaira(amount, currency, date);
+    }
+
+    /**
+     * Get CBN exchange rate for a currency
+     */
+    async getCBNRate(currency: string, date?: Date) {
+        return this.cbnService.getRate(currency, date || new Date());
     }
 
     /**

@@ -117,8 +117,11 @@ export class DocumentProcessor {
             classification = aiResult;
         }
 
-        // Step 4: Apply Nigerian-specific detectors
-        const nigerianFlags = await this.nigerianDetectors.detect(txn);
+        // Step 4: Apply Nigerian-specific detectors (with business context for capital detection)
+        const nigerianFlags = await this.nigerianDetectors.detect(txn, {
+            businessId: job.business_id,
+            userId: job.user_id
+        });
 
         // Step 5: Run compliance checks
         const complianceFlags = await this.complianceChecker.check(txn, {
@@ -160,6 +163,10 @@ export class DocumentProcessor {
             is_pos_transaction: nigerianFlags.is_pos_transaction || false,
             is_foreign_currency: nigerianFlags.is_foreign_currency || false,
             foreign_currency: nigerianFlags.foreign_currency || null,
+            // Phase 3: Capital injection tracking
+            is_capital_injection: nigerianFlags.is_capital_injection || false,
+            capital_type: nigerianFlags.capital_type || null,
+            business_id: job.business_id || null,
             // Existing Nigerian columns
             is_nigerian_bank_charge: this.isNigerianBankCharge(txn.description),
             is_emtl: this.isEMTL(txn.description, txn.debit),
