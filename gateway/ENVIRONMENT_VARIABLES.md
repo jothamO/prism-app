@@ -9,6 +9,8 @@ Complete documentation for all environment variables needed to deploy the PRISM 
 | `SUPABASE_URL` | ✅ Yes | - | Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | ✅ Yes | - | Supabase service role key |
 | `ANTHROPIC_API_KEY` | ✅ Yes | - | Anthropic API key for AI |
+| `GOOGLE_CLOUD_CREDENTIALS` | ⚡ Recommended | - | Google Cloud service account JSON for Vision OCR |
+| `GOOGLE_CLOUD_PROJECT_ID` | ⚡ Recommended | - | Google Cloud project ID |
 | `MONO_SECRET_KEY` | ⚡ Recommended | - | Mono API secret for ID verification |
 | `MONO_PUBLIC_KEY` | ⚡ Recommended | - | Mono API public key |
 | `PORT` | ❌ No | `18789` | Server port |
@@ -49,6 +51,25 @@ Complete documentation for all environment variables needed to deploy the PRISM 
 ---
 
 ## Recommended Variables
+
+### `GOOGLE_CLOUD_CREDENTIALS`
+- **Required**: No (but recommended for enhanced OCR)
+- **Description**: Google Cloud service account credentials as JSON string
+- **Format**: `{"type":"service_account","project_id":"...","private_key":"...","client_email":"...",...}`
+- **How to get**: 
+  1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+  2. Create a service account with Cloud Vision API access
+  3. Download the JSON key file
+  4. Paste the entire JSON content as the value
+- **Used by**: Document OCR (bank statements, receipts)
+- **Note**: Without this, OCR falls back to Claude vision (less accurate for low-quality images)
+
+### `GOOGLE_CLOUD_PROJECT_ID`
+- **Required**: No (but needed with GOOGLE_CLOUD_CREDENTIALS)
+- **Description**: Google Cloud project ID
+- **Format**: `your-project-id` (e.g., `geocoding-api-481200`)
+- **How to get**: Found in Google Cloud Console or in the service account JSON file
+- **Note**: Must match the project in GOOGLE_CLOUD_CREDENTIALS
 
 ### `MONO_SECRET_KEY`
 - **Required**: No (but needed for ID verification)

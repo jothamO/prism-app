@@ -42,6 +42,13 @@ export const config = {
         maxTokens: 4000
     },
 
+    // Google Cloud Vision (OCR)
+    vision: {
+        credentials: process.env.GOOGLE_CLOUD_CREDENTIALS || '',
+        projectId: process.env.GOOGLE_CLOUD_PROJECT_ID || '',
+        enabled: !!(process.env.GOOGLE_CLOUD_CREDENTIALS && process.env.GOOGLE_CLOUD_PROJECT_ID)
+    },
+
     // Mono API (Identity Verification)
     mono: {
         secretKey: process.env.MONO_SECRET_KEY || '',

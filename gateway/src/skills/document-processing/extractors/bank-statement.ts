@@ -1,10 +1,12 @@
 /**
  * Bank Statement Extractor
- * Uses Claude Haiku 4.5 to extract transactions from PDF/image bank statements
+ * Uses Google Cloud Vision for OCR + Claude Haiku for structured extraction
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../../utils/logger';
+import { ocrService } from '../../../services/ocr-service';
+import { config } from '../../../config';
 
 export interface ExtractedTransaction {
     date: string;
@@ -15,22 +17,30 @@ export interface ExtractedTransaction {
     reference?: string;
 }
 
+export interface ExtractionResult {
+    transactions: ExtractedTransaction[];
+    bank?: string;
+    accountNumber?: string;
+    period?: string;
+    ocrConfidence?: number;
+}
+
 export class BankStatementExtractor {
     constructor(private claude: Anthropic) { }
 
     /**
      * Extract transactions from bank statement document
+     * Uses hybrid approach: Vision API for OCR, Claude for interpretation
      */
     async extract(documentUrl: string): Promise<ExtractedTransaction[]> {
         try {
             logger.info('[Extractor] Processing document', { documentUrl });
 
-            // Download document (in production, this would handle PDFs/images)
-            // For now, we'll use Claude's vision API for images or text extraction for PDFs
+            // Get document content - prefer OCR if available
             const documentContent = await this.getDocumentContent(documentUrl);
 
             // Use Claude to extract structured transaction data
-            const prompt = this.buildExtractionPrompt();
+            const prompt = this.buildExtractionPrompt(documentContent.ocrConfidence);
 
             const response = await this.claude.messages.create({
                 model: 'claude-3-5-haiku-20241022',
@@ -38,23 +48,19 @@ export class BankStatementExtractor {
                 messages: [
                     {
                         role: 'user',
-                        content: [
-                            {
-                                type: 'text',
-                                text: prompt
-                            },
-                            ...(documentContent.type === 'image' ? [{
-                                type: 'image' as const,
-                                source: {
-                                    type: 'base64' as const,
-                                    media_type: (documentContent.mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                                    data: documentContent.data
+                        content: documentContent.type === 'text'
+                            ? [{ type: 'text' as const, text: `${prompt}\n\nDocument Content:\n${documentContent.data}` }]
+                            : [
+                                { type: 'text' as const, text: prompt },
+                                {
+                                    type: 'image' as const,
+                                    source: {
+                                        type: 'base64' as const,
+                                        media_type: (documentContent.mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+                                        data: documentContent.data
+                                    }
                                 }
-                            }] : [{
-                                type: 'text' as const,
-                                text: `\n\nDocument Content:\n${documentContent.data}`
-                            }])
-                        ]
+                            ]
                     }
                 ]
             });
@@ -68,7 +74,9 @@ export class BankStatementExtractor {
             const transactions = this.parseExtractedData(content.text);
 
             logger.info('[Extractor] Extracted transactions', {
-                count: transactions.length
+                count: transactions.length,
+                ocrUsed: documentContent.ocrUsed,
+                ocrConfidence: documentContent.ocrConfidence
             });
 
             return transactions;
@@ -81,9 +89,13 @@ export class BankStatementExtractor {
     /**
      * Build extraction prompt for Claude
      */
-    private buildExtractionPrompt(): string {
+    private buildExtractionPrompt(ocrConfidence?: number): string {
+        const confidenceNote = ocrConfidence !== undefined
+            ? `\nNote: This text was extracted via OCR with ${(ocrConfidence * 100).toFixed(0)}% confidence. Account for potential OCR errors.`
+            : '';
+
         return `
-You are extracting transaction data from a Nigerian bank statement.
+You are extracting transaction data from a Nigerian bank statement.${confidenceNote}
 
 Extract ALL transactions in the statement and return them as a JSON array.
 
@@ -128,20 +140,58 @@ Extract the data now.
     }
 
     /**
-     * Get document content (image or text)
-     * In production, this would handle PDF parsing, OCR, etc.
+     * Get document content using OCR (preferred) or fallback to Claude vision
      */
     private async getDocumentContent(url: string): Promise<{
         type: 'image' | 'text';
         data: string;
         mediaType?: string;
+        ocrUsed?: boolean;
+        ocrConfidence?: number;
     }> {
-        // TODO: Implement actual document download and processing
-        // For now, return placeholder
-        return {
-            type: 'text',
-            data: 'Sample bank statement content...'
-        };
+        try {
+            // Download the image first
+            const { buffer, mediaType } = await ocrService.downloadImage(url);
+
+            // Try Google Cloud Vision OCR if available
+            if (ocrService.isAvailable() && config.vision.enabled) {
+                try {
+                    logger.info('[Extractor] Using Google Cloud Vision OCR');
+                    const ocrResult = await ocrService.extractDocumentText(buffer);
+
+                    if (ocrResult.text && ocrResult.text.length > 50) {
+                        logger.info('[Extractor] OCR successful', {
+                            textLength: ocrResult.text.length,
+                            confidence: ocrResult.confidence
+                        });
+
+                        return {
+                            type: 'text',
+                            data: ocrResult.text,
+                            ocrUsed: true,
+                            ocrConfidence: ocrResult.confidence
+                        };
+                    }
+
+                    logger.warn('[Extractor] OCR returned insufficient text, falling back to vision');
+                } catch (ocrError) {
+                    logger.error('[Extractor] OCR failed, falling back to vision:', ocrError);
+                }
+            } else {
+                logger.info('[Extractor] OCR not available, using Claude vision');
+            }
+
+            // Fallback to Claude's vision capability
+            return {
+                type: 'image',
+                data: buffer.toString('base64'),
+                mediaType,
+                ocrUsed: false
+            };
+        } catch (error) {
+            logger.error('[Extractor] Failed to get document content:', error);
+            throw error;
+        }
     }
 
     /**
