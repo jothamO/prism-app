@@ -139,7 +139,7 @@ export class DocumentProcessor {
 
         const needsReview = classification.confidence < 0.75 || complianceFlags.length > 0;
         
-        await supabase.from('bank_transactions').insert({
+        const { error: insertError } = await supabase.from('bank_transactions').insert({
             statement_id: statementId,
             user_id: job.user_id,
             transaction_date: txn.date,
@@ -153,10 +153,74 @@ export class DocumentProcessor {
             confidence: classification.confidence,
             classification_source: classification.source,
             user_reviewed: false,
-            ...nigerianFlags,
+            // Nigerian detection flags - explicit columns
+            is_ussd_transaction: nigerianFlags.is_ussd_transaction || false,
+            is_mobile_money: nigerianFlags.is_mobile_money || false,
+            mobile_money_provider: nigerianFlags.mobile_money_provider || null,
+            is_pos_transaction: nigerianFlags.is_pos_transaction || false,
+            is_foreign_currency: nigerianFlags.is_foreign_currency || false,
+            foreign_currency: nigerianFlags.foreign_currency || null,
+            // Existing Nigerian columns
+            is_nigerian_bank_charge: this.isNigerianBankCharge(txn.description),
+            is_emtl: this.isEMTL(txn.description, txn.debit),
+            is_stamp_duty: this.isStampDuty(txn.description),
+            // Transaction type flags
+            is_revenue: classification.classification === 'sale',
+            is_expense: classification.classification === 'expense',
+            is_transfer: classification.classification === 'personal',
+            is_bank_charge: this.isNigerianBankCharge(txn.description),
+            is_tax_relevant: classification.classification !== 'personal',
+            // Compliance and metadata
             compliance_flags: complianceFlags,
             metadata: { requires_confirmation: needsReview }
         });
+
+        if (insertError) {
+            logger.error('[Processor] Failed to save transaction:', {
+                error: insertError.message,
+                code: insertError.code,
+                description: txn.description?.substring(0, 50)
+            });
+            throw insertError;
+        }
+        
+        logger.info('[Processor] Transaction saved', { 
+            description: txn.description?.substring(0, 30),
+            classification: classification.classification 
+        });
+    }
+
+    /**
+     * Check if transaction is a Nigerian bank charge
+     */
+    private isNigerianBankCharge(description: string): boolean {
+        if (!description) return false;
+        const patterns = [
+            /sms alert/i, /sms fee/i, /vat on/i, /maintenance fee/i,
+            /cot charge/i, /cot fee/i, /commission/i, /account fee/i,
+            /card maintenance/i, /atm fee/i, /transfer fee/i
+        ];
+        return patterns.some(p => p.test(description));
+    }
+
+    /**
+     * Check if transaction is EMTL (Electronic Money Transfer Levy)
+     */
+    private isEMTL(description: string, amount?: number): boolean {
+        if (!description) return false;
+        // EMTL is exactly ₦50 on electronic transfers over ₦10,000
+        if (amount === 50) {
+            return /levy|emtl|transfer charge|electronic.*levy/i.test(description);
+        }
+        return false;
+    }
+
+    /**
+     * Check if transaction is stamp duty
+     */
+    private isStampDuty(description: string): boolean {
+        if (!description) return false;
+        return /stamp duty/i.test(description);
     }
 
     /**

@@ -385,18 +385,24 @@ export type Database = {
           credit: number | null
           debit: number | null
           description: string
+          foreign_currency: string | null
           id: string
           is_bank_charge: boolean | null
           is_emtl: boolean | null
           is_expense: boolean | null
+          is_foreign_currency: boolean | null
+          is_mobile_money: boolean | null
           is_nigerian_bank_charge: boolean | null
+          is_pos_transaction: boolean | null
           is_revenue: boolean | null
           is_stamp_duty: boolean | null
           is_tax_relevant: boolean | null
           is_transfer: boolean | null
+          is_ussd_transaction: boolean | null
           linked_expense_id: string | null
           linked_invoice_id: string | null
           metadata: Json | null
+          mobile_money_provider: string | null
           reference: string | null
           statement_id: string | null
           transaction_date: string
@@ -419,18 +425,24 @@ export type Database = {
           credit?: number | null
           debit?: number | null
           description: string
+          foreign_currency?: string | null
           id?: string
           is_bank_charge?: boolean | null
           is_emtl?: boolean | null
           is_expense?: boolean | null
+          is_foreign_currency?: boolean | null
+          is_mobile_money?: boolean | null
           is_nigerian_bank_charge?: boolean | null
+          is_pos_transaction?: boolean | null
           is_revenue?: boolean | null
           is_stamp_duty?: boolean | null
           is_tax_relevant?: boolean | null
           is_transfer?: boolean | null
+          is_ussd_transaction?: boolean | null
           linked_expense_id?: string | null
           linked_invoice_id?: string | null
           metadata?: Json | null
+          mobile_money_provider?: string | null
           reference?: string | null
           statement_id?: string | null
           transaction_date: string
@@ -453,18 +465,24 @@ export type Database = {
           credit?: number | null
           debit?: number | null
           description?: string
+          foreign_currency?: string | null
           id?: string
           is_bank_charge?: boolean | null
           is_emtl?: boolean | null
           is_expense?: boolean | null
+          is_foreign_currency?: boolean | null
+          is_mobile_money?: boolean | null
           is_nigerian_bank_charge?: boolean | null
+          is_pos_transaction?: boolean | null
           is_revenue?: boolean | null
           is_stamp_duty?: boolean | null
           is_tax_relevant?: boolean | null
           is_transfer?: boolean | null
+          is_ussd_transaction?: boolean | null
           linked_expense_id?: string | null
           linked_invoice_id?: string | null
           metadata?: Json | null
+          mobile_money_provider?: string | null
           reference?: string | null
           statement_id?: string | null
           transaction_date?: string
