@@ -339,6 +339,7 @@ Ready to upload your statement?
                 currentStep: data.current_step,
                 totalSteps: data.total_steps,
                 completedSteps: data.completed_steps || [],
+                completed: data.completed || false,
                 data: data.data || {}
             };
         }
@@ -348,6 +349,7 @@ Ready to upload your statement?
             currentStep: 2, // Start at business_stage (entity_type already done)
             totalSteps: 8,
             completedSteps: ['entity_type'],
+            completed: false,
             data: {}
         };
     }
