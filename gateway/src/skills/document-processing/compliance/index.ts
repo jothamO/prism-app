@@ -3,8 +3,8 @@
  * Nigerian tax compliance checks: Section 191, mixed accounts, VAT thresholds
  */
 
-import { logger } from '../../utils/logger';
-import { supabase } from '../../config';
+import { logger } from '../../../utils/logger';
+import { supabase } from '../../../config';
 
 export interface ComplianceFlag {
     type: string;
@@ -137,7 +137,7 @@ export class ComplianceChecker {
 
             // Count personal transactions
             const personalCount = transactions.filter(
-                t => t.classification === 'personal'
+                (t: { classification: string | null }) => t.classification === 'personal'
             ).length;
 
             const personalPercentage = (personalCount / transactions.length) * 100;
@@ -180,7 +180,7 @@ export class ComplianceChecker {
             }
 
             const annualRevenue = transactions.reduce(
-                (sum, t) => sum + (t.credit || 0),
+                (sum: number, t: { credit: number | null }) => sum + (t.credit || 0),
                 0
             );
 

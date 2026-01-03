@@ -47,7 +47,7 @@ export class BankStatementExtractor {
                                 type: 'image' as const,
                                 source: {
                                     type: 'base64' as const,
-                                    media_type: documentContent.mediaType,
+                                    media_type: (documentContent.mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
                                     data: documentContent.data
                                 }
                             }] : [{

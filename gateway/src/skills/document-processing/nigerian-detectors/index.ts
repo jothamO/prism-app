@@ -3,8 +3,6 @@
  * Identifies USSD, mobile money, POS, and foreign currency transactions
  */
 
-import { logger } from '../../utils/logger';
-
 export interface NigerianFlags {
     is_ussd_transaction: boolean;
     is_mobile_money: boolean;
