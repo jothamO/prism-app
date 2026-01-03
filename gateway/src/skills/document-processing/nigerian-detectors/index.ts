@@ -1,6 +1,7 @@
 /**
  * Nigerian-Specific Transaction Detectors
  * Identifies USSD, mobile money, POS, and foreign currency transactions
+ * Phase 3: Capital detection, informal sector, CBN rates
  */
 
 export interface NigerianFlags {
@@ -10,6 +11,8 @@ export interface NigerianFlags {
     is_pos_transaction: boolean;
     is_foreign_currency: boolean;
     foreign_currency?: string;
+    is_capital_injection?: boolean;
+    capital_type?: string;
 }
 
 export class NigerianDetectors {
@@ -163,3 +166,8 @@ export class NigerianDetectors {
         return null;
     }
 }
+
+// Export Phase 3 enhancements
+export { CapitalDetector } from './capital-detector';
+export { InformalSectorTracker } from './informal-sector-tracker';
+export { CBNRateService } from './cbn-rate-service';
