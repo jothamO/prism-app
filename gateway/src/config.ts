@@ -38,7 +38,7 @@ export const config = {
     // Anthropic/Claude
     anthropic: {
         apiKey: process.env.ANTHROPIC_API_KEY!,
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-sonnet-4-5-20250929',
         maxTokens: 4000
     },
 

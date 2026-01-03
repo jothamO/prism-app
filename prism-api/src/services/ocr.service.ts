@@ -14,7 +14,7 @@ export class OCRService {
     const ocrConfidence = confidence / 100; // Normalize to 0-1
 
     const response = await this.claude.messages.create({
-      model: "claude-3-sonnet-20240229",
+      model: "claude-sonnet-4-5-20250929",
       max_tokens: 2000,
       messages: [
         {
@@ -67,7 +67,7 @@ Required JSON format:
     await worker.terminate();
 
     const response = await this.claude.messages.create({
-      model: "claude-3-sonnet-20240229",
+      model: "claude-sonnet-4-5-20250929",
       max_tokens: 1000,
       messages: [
         {

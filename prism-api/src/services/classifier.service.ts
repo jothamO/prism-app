@@ -103,7 +103,7 @@ export class ClassifierService {
     private async callClaude(txn: any) {
         const prompt = this.getPrompt(txn);
         const response = await this.claude!.messages.create({
-            model: 'claude-3-sonnet-20240229',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 300,
             messages: [{ role: 'user', content: prompt }]
         });
