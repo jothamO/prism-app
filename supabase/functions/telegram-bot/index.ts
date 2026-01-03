@@ -1,3 +1,17 @@
+/**
+ * ⚠️ DEPRECATED: This standalone Telegram bot is being replaced by telegram-bot-gateway
+ * 
+ * The new architecture routes all messages through the Railway Gateway for:
+ * - Centralized AI processing with document skills
+ * - Session management across platforms
+ * - Unified skill router for VAT, Tax, Identity, Receipt processing
+ * 
+ * Migration: Use supabase/functions/telegram-bot-gateway/index.ts instead
+ * See: gateway/DEPLOYMENT.md for Railway Gateway setup
+ * 
+ * This file is kept for reference and backwards compatibility during migration.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 

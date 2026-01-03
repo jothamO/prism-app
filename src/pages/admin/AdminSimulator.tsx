@@ -179,11 +179,12 @@ const AdminSimulator = () => {
   const [conversationContext, setConversationContext] = useState<Array<{ role: string; content: string }>>([]);
   const [nluEnabled, setNluEnabled] = useState(true);
   
-  // Gateway state
-  const [useGateway, setUseGateway] = useState(false);
+  // Gateway state - default to Gateway mode when URL is configured
+  const isGatewayConfigured = GATEWAY_URL !== 'NOT_CONFIGURED';
+  const [useGateway, setUseGateway] = useState(isGatewayConfigured);
   const [gatewayStatus, setGatewayStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
   const simulatorUserId = `simulator_${phoneNumber.replace(/[^0-9]/g, '')}`;
-  
+
   // Bank statement processing state (session-only, not persisted)
   const [processedBankStatement, setProcessedBankStatement] = useState<ProcessedBankStatement | null>(null);
 
@@ -2562,19 +2563,26 @@ const AdminSimulator = () => {
           </div>
 
           {/* Gateway Toggle */}
-          <div className="p-3 bg-muted/50 rounded-lg border space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="useGateway"
-                checked={useGateway}
-                onChange={(e) => setUseGateway(e.target.checked)}
-                className="w-4 h-4"
-              />
-              <label htmlFor="useGateway" className="text-sm flex items-center gap-1 font-medium">
-                {useGateway ? <Cloud className="w-3 h-3 text-primary" /> : <CloudOff className="w-3 h-3" />}
-                Use Railway Gateway
-              </label>
+          <div className={`p-3 rounded-lg border space-y-2 ${isGatewayConfigured ? 'bg-primary/5 border-primary/20' : 'bg-muted/50'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="useGateway"
+                  checked={useGateway}
+                  onChange={(e) => setUseGateway(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="useGateway" className="text-sm flex items-center gap-1 font-medium">
+                  {useGateway ? <Cloud className="w-3 h-3 text-primary" /> : <CloudOff className="w-3 h-3" />}
+                  Railway Gateway
+                </label>
+              </div>
+              {isGatewayConfigured && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
+                  RECOMMENDED
+                </span>
+              )}
             </div>
             {useGateway && (
               <div className="text-xs space-y-1">
@@ -2602,6 +2610,11 @@ const AdminSimulator = () => {
                   </>
                 )}
               </div>
+            )}
+            {!useGateway && isGatewayConfigured && (
+              <p className="text-[10px] text-muted-foreground">
+                ⓘ Enable Gateway for VAT, Tax, Identity & Receipt skills
+              </p>
             )}
           </div>
 
