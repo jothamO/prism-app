@@ -17,6 +17,9 @@ import {
   Ban,
   Zap,
   AlertCircle,
+  Brain,
+  BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -379,6 +382,102 @@ function OverviewTab() {
           <BotCommandsManager platform="telegram" />
         </div>
       )}
+
+      {/* NLU Insights Section */}
+      <div className="bg-card border border-border rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Brain className="w-5 h-5 text-primary" />
+          <h3 className="text-lg font-medium text-foreground">NLU Insights</h3>
+          <span className="ml-auto text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">Coming Soon</span>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Intent Distribution */}
+          <div className="bg-background rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Top Intents</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">get_tax_calculation</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full" style={{ width: '35%' }} />
+                  </div>
+                  <span className="text-xs text-foreground">35%</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">verify_identity</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: '25%' }} />
+                  </div>
+                  <span className="text-xs text-foreground">25%</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">general_query</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-gray-500 rounded-full" style={{ width: '20%' }} />
+                  </div>
+                  <span className="text-xs text-foreground">20%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Classification Stats */}
+          <div className="bg-background rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Classification</span>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">AI Classified</span>
+                <span className="text-sm font-medium text-primary">--</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Fallback Used</span>
+                <span className="text-sm font-medium text-yellow-500">--</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Avg Confidence</span>
+                <span className="text-sm font-medium text-green-500">--</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 191 Alerts */}
+          <div className="bg-background rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertCircle className="w-4 h-4 text-destructive" />
+              <span className="text-sm font-medium text-foreground">Section 191 Alerts</span>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Total Alerts</span>
+                <span className="text-sm font-medium text-destructive">--</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">This Week</span>
+                <span className="text-sm font-medium text-foreground">--</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Common Type</span>
+                <span className="text-xs text-muted-foreground">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground mt-4">
+          NLU analytics will be populated as users interact with the Gateway. Test NLU routing in the <a href="/admin/simulator" className="text-primary hover:underline">Admin Simulator</a>.
+        </p>
+      </div>
 
       {/* Clear States Confirmation Dialog */}
       <ConfirmationProgressDialog
