@@ -17,6 +17,7 @@ export interface OnboardingState {
     completedSteps: string[];
     completed: boolean;
     data: {
+        entityType?: 'business' | 'individual' | 'self_employed';
         businessStage?: 'pre_revenue' | 'early' | 'growing' | 'established';
         accountSetup?: 'mixed' | 'separate' | 'multiple';
         receivesCapitalSupport?: boolean;
@@ -83,6 +84,9 @@ export class EnhancedOnboardingSkill {
     ): Promise<Static<typeof MessageResponseSchema>> {
 
         switch (stepName) {
+            case 'entity_type':
+                return await this.handleEntityType(message, context, progress);
+
             case 'business_stage':
                 return await this.handleBusinessStage(message, context, progress);
 
@@ -117,6 +121,78 @@ export class EnhancedOnboardingSkill {
     }
 
     /**
+     * Handle entity type question (Business or Individual)
+     */
+    private async handleEntityType(
+        message: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const messageLower = message.toLowerCase();
+        let entityType: OnboardingState['data']['entityType'] | null = null;
+
+        // Check for responses
+        if (messageLower === '1' || messageLower.includes('business') || messageLower.includes('company') || messageLower.includes('owner')) {
+            entityType = 'business';
+        } else if (messageLower === '2' || messageLower.includes('employ') || messageLower.includes('individual') || messageLower.includes('salary')) {
+            entityType = 'individual';
+        } else if (messageLower === '3' || messageLower.includes('self') || messageLower.includes('freelance') || messageLower.includes('contractor')) {
+            entityType = 'self_employed';
+        }
+
+        if (!entityType) {
+            // First time - show welcome and entity type question
+            const timeOfDay = this.getTimeOfDay();
+            const greeting = PersonalityFormatter.greet(context.metadata?.userName, timeOfDay);
+
+            const welcomeMessage = `${greeting}
+
+Welcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerians.
+
+${PersonalityFormatter.onboardingQuestion(
+    "First, tell me about yourself:",
+    [
+        "1. Business Owner - I run a registered or informal business",
+        "2. Employed Individual - I earn a salary",
+        "3. Self-Employed / Freelancer - I work for myself"
+    ],
+    "This helps me give you the right tax advice"
+)}`;
+
+            return {
+                message: welcomeMessage,
+                metadata: { skill: this.name, step: 'entity_type', awaitingOnboarding: true }
+            };
+        }
+
+        // Save entity type and decide next step
+        const nextStep = entityType === 'individual' ? 7 : 2; // Skip to preferences for individuals
+        const nextStepName = entityType === 'individual' ? 'preferences' : 'business_stage';
+
+        await this.saveProgress(context.userId, context.metadata?.businessId, {
+            ...progress,
+            currentStep: nextStep,
+            completedSteps: [...progress.completedSteps, 'entity_type'],
+            data: { ...progress.data, entityType }
+        });
+
+        // Route to next step
+        if (entityType === 'individual') {
+            return this.handlePreferences('', context, {
+                ...progress,
+                currentStep: nextStep,
+                data: { ...progress.data, entityType }
+            });
+        }
+
+        return this.handleBusinessStage('', context, {
+            ...progress,
+            currentStep: nextStep,
+            data: { ...progress.data, entityType }
+        });
+    }
+
+    /**
      * Handle business stage question
      */
     private async handleBusinessStage(
@@ -140,17 +216,8 @@ export class EnhancedOnboardingSkill {
         }
 
         if (!stage) {
-            // First time asking - use personality layer for warm welcome
-            const timeOfDay = this.getTimeOfDay();
-            const greeting = PersonalityFormatter.greet(context.metadata?.userName, timeOfDay);
-
-            const welcomeMessage = `${greeting}
-
-Welcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerian businesses.
-
-Let me learn a bit about you so I can give you the best advice.
-
-${PersonalityFormatter.onboardingQuestion(
+            return {
+                message: PersonalityFormatter.onboardingQuestion(
     "What stage is your business?",
     [
         "1. Pre-revenue - Still planning or setting up",
@@ -159,10 +226,7 @@ ${PersonalityFormatter.onboardingQuestion(
         "4. Established - Mature business with steady revenue"
     ],
     "This helps me tailor my advice to your needs"
-)}`;
-
-            return {
-                message: welcomeMessage,
+),
                 metadata: { skill: this.name, step: 'business_stage', awaitingOnboarding: true }
             };
         }
@@ -364,11 +428,11 @@ Ready to upload your statement?
             };
         }
 
-        // Default new onboarding
+        // Default new onboarding - start at entity_type
         return {
-            currentStep: 2, // Start at business_stage (entity_type already done)
+            currentStep: 1,
             totalSteps: 8,
-            completedSteps: ['entity_type'],
+            completedSteps: [],
             completed: false,
             data: {}
         };
