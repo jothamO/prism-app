@@ -642,10 +642,36 @@ Deno.serve(async (req) => {
         await supabaseClient.from("bank_charges").delete().eq("user_id", userId);
         await supabaseClient.from("emtl_charges").delete().eq("user_id", userId);
         
-        // 6. Delete onboarding and session data
+        // 6. Delete audit_log entries (FK constraint that was causing errors)
+        await supabaseClient.from("audit_log").delete().eq("user_id", userId);
+        
+        // 7. Delete other tables with FK to users
+        await supabaseClient.from("user_accounts").delete().eq("user_id", userId);
+        await supabaseClient.from("review_queue").delete().eq("user_id", userId);
+        await supabaseClient.from("non_revenue_transactions").delete().eq("user_id", userId);
+        await supabaseClient.from("user_events").delete().eq("user_id", userId);
+        await supabaseClient.from("invoice_validations").delete().eq("user_id", userId);
+        await supabaseClient.from("user_insights").delete().eq("user_id", userId);
+        
+        // 8. Delete projects and project_receipts
+        const { data: projects } = await supabaseClient
+          .from("projects")
+          .select("id")
+          .eq("user_id", userId);
+        
+        if (projects && projects.length > 0) {
+          const projectIds = projects.map(p => p.id);
+          await supabaseClient
+            .from("project_receipts")
+            .delete()
+            .in("project_id", projectIds);
+        }
+        await supabaseClient.from("projects").delete().eq("user_id", userId);
+        
+        // 9. Delete onboarding and session data
         await supabaseClient.from("onboarding_progress").delete().eq("user_id", userId);
         
-        // 7. Delete conversation state
+        // 10. Delete conversation state
         if (userData.telegram_id) {
           await supabaseClient.from("conversation_state").delete().eq("telegram_id", userData.telegram_id);
           await supabaseClient.from("chatbot_sessions").delete().eq("user_id", userData.telegram_id);
@@ -655,7 +681,7 @@ Deno.serve(async (req) => {
           await supabaseClient.from("chatbot_sessions").delete().eq("user_id", userData.whatsapp_id);
         }
         
-        // 8. Get and delete businesses (and their related patterns)
+        // 11. Get and delete businesses (and their related patterns)
         const { data: businesses } = await supabaseClient
           .from("businesses")
           .select("id")
@@ -670,7 +696,7 @@ Deno.serve(async (req) => {
         }
         await supabaseClient.from("businesses").delete().eq("user_id", userId);
         
-        // 9. Delete the user
+        // 12. Delete the user
         const { error: deleteError } = await supabaseClient
           .from("users")
           .delete()
@@ -684,10 +710,10 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Log audit
+        // Log audit (user_id is null since user is deleted)
         await supabaseClient.from("audit_log").insert({
           admin_id: user.id,
-          user_id: userId,
+          user_id: null,
           action: "user_deleted",
           entity_type: "user",
           entity_id: userId,
