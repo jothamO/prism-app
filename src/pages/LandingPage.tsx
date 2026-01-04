@@ -51,7 +51,7 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              <Link to="/admin/login">
+              <Link to="/auth">
                 <Button variant="secondary" className="font-medium">Sign In</Button>
               </Link>
             </div>
@@ -73,7 +73,7 @@ export default function LandingPage() {
               automate calculations, and file returns effortlessly.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/admin/login">
+              <Link to="/auth">
                 <Button size="lg" className="w-full sm:w-auto text-lg px-8">
                   Get Started
                 </Button>
@@ -125,7 +125,7 @@ export default function LandingPage() {
           <p className="text-lg text-muted-foreground mb-10">
             Join businesses across Nigeria who trust PRISM for their VAT compliance needs.
           </p>
-          <Link to="/admin/login">
+          <Link to="/auth">
             <Button size="lg" className="text-lg px-8">
               Start Free Trial
             </Button>
@@ -142,13 +142,14 @@ export default function LandingPage() {
                 <span className="text-primary-foreground font-bold text-sm">P</span>
               </div>
               <span className="text-sm text-muted-foreground">
-                © 2024 PRISM. All rights reserved.
+                © 2026 PRISM. All rights reserved.
               </span>
             </div>
             <div className="flex gap-6 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
               <a href="#" className="hover:text-foreground transition-colors">Terms</a>
               <a href="#" className="hover:text-foreground transition-colors">Contact</a>
+              <Link to="/admin/login" className="hover:text-foreground transition-colors">Admin</Link>
             </div>
           </div>
         </div>
