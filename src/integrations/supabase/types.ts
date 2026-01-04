@@ -857,6 +857,59 @@ export type Database = {
         }
         Relationships: []
       }
+      connected_accounts: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          account_type: string | null
+          bank_name: string | null
+          created_at: string | null
+          id: string
+          last_synced_at: string | null
+          mono_account_id: string
+          mono_code: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type?: string | null
+          bank_name?: string | null
+          created_at?: string | null
+          id?: string
+          last_synced_at?: string | null
+          mono_account_id: string
+          mono_code?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          account_type?: string | null
+          bank_name?: string | null
+          created_at?: string | null
+          id?: string
+          last_synced_at?: string | null
+          mono_account_id?: string
+          mono_code?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connected_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_state: {
         Row: {
           context: Json | null
@@ -2065,6 +2118,44 @@ export type Database = {
         }
         Relationships: []
       }
+      telegram_auth_tokens: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          telegram_id: string | null
+          token: string
+          used: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          telegram_id?: string | null
+          token: string
+          used?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          telegram_id?: string | null
+          token?: string
+          used?: boolean | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_auth_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_accounts: {
         Row: {
           account_number: string | null
@@ -2314,7 +2405,9 @@ export type Database = {
       users: {
         Row: {
           age: number | null
+          auth_user_id: string | null
           auto_categorize: boolean | null
+          bank_setup: string | null
           blocked_at: string | null
           blocked_reason: string | null
           business_name: string | null
@@ -2322,6 +2415,7 @@ export type Database = {
           business_type: string | null
           cac_number: string | null
           company_name: string | null
+          consent_given: boolean | null
           created_at: string | null
           email: string | null
           entity_type: string | null
@@ -2329,6 +2423,7 @@ export type Database = {
           full_name: string | null
           has_active_vat: boolean | null
           id: string
+          income_type: string | null
           insight_frequency: string | null
           is_active: boolean | null
           is_blocked: boolean | null
@@ -2337,6 +2432,7 @@ export type Database = {
           notification_preferences: Json | null
           onboarding_completed: boolean | null
           onboarding_step: number | null
+          phone: string | null
           platform: string | null
           primary_tax_category: string | null
           subscription_expires_at: string | null
@@ -2354,10 +2450,13 @@ export type Database = {
           verified_at: string | null
           whatsapp_id: string | null
           whatsapp_number: string | null
+          work_status: string | null
         }
         Insert: {
           age?: number | null
+          auth_user_id?: string | null
           auto_categorize?: boolean | null
+          bank_setup?: string | null
           blocked_at?: string | null
           blocked_reason?: string | null
           business_name?: string | null
@@ -2365,6 +2464,7 @@ export type Database = {
           business_type?: string | null
           cac_number?: string | null
           company_name?: string | null
+          consent_given?: boolean | null
           created_at?: string | null
           email?: string | null
           entity_type?: string | null
@@ -2372,6 +2472,7 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          income_type?: string | null
           insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
@@ -2380,6 +2481,7 @@ export type Database = {
           notification_preferences?: Json | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          phone?: string | null
           platform?: string | null
           primary_tax_category?: string | null
           subscription_expires_at?: string | null
@@ -2397,10 +2499,13 @@ export type Database = {
           verified_at?: string | null
           whatsapp_id?: string | null
           whatsapp_number?: string | null
+          work_status?: string | null
         }
         Update: {
           age?: number | null
+          auth_user_id?: string | null
           auto_categorize?: boolean | null
+          bank_setup?: string | null
           blocked_at?: string | null
           blocked_reason?: string | null
           business_name?: string | null
@@ -2408,6 +2513,7 @@ export type Database = {
           business_type?: string | null
           cac_number?: string | null
           company_name?: string | null
+          consent_given?: boolean | null
           created_at?: string | null
           email?: string | null
           entity_type?: string | null
@@ -2415,6 +2521,7 @@ export type Database = {
           full_name?: string | null
           has_active_vat?: boolean | null
           id?: string
+          income_type?: string | null
           insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
@@ -2423,6 +2530,7 @@ export type Database = {
           notification_preferences?: Json | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          phone?: string | null
           platform?: string | null
           primary_tax_category?: string | null
           subscription_expires_at?: string | null
@@ -2440,6 +2548,7 @@ export type Database = {
           verified_at?: string | null
           whatsapp_id?: string | null
           whatsapp_number?: string | null
+          work_status?: string | null
         }
         Relationships: []
       }

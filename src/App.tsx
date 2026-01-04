@@ -5,6 +5,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
+import Auth from "./pages/Auth";
+import Register from "./pages/Register";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -26,7 +28,6 @@ import AdminProfiles from "./pages/admin/AdminProfiles";
 import AdminNLUTesting from "./pages/admin/AdminNLUTesting";
 import AdminMLHealth from "./pages/admin/AdminMLHealth";
 import AdminPatterns from "./pages/admin/AdminPatterns";
-import AdminOnboarding from "./pages/admin/AdminOnboarding";
 import AdminDocuments from "./pages/admin/AdminDocuments";
 
 function App() {
@@ -37,6 +38,8 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             
             {/* Protected Dashboard */}
@@ -76,7 +79,7 @@ function App() {
               <Route path="nlu-testing" element={<AdminNLUTesting />} />
               <Route path="vat-testing" element={<AdminVATTesting />} />
               <Route path="patterns" element={<AdminPatterns />} />
-              <Route path="onboarding" element={<AdminOnboarding />} />
+              <Route path="documents" element={<AdminDocuments />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
