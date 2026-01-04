@@ -118,7 +118,16 @@ export default function AdminUsers() {
   async function fetchUsers() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch web-registered users from profiles table
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, created_at, updated_at')
+        .order('created_at', { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      // Fetch bot users from users table (WhatsApp/Telegram)
+      const { data: botUsersData, error: botUsersError } = await supabase
         .from('users')
         .select(`
           id,
@@ -134,30 +143,54 @@ export default function AdminUsers() {
           is_blocked,
           subscription_tier,
           created_at,
-          updated_at
+          updated_at,
+          auth_user_id
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (botUsersError) throw botUsersError;
 
-      // Also check user_roles for admin status
+      // Fetch all user roles
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
-      const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      // Create role map - prioritize admin role if user has multiple
+      const roleMap = new Map<string, "admin" | "user" | "support">();
+      roles?.forEach(r => {
+        const existingRole = roleMap.get(r.user_id);
+        if (!existingRole || r.role === 'admin') {
+          roleMap.set(r.user_id, r.role as "admin" | "user" | "support");
+        }
+      });
 
-      setUsers(
-        (data || []).map(u => ({
+      // Map web-registered users (profiles)
+      const webUsers: User[] = (profilesData || []).map(p => ({
+        id: p.id,
+        name: p.full_name || p.email || 'Unknown',
+        email: p.email || '-',
+        role: roleMap.get(p.id) || 'user',
+        status: 'active' as const,
+        lastActive: p.updated_at ? formatRelativeTime(p.updated_at) : 'Never',
+        platform: 'web'
+      }));
+
+      // Map bot users (WhatsApp/Telegram) - exclude those already in profiles
+      const profileIds = new Set(profilesData?.map(p => p.id) || []);
+      const botUsers: User[] = (botUsersData || [])
+        .filter(u => !u.auth_user_id || !profileIds.has(u.auth_user_id))
+        .map(u => ({
           id: u.id,
           name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_username || u.whatsapp_number || 'Unknown',
           email: u.email || u.whatsapp_number || u.telegram_id || '-',
-          role: (roleMap.get(u.id) as "admin" | "user" | "support") || 'user',
+          role: roleMap.get(u.auth_user_id || u.id) || 'user',
           status: u.is_blocked ? 'suspended' as const : (u.onboarding_completed ? 'active' as const : 'pending' as const),
           lastActive: u.updated_at ? formatRelativeTime(u.updated_at) : 'Never',
           platform: u.platform || 'unknown'
-        }))
-      );
+        }));
+
+      // Combine both user types
+      setUsers([...webUsers, ...botUsers]);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast({ title: "Error", description: "Failed to fetch users", variant: "destructive" });
