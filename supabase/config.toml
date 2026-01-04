@@ -59,3 +59,15 @@ verify_jwt = false
 
 [functions.cbn-rate-fetcher]
 verify_jwt = false
+
+[functions.register-user]
+verify_jwt = false
+
+[functions.mono-connect-init]
+verify_jwt = false
+
+[functions.mono-webhook]
+verify_jwt = false
+
+[functions.mono-sync-transactions]
+verify_jwt = false

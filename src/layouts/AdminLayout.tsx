@@ -24,8 +24,7 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
-  FileStack,
-  GraduationCap
+  FileStack
 } from "lucide-react";
 
 interface NavGroup {
@@ -86,7 +85,6 @@ export default function AdminLayout() {
       items: [
         { name: "Users", path: "/admin/users", icon: Users },
         { name: "Tax Profiles", path: "/admin/profiles", icon: Users },
-        { name: "Onboarding", path: "/admin/onboarding", icon: GraduationCap },
       ]
     },
     {

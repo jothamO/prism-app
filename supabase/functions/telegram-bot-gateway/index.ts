@@ -414,6 +414,122 @@ serve(async (req) => {
             // Handle text message
             const text = message.text || "";
 
+            // ============= TOKEN VERIFICATION FOR WEB REGISTRATION =============
+            if (text.startsWith('/start ')) {
+                const token = text.replace('/start ', '').trim();
+                console.log(`[Telegram] Token verification attempt: ${token.substring(0, 8)}...`);
+                
+                // Verify token
+                const { data: authToken, error: tokenError } = await supabase
+                    .from('telegram_auth_tokens')
+                    .select('*, user_id')
+                    .eq('token', token)
+                    .eq('used', false)
+                    .gt('expires_at', new Date().toISOString())
+                    .single();
+
+                if (tokenError || !authToken) {
+                    console.log(`[Telegram] Invalid or expired token: ${tokenError?.message}`);
+                    await sendMessage(chatId, 
+                        `❌ <b>Invalid or expired link</b>\n\n` +
+                        `This registration link is no longer valid.\n\n` +
+                        `Please register again at: https://prism.tax`,
+                        [[{ text: '🔗 Register', callback_data: 'open_registration' }]]
+                    );
+                    return new Response(JSON.stringify({ ok: true }), {
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    });
+                }
+
+                // Fetch user details
+                const { data: userData } = await supabase
+                    .from('users')
+                    .select('full_name, work_status, income_type, bank_setup')
+                    .eq('id', authToken.user_id)
+                    .single();
+
+                if (!userData) {
+                    await sendMessage(chatId, 
+                        `❌ User profile not found. Please contact support.`
+                    );
+                    return new Response(JSON.stringify({ ok: true }), {
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    });
+                }
+
+                // Link Telegram account to user
+                const { error: updateError } = await supabase
+                    .from('users')
+                    .update({ 
+                        telegram_id: telegramId,
+                        telegram_username: message.from?.username || null,
+                        first_name: message.from?.first_name || null,
+                        last_name: message.from?.last_name || null,
+                        onboarding_completed: true
+                    })
+                    .eq('id', authToken.user_id);
+
+                if (updateError) {
+                    console.error('[Telegram] Failed to link account:', updateError);
+                    await sendMessage(chatId, 
+                        `❌ Failed to link your account. Please try again.`
+                    );
+                    return new Response(JSON.stringify({ ok: true }), {
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    });
+                }
+
+                // Mark token as used
+                await supabase
+                    .from('telegram_auth_tokens')
+                    .update({ used: true, telegram_id: telegramId })
+                    .eq('id', authToken.id);
+
+                console.log(`[Telegram] Successfully linked user ${authToken.user_id} to Telegram ${telegramId}`);
+
+                // Format work status for display
+                const formatWorkStatus = (status: string) => {
+                    const map: Record<string, string> = {
+                        'business': '🏢 Business Owner',
+                        'employed': '💼 Employed',
+                        'freelancer': '💻 Freelancer',
+                        'student': '📚 Student',
+                        'retired': '🌴 Retired'
+                    };
+                    return map[status] || status;
+                };
+
+                const formatIncomeType = (type: string) => {
+                    const map: Record<string, string> = {
+                        'salary': '💰 Salary',
+                        'business': '🏪 Business Income',
+                        'rental': '🏠 Rental',
+                        'investment': '📈 Investment',
+                        'consulting': '🎯 Consulting',
+                        'multiple': '📊 Multiple Sources'
+                    };
+                    return map[type] || type;
+                };
+
+                // Send welcome message with profile summary
+                await sendMessage(chatId,
+                    `👋 <b>Welcome to PRISM, ${userData.full_name?.split(' ')[0] || 'there'}!</b>\n\n` +
+                    `Your account has been successfully linked! Here's your profile:\n\n` +
+                    `📋 <b>Your Profile:</b>\n` +
+                    `• Status: ${formatWorkStatus(userData.work_status)}\n` +
+                    `• Income: ${formatIncomeType(userData.income_type)}\n` +
+                    `• Accounts: ${userData.bank_setup === 'mixed' ? 'Mixed' : userData.bank_setup === 'separate' ? 'Separate' : 'Multiple'}\n\n` +
+                    `Now let's connect your bank account for automatic tax tracking! 🏦`,
+                    [[{ text: '🔗 Connect Bank Account', callback_data: 'connect_bank' }]]
+                );
+
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
+
+            // ============= REGULAR MESSAGE HANDLING =============
+            
             // Check if user exists and needs onboarding
             const { data: existingUser } = await supabase
                 .from('users')
@@ -424,30 +540,31 @@ serve(async (req) => {
             const isNewUser = !existingUser;
             const needsOnboarding = isNewUser || !existingUser?.onboarding_completed;
 
-            // CREATE USER IF DOESN'T EXIST
-            if (isNewUser) {
-                console.log(`[Telegram] Creating new user: ${telegramId}`);
-                
-                const { data: newUser, error: createError } = await supabase
-                    .from('users')
-                    .insert({
-                        telegram_id: telegramId,
-                        telegram_username: message.from?.username || null,
-                        full_name: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') || null,
-                        first_name: message.from?.first_name || null,
-                        last_name: message.from?.last_name || null,
-                        platform: 'telegram',
-                        onboarding_completed: false,
-                        subscription_tier: 'basic'
-                    })
-                    .select('id')
-                    .single();
-                
-                if (createError) {
-                    console.error('[Telegram] Failed to create user:', createError);
-                } else {
-                    console.log(`[Telegram] Created user with UUID: ${newUser?.id}`);
+            // If user not linked via web registration, redirect them
+            if (isNewUser || needsOnboarding) {
+                // Check for simple /start without token
+                if (text === '/start') {
+                    await sendMessage(chatId,
+                        `👋 <b>Welcome to PRISM Tax Assistant!</b>\n\n` +
+                        `To get started, please register on our website first. ` +
+                        `You'll be redirected back here to complete setup.\n\n` +
+                        `🌐 <b>Register at:</b> https://prism.tax`,
+                        [[{ text: '🔗 Register Now', callback_data: 'open_registration' }]]
+                    );
+                    return new Response(JSON.stringify({ ok: true }), {
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    });
                 }
+                
+                // For other messages from unregistered users
+                await sendMessage(chatId,
+                    `⚠️ You haven't completed registration yet.\n\n` +
+                    `Please register at https://prism.tax to link your account.`,
+                    [[{ text: '🔗 Register', callback_data: 'open_registration' }]]
+                );
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
             }
 
             // Fetch onboarding mode from system settings
@@ -461,12 +578,12 @@ serve(async (req) => {
             const aiMode = systemSettings?.onboarding_mode === 'ai';
             console.log(`[Telegram] Onboarding mode: ${systemSettings?.onboarding_mode} -> aiMode: ${aiMode}`);
 
-            // Forward to Gateway with user status metadata
+            // Forward to Gateway for registered users
             const gatewayResponse = await forwardToGateway(telegramId, text, message.message_id, {
-                needsOnboarding,
-                isNewUser,
+                needsOnboarding: false,
+                isNewUser: false,
                 userName: message.from?.first_name,
-                aiMode  // boolean instead of onboardingMode string
+                aiMode
             });
 
             // Send response back to Telegram
