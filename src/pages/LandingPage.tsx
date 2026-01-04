@@ -38,7 +38,7 @@ const features = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
       {/* Navigation */}
       <nav className="border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
