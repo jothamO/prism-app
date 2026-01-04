@@ -82,19 +82,24 @@ export class SkillRouter {
 
             // ===== PRIORITY 3: Onboarding (BEFORE identity verification) =====
             // Onboarding: "/start", new user, or natural language triggers
-            if (context.metadata?.needsOnboarding ||
+            const isGreeting = this.matchesPattern(lowerMessage, /^(hi|hello|hey|morning|afternoon|evening|wetin|good\s*(morning|afternoon|evening))/i);
+            const isStartRequest = this.matchesPattern(lowerMessage, /(get started|want to start|getting started|wan start|begin|let'?s\s+go)/i);
+            const isOnboardingTrigger = context.metadata?.needsOnboarding ||
                 context.metadata?.isNewUser ||
                 context.metadata?.awaitingOnboarding ||
                 this.matchesPattern(lowerMessage, /^\/?(?:start|onboard|setup|begin)$/i) ||
-                this.matchesPattern(lowerMessage, /(get started|want to start|getting started|wan start)/i) ||
-                (this.matchesPattern(lowerMessage, /^(hi|hello|hey|morning|afternoon|evening|wetin)/i) && context.metadata?.isNewUser)) {
-                logger.info('[Router] Pattern match: Onboarding', { userId, triggeredBy: context.metadata?.needsOnboarding ? 'needsOnboarding' : 'pattern' });
-                return await enhancedOnboardingSkill.handle(message, context);
-            }
+                isStartRequest;
 
-            // AI Mode: Always route new users to onboarding
-            if (context.metadata?.aiMode && context.metadata?.isNewUser) {
-                logger.info('[Router] AI Mode: New user onboarding', { userId });
+            // Route to onboarding if triggered OR if greeting + new/needs onboarding
+            if (isOnboardingTrigger || 
+                (isGreeting && (context.metadata?.isNewUser || context.metadata?.needsOnboarding))) {
+                logger.info('[Router] Routing to onboarding', { 
+                    userId, 
+                    isNewUser: context.metadata?.isNewUser,
+                    needsOnboarding: context.metadata?.needsOnboarding,
+                    aiMode: context.metadata?.aiMode,
+                    trigger: isOnboardingTrigger ? 'direct' : 'greeting'
+                });
                 return await enhancedOnboardingSkill.handle(message, context);
             }
 

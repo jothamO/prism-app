@@ -5,6 +5,7 @@
 
 import { logger } from '../../../utils/logger';
 import { supabase } from '../../../config';
+import { processCorrection } from '../../../services/transaction-learning-hook';
 
 export class FeedbackHandler {
     /**
@@ -75,6 +76,23 @@ export class FeedbackHandler {
                 from: data.aiPrediction.classification,
                 to: data.userCorrection.classification
             });
+
+            // Learn from correction for profile enhancement
+            try {
+                await processCorrection(
+                    data.userId,
+                    data.transactionId,
+                    data.aiPrediction.classification,
+                    data.userCorrection.classification,
+                    {
+                        narration: data.description,
+                        amount: data.amount || 0,
+                        type: 'debit' // Default, could be determined from transaction
+                    }
+                );
+            } catch (learningError) {
+                logger.warn('[FeedbackHandler] Profile learning failed (non-critical)', learningError);
+            }
         } catch (error) {
             logger.error('[FeedbackHandler] Failed to record correction:', error);
             throw error;
