@@ -9,7 +9,6 @@ import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functio
 import { NLUDebugPanel, NLUIntent, ArtificialTransactionCheck } from "@/components/admin/NLUDebugPanel";
 import { WhatsAppButtonsPreview, WhatsAppListMessage, ListSection } from "@/components/admin/WhatsAppInteractivePreview";
 import { DocumentTestUploader, ExtractedData } from "@/components/admin/DocumentTestUploader";
-import { ConversationFlowTester } from "@/components/admin/ConversationFlowTester";
 import { gatewayClient, GATEWAY_URL } from "@/lib/gatewayClient";
 interface ListConfig {
   header?: string;
@@ -2892,20 +2891,6 @@ const AdminSimulator = () => {
             }}
           />
         )}
-
-        {/* Flow Tester */}
-        <ConversationFlowTester
-          onSendMessage={(msg) => {
-            setInputMessage(msg);
-            setTimeout(() => {
-              const btn = document.querySelector('[data-send-button]') as HTMLButtonElement;
-              btn?.click();
-            }, 100);
-          }}
-          onClickButton={handleButtonClick}
-          lastBotMessage={lastBotMessage}
-          isTyping={isTyping}
-        />
 
         {/* Document Uploader */}
         <DocumentTestUploader onDocumentProcessed={handleDocumentProcessed} />
