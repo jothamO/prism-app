@@ -84,7 +84,7 @@ RESPOND WITH VALID JSON ONLY:
             return fallbackPatternMatch(userMessage, options);
         }
 
-        const data = await response.json();
+        const data = await response.json() as { choices?: { message?: { content?: string } }[] };
         const content = data.choices?.[0]?.message?.content || '';
         
         // Parse JSON response
