@@ -314,8 +314,17 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
             checkGatewayHealth();
         }, [checkGatewayHealth]);
 
-        const sendMessage = useCallback(async (message: string, userId: string): Promise<{ response: string; metadata?: Record<string, unknown> }> => {
-            console.log(`[OnboardingTest] Sending message to ${GATEWAY_URL}/chat:`, { message, userId });
+        const sendMessage = useCallback(async (
+            message: string, 
+            userId: string,
+            stepIndex: number = 0
+        ): Promise<{ response: string; metadata?: Record<string, unknown> }> => {
+            // First step should trigger onboarding
+            const isFirstStep = stepIndex === 0;
+            
+            console.log(`[OnboardingTest] Step ${stepIndex + 1}: Sending to ${GATEWAY_URL}/chat`);
+            console.log(`[OnboardingTest] Message: "${message}", isFirstStep: ${isFirstStep}`);
+            
             try {
                 const response = await fetch(`${GATEWAY_URL}/chat`, {
                     method: 'POST',
@@ -325,7 +334,12 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                         platform: 'simulator',
                         message,
                         idempotencyKey: `test-${Date.now()}-${Math.random()}`,
-                        metadata: { isTest: true, aiMode }
+                        metadata: { 
+                            isTest: true, 
+                            aiMode,
+                            needsOnboarding: isFirstStep,  // Signal first step needs onboarding
+                            isNewUser: isFirstStep          // Treat as new user on first step
+                        }
                     })
                 });
 
@@ -407,7 +421,7 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                     console.log(`[OnboardingTest] Sending input: "${input}"`);
 
                     try {
-                        const { response, metadata } = await sendMessage(input, testUserId);
+                        const { response, metadata } = await sendMessage(input, testUserId, i);
                         const duration = Date.now() - startTime;
                         const validation = validateStep(response, step);
 

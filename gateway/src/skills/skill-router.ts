@@ -90,12 +90,20 @@ export class SkillRouter {
                 return await identityVerificationSkill.handle(message, context);
             }
 
-            // Onboarding: "/start" or new user
+            // Onboarding: "/start", new user, or natural language triggers
             if (context.metadata?.needsOnboarding || 
                 context.metadata?.isNewUser ||
                 context.metadata?.awaitingOnboarding ||
-                this.matchesPattern(lowerMessage, /^\/?(start|onboard|setup|get started|begin)$/i)) {
-                logger.info('[Router] Pattern match: Onboarding', { userId });
+                this.matchesPattern(lowerMessage, /^\/?(start|onboard|setup|begin)$/i) ||
+                this.matchesPattern(lowerMessage, /(get started|want to start|getting started|wan start)/i) ||
+                (this.matchesPattern(lowerMessage, /^(hi|hello|hey|morning|afternoon|evening|wetin)/i) && context.metadata?.isNewUser)) {
+                logger.info('[Router] Pattern match: Onboarding', { userId, triggeredBy: context.metadata?.needsOnboarding ? 'needsOnboarding' : 'pattern' });
+                return await enhancedOnboardingSkill.handle(message, context);
+            }
+            
+            // AI Mode: Always route new users to onboarding
+            if (context.metadata?.aiMode && context.metadata?.isNewUser) {
+                logger.info('[Router] AI Mode: New user onboarding', { userId });
                 return await enhancedOnboardingSkill.handle(message, context);
             }
 
