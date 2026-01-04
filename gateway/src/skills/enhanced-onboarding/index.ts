@@ -25,6 +25,7 @@ export interface OnboardingState {
         insightFrequency?: 'daily' | 'weekly' | 'monthly' | 'never';
         autoCategorize?: boolean;
         informalBusiness?: boolean;
+        freelanceAccountSeparate?: boolean;
     };
 }
 
@@ -41,6 +42,37 @@ export class EnhancedOnboardingSkill {
         'preferences',
         'initial_analysis'
     ];
+
+    // Warm acknowledgments for each entity type selection
+    private readonly ENTITY_ACKNOWLEDGMENTS = {
+        'business': "Business owner! 💼 I love it. Let's make sure you're on top of your tax game.",
+        'individual': "Working the 9-to-5! 💪 Let me help you track your salary and find any tax relief you're entitled to.",
+        'self_employed': "Freelancer life! 💻 You're your own boss - and I'm here to handle the tax side of things."
+    };
+
+    // Warm acknowledgments for business stage
+    private readonly STAGE_ACKNOWLEDGMENTS = {
+        'pre_revenue': "Pre-revenue? No wahala! 🌱 Many successful businesses started exactly where you are.",
+        'early': "Early stage - exciting times! 🚀 Those first customers are always special.",
+        'growing': "Growing business! 📈 Now we're talking. Let's make sure you're tax-efficient as you scale.",
+        'established': "Established business! 💪 You've built something solid. Let's optimize your tax position."
+    };
+
+    // Acknowledgments for account setup
+    private readonly ACCOUNT_ACKNOWLEDGMENTS = {
+        'mixed': "Mixed account - I get it, many Nigerians start this way. I'll help you identify which transactions are business vs personal.",
+        'separate': "Separate accounts! Smart move 👏 This makes tracking so much easier.",
+        'multiple': "Multiple accounts! Proper setup 💼 I'll help you consolidate insights across all of them."
+    };
+
+    // Acknowledgments for capital source
+    private readonly CAPITAL_ACKNOWLEDGMENTS = {
+        'family': "Family & friends support - the Nigerian way! 🤝 I'll make sure those transfers don't get counted as revenue.",
+        'investors': "Investor funding! 🚀 Exciting! I'll help you track and correctly classify capital injections.",
+        'loan': "Loan financing - smart leverage! 📊 I'll ensure loan proceeds aren't taxed as income.",
+        'bootstrapped': "Bootstrapped! 💪 Self-made business. Respect! Let's maximize your hard-earned profits.",
+        'grant': "Grant funding! 🎯 Excellent! I'll help ensure proper treatment of grant income."
+    };
 
     /**
      * Handle onboarding messages
@@ -67,7 +99,7 @@ export class EnhancedOnboardingSkill {
         } catch (error) {
             logger.error('[EnhancedOnboarding] Error:', error);
             return {
-                message: "❌ Something went wrong with onboarding. Let me restart for you.",
+                message: PersonalityFormatter.error("Something went wrong with onboarding", true),
                 metadata: { skill: this.name, error: error instanceof Error ? error.message : String(error) }
             };
         }
@@ -121,17 +153,17 @@ export class EnhancedOnboardingSkill {
     }
 
     /**
-     * Handle entity type question (Business or Individual)
+     * Handle entity type question (Business, Individual, or Self-Employed)
      */
     private async handleEntityType(
         message: string,
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
-        const messageLower = message.toLowerCase();
+        const messageLower = message.toLowerCase().trim();
         let entityType: OnboardingState['data']['entityType'] | null = null;
 
-        // Check for responses
+        // Check for responses - both numbers and keywords
         if (messageLower === '1' || messageLower.includes('business') || messageLower.includes('company') || messageLower.includes('owner')) {
             entityType = 'business';
         } else if (messageLower === '2' || messageLower.includes('employ') || messageLower.includes('individual') || messageLower.includes('salary')) {
@@ -165,31 +197,83 @@ ${PersonalityFormatter.onboardingQuestion(
             };
         }
 
-        // Save entity type and decide next step
-        const nextStep = entityType === 'individual' ? 7 : 2; // Skip to preferences for individuals
-        const nextStepName = entityType === 'individual' ? 'preferences' : 'business_stage';
+        // Get acknowledgment for their choice
+        const acknowledgment = this.ENTITY_ACKNOWLEDGMENTS[entityType];
 
-        await this.saveProgress(context.userId, context.metadata?.businessId, {
-            ...progress,
-            currentStep: nextStep,
-            completedSteps: [...progress.completedSteps, 'entity_type'],
-            data: { ...progress.data, entityType }
-        });
-
-        // Route to next step
+        // Different flows based on entity type
         if (entityType === 'individual') {
-            return this.handlePreferences('', context, {
+            // Skip to preferences for salaried individuals
+            await this.saveProgress(context.userId, context.metadata?.businessId, {
                 ...progress,
-                currentStep: nextStep,
+                currentStep: 7,
+                completedSteps: [...progress.completedSteps, 'entity_type'],
+                data: { ...progress.data, entityType }
+            });
+
+            // Show acknowledgment + preferences question
+            return this.handlePreferencesWithAck(acknowledgment, context, {
+                ...progress,
+                currentStep: 7,
                 data: { ...progress.data, entityType }
             });
         }
 
-        return this.handleBusinessStage('', context, {
+        if (entityType === 'self_employed') {
+            // Simplified flow for freelancers - skip business stage, ask about account setup
+            await this.saveProgress(context.userId, context.metadata?.businessId, {
+                ...progress,
+                currentStep: 3, // Jump to account_setup
+                completedSteps: [...progress.completedSteps, 'entity_type', 'business_stage'],
+                data: { ...progress.data, entityType, businessStage: 'early' } // Default stage
+            });
+
+            // Show acknowledgment + freelancer-specific account question
+            return this.handleFreelancerAccountSetup(acknowledgment, context, {
+                ...progress,
+                currentStep: 3,
+                data: { ...progress.data, entityType, businessStage: 'early' }
+            });
+        }
+
+        // Business owner - go through full flow
+        await this.saveProgress(context.userId, context.metadata?.businessId, {
             ...progress,
-            currentStep: nextStep,
+            currentStep: 2,
+            completedSteps: [...progress.completedSteps, 'entity_type'],
             data: { ...progress.data, entityType }
         });
+
+        // Show acknowledgment + business stage question
+        return this.handleBusinessStageWithAck(acknowledgment, context, {
+            ...progress,
+            currentStep: 2,
+            data: { ...progress.data, entityType }
+        });
+    }
+
+    /**
+     * Handle business stage with acknowledgment from previous step
+     */
+    private async handleBusinessStageWithAck(
+        acknowledgment: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const question = PersonalityFormatter.onboardingQuestion(
+            "What stage is your business?",
+            [
+                "1. Pre-revenue - Still planning or setting up",
+                "2. Early stage - Just started, first customers coming in",
+                "3. Growing - Scaling operations and revenue",
+                "4. Established - Mature business with steady income"
+            ],
+            "This helps me tailor my advice to where you are"
+        );
+
+        return {
+            message: `${acknowledgment}\n\n${question}`,
+            metadata: { skill: this.name, step: 'business_stage', awaitingOnboarding: true }
+        };
     }
 
     /**
@@ -201,50 +285,101 @@ ${PersonalityFormatter.onboardingQuestion(
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
 
-        const messageLower = message.toLowerCase();
+        const messageLower = message.toLowerCase().trim();
         let stage: OnboardingState['data']['businessStage'] | null = null;
 
-        // Check for number responses
-        if (messageLower === '1' || messageLower.includes('pre') || messageLower.includes('idea') || messageLower.includes('planning')) {
+        // Check for number responses AND keywords
+        if (messageLower === '1' || messageLower.includes('pre') || messageLower.includes('idea') || messageLower.includes('planning') || messageLower.includes('setting')) {
             stage = 'pre_revenue';
-        } else if (messageLower === '2' || messageLower.includes('early') || messageLower.includes('started') || messageLower.includes('first')) {
+        } else if (messageLower === '2' || messageLower.includes('early') || messageLower.includes('started') || messageLower.includes('first') || messageLower.includes('just')) {
             stage = 'early';
         } else if (messageLower === '3' || messageLower.includes('grow') || messageLower.includes('scaling')) {
             stage = 'growing';
-        } else if (messageLower === '4' || messageLower.includes('established') || messageLower.includes('mature')) {
+        } else if (messageLower === '4' || messageLower.includes('established') || messageLower.includes('mature') || messageLower.includes('steady')) {
             stage = 'established';
         }
 
         if (!stage) {
             return {
                 message: PersonalityFormatter.onboardingQuestion(
-    "What stage is your business?",
-    [
-        "1. Pre-revenue - Still planning or setting up",
-        "2. Early stage - First customers, building product",
-        "3. Growing - Scaling operations and revenue",
-        "4. Established - Mature business with steady revenue"
-    ],
-    "This helps me tailor my advice to your needs"
-),
+                    "What stage is your business?",
+                    [
+                        "1. Pre-revenue - Still planning or setting up",
+                        "2. Early stage - Just started, first customers coming in",
+                        "3. Growing - Scaling operations and revenue",
+                        "4. Established - Mature business with steady income"
+                    ],
+                    "This helps me tailor my advice to where you are"
+                ),
                 metadata: { skill: this.name, step: 'business_stage', awaitingOnboarding: true }
             };
         }
 
+        // Get acknowledgment
+        const acknowledgment = this.STAGE_ACKNOWLEDGMENTS[stage];
+
         // Save stage and move to next step
         await this.saveProgress(context.userId, context.metadata?.businessId, {
             ...progress,
-            currentStep: progress.currentStep + 1,
+            currentStep: 3,
             completedSteps: [...progress.completedSteps, 'business_stage'],
             data: { ...progress.data, businessStage: stage }
         });
 
-        // Return next question
-        return this.handleAccountSetup('', context, {
+        // Show acknowledgment + next question
+        return this.handleAccountSetupWithAck(acknowledgment, context, {
             ...progress,
-            currentStep: progress.currentStep + 1,
+            currentStep: 3,
             data: { ...progress.data, businessStage: stage }
         });
+    }
+
+    /**
+     * Handle account setup with acknowledgment
+     */
+    private async handleAccountSetupWithAck(
+        acknowledgment: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const question = PersonalityFormatter.onboardingQuestion(
+            "How do you manage your bank accounts?",
+            [
+                "1. Mixed - Same account for personal & business",
+                "2. Separate - Different accounts for personal & business",
+                "3. Multiple - Several bank accounts for business"
+            ],
+            "This affects how I categorize your transactions"
+        );
+
+        return {
+            message: `${acknowledgment}\n\n${question}`,
+            metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
+        };
+    }
+
+    /**
+     * Handle freelancer-specific account setup question
+     */
+    private async handleFreelancerAccountSetup(
+        acknowledgment: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const question = PersonalityFormatter.onboardingQuestion(
+            "Do you keep your freelance income separate from personal spending?",
+            [
+                "1. Yes - I have a separate account for work income",
+                "2. No - Everything goes into one account",
+                "3. Kinda - I try to, but it's not always clean"
+            ],
+            "This helps me identify your business transactions"
+        );
+
+        return {
+            message: `${acknowledgment}\n\n${question}`,
+            metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
+        };
     }
 
     /**
@@ -256,46 +391,127 @@ ${PersonalityFormatter.onboardingQuestion(
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
 
-        const messageLower = message.toLowerCase();
+        const messageLower = message.toLowerCase().trim();
         let setup: OnboardingState['data']['accountSetup'] | null = null;
 
-        if (messageLower.includes('mixed') || messageLower.includes('same') || messageLower.includes('one')) {
-            setup = 'mixed';
-        } else if (messageLower.includes('separate') || messageLower.includes('different')) {
-            setup = 'separate';
-        } else if (messageLower.includes('multiple') || messageLower.includes('many')) {
-            setup = 'multiple';
+        // Handle both number and keyword responses
+        if (messageLower === '1' || messageLower.includes('mixed') || messageLower.includes('same') || messageLower.includes('one') || messageLower.includes('yes')) {
+            setup = progress.data.entityType === 'self_employed' ? 'separate' : 'mixed';
+            // For freelancers, "1. Yes - separate" maps to 'separate'
+            if (progress.data.entityType === 'self_employed') {
+                setup = 'separate';
+            } else {
+                setup = 'mixed';
+            }
+        } else if (messageLower === '2' || messageLower.includes('separate') || messageLower.includes('different') || messageLower.includes('no')) {
+            // For freelancers, "2. No - one account" maps to 'mixed'
+            if (progress.data.entityType === 'self_employed') {
+                setup = 'mixed';
+            } else {
+                setup = 'separate';
+            }
+        } else if (messageLower === '3' || messageLower.includes('multiple') || messageLower.includes('many') || messageLower.includes('kinda') || messageLower.includes('try')) {
+            // For freelancers, "3. Kinda" also maps to 'mixed'
+            if (progress.data.entityType === 'self_employed') {
+                setup = 'mixed';
+            } else {
+                setup = 'multiple';
+            }
         }
 
         if (!setup) {
+            // Show appropriate question based on entity type
+            if (progress.data.entityType === 'self_employed') {
+                return {
+                    message: PersonalityFormatter.onboardingQuestion(
+                        "Do you keep your freelance income separate from personal spending?",
+                        [
+                            "1. Yes - I have a separate account for work income",
+                            "2. No - Everything goes into one account",
+                            "3. Kinda - I try to, but it's not always clean"
+                        ],
+                        "This helps me identify your business transactions"
+                    ),
+                    metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
+                };
+            }
+
             return {
-                message: `
-🏦 **How do you manage your bank accounts?**
-
-This affects how I categorize transactions:
-
-1️⃣ **Mixed** - I use the same account for personal & business
-2️⃣ **Separate** - I have different accounts for personal & business
-3️⃣ **Multiple** - I have multiple bank accounts for my business
-
-Your choice?
-                `.trim(),
-                metadata: { skill: this.name, step: 'account_setup', awaitingInput: true }
+                message: PersonalityFormatter.onboardingQuestion(
+                    "How do you manage your bank accounts?",
+                    [
+                        "1. Mixed - Same account for personal & business",
+                        "2. Separate - Different accounts for personal & business",
+                        "3. Multiple - Several bank accounts for business"
+                    ],
+                    "This affects how I categorize your transactions"
+                ),
+                metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
             };
         }
 
+        // Get acknowledgment
+        const acknowledgment = this.ACCOUNT_ACKNOWLEDGMENTS[setup];
+
         await this.saveProgress(context.userId, context.metadata?.businessId, {
             ...progress,
-            currentStep: progress.currentStep + 1,
+            currentStep: 4,
             completedSteps: [...progress.completedSteps, 'account_setup'],
             data: { ...progress.data, accountSetup: setup }
         });
 
-        return this.handleCapitalSupport('', context, {
+        // Self-employed skip capital support, go to preferences
+        if (progress.data.entityType === 'self_employed') {
+            await this.saveProgress(context.userId, context.metadata?.businessId, {
+                ...progress,
+                currentStep: 7,
+                completedSteps: [...progress.completedSteps, 'account_setup', 'capital_support'],
+                data: { ...progress.data, accountSetup: setup, capitalSource: 'bootstrapped' }
+            });
+
+            return this.handlePreferencesWithAck(acknowledgment, context, {
+                ...progress,
+                currentStep: 7,
+                data: { ...progress.data, accountSetup: setup, capitalSource: 'bootstrapped' }
+            });
+        }
+
+        // Business owners continue to capital support
+        return this.handleCapitalSupportWithAck(acknowledgment, context, {
             ...progress,
-            currentStep: progress.currentStep + 1,
+            currentStep: 4,
             data: { ...progress.data, accountSetup: setup }
         });
+    }
+
+    /**
+     * Handle capital support with acknowledgment
+     */
+    private async handleCapitalSupportWithAck(
+        acknowledgment: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const stageHint = progress.data.businessStage === 'pre_revenue'
+            ? "This helps me correctly classify capital injections vs revenue"
+            : "This helps me understand your business funding";
+
+        const question = PersonalityFormatter.onboardingQuestion(
+            "How are you funding your business?",
+            [
+                "1. Family/Friends - Support from loved ones",
+                "2. Investors - VC, angel, or institutional funding",
+                "3. Loan/Credit - Bank loans or credit facilities",
+                "4. Bootstrapped - Using own savings and revenue",
+                "5. Grant - Government or organization grant"
+            ],
+            stageHint
+        );
+
+        return {
+            message: `${acknowledgment}\n\n${question}`,
+            metadata: { skill: this.name, step: 'capital_support', awaitingOnboarding: true }
+        };
     }
 
     /**
@@ -307,45 +523,49 @@ Your choice?
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
 
-        const messageLower = message.toLowerCase();
+        const messageLower = message.toLowerCase().trim();
         let source: OnboardingState['data']['capitalSource'] | null = null;
 
-        if (messageLower.includes('family') || messageLower.includes('personal')) {
+        // Handle both number and keyword responses
+        if (messageLower === '1' || messageLower.includes('family') || messageLower.includes('friend') || messageLower.includes('personal')) {
             source = 'family';
-        } else if (messageLower.includes('investor') || messageLower.includes('vc') || messageLower.includes('angel')) {
+        } else if (messageLower === '2' || messageLower.includes('investor') || messageLower.includes('vc') || messageLower.includes('angel')) {
             source = 'investors';
-        } else if (messageLower.includes('loan') || messageLower.includes('credit') || messageLower.includes('bank')) {
+        } else if (messageLower === '3' || messageLower.includes('loan') || messageLower.includes('credit') || messageLower.includes('bank')) {
             source = 'loan';
-        } else if (messageLower.includes('bootstrap') || messageLower.includes('self') || messageLower.includes('own')) {
+        } else if (messageLower === '4' || messageLower.includes('bootstrap') || messageLower.includes('self') || messageLower.includes('own') || messageLower.includes('saving')) {
             source = 'bootstrapped';
-        } else if (messageLower.includes('grant') || messageLower.includes('award')) {
+        } else if (messageLower === '5' || messageLower.includes('grant') || messageLower.includes('award')) {
             source = 'grant';
         }
 
         if (!source) {
-            const stageMessage = progress.data.businessStage === 'pre_revenue'
-                ? "\n💡 *Knowing this helps me correctly classify capital injections vs revenue*"
-                : "";
+            const stageHint = progress.data.businessStage === 'pre_revenue'
+                ? "This helps me correctly classify capital injections vs revenue"
+                : "This helps me understand your business funding";
 
             return {
-                message: `
-💰 **How are you funding your business?**
-
-1️⃣ **Family/Friends** - Personal support from family or friends
-2️⃣ **Investors** - VC, angel investors, or institutional funding
-3️⃣ **Loan/Credit** - Bank loans or credit facilities
-4️⃣ **Bootstrapped** - Using own savings and revenue
-5️⃣ **Grant** - Government or organization grant${stageMessage}
-
-Which applies to you?
-                `.trim(),
-                metadata: { skill: this.name, step: 'capital_support', awaitingInput: true }
+                message: PersonalityFormatter.onboardingQuestion(
+                    "How are you funding your business?",
+                    [
+                        "1. Family/Friends - Support from loved ones",
+                        "2. Investors - VC, angel, or institutional funding",
+                        "3. Loan/Credit - Bank loans or credit facilities",
+                        "4. Bootstrapped - Using own savings and revenue",
+                        "5. Grant - Government or organization grant"
+                    ],
+                    stageHint
+                ),
+                metadata: { skill: this.name, step: 'capital_support', awaitingOnboarding: true }
             };
         }
 
+        // Get acknowledgment
+        const acknowledgment = this.CAPITAL_ACKNOWLEDGMENTS[source];
+
         await this.saveProgress(context.userId, context.metadata?.businessId, {
             ...progress,
-            currentStep: progress.currentStep + 1,
+            currentStep: 7,
             completedSteps: [...progress.completedSteps, 'capital_support'],
             data: {
                 ...progress.data,
@@ -354,16 +574,41 @@ Which applies to you?
             }
         });
 
-        // Skip to preferences (verification handled separately)
-        return this.handlePreferences('', context, {
+        // Move to preferences with acknowledgment
+        return this.handlePreferencesWithAck(acknowledgment, context, {
             ...progress,
-            currentStep: 6, // Jump to preferences step
+            currentStep: 7,
             data: {
                 ...progress.data,
                 capitalSource: source,
                 receivesCapitalSupport: source !== 'bootstrapped'
             }
         });
+    }
+
+    /**
+     * Handle preferences with acknowledgment from previous step
+     */
+    private async handlePreferencesWithAck(
+        acknowledgment: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const question = PersonalityFormatter.onboardingQuestion(
+            "Last one! How often do you want tax insights?",
+            [
+                "1. Daily - Keep me posted every day",
+                "2. Weekly - A summary once a week is good",
+                "3. Monthly - Just monthly updates please",
+                "4. Only when needed - Alert me when something's urgent"
+            ],
+            "You can always change this later"
+        );
+
+        return {
+            message: `${acknowledgment}\n\n${question}`,
+            metadata: { skill: this.name, step: 'preferences', awaitingOnboarding: true }
+        };
     }
 
     /**
@@ -375,34 +620,123 @@ Which applies to you?
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
 
-        // Simple default preferences for now
+        const messageLower = message.toLowerCase().trim();
+        let frequency: OnboardingState['data']['insightFrequency'] | null = null;
+
+        // Check for number and keyword responses
+        if (messageLower === '1' || messageLower.includes('daily') || messageLower.includes('every day')) {
+            frequency = 'daily';
+        } else if (messageLower === '2' || messageLower.includes('weekly') || messageLower.includes('week')) {
+            frequency = 'weekly';
+        } else if (messageLower === '3' || messageLower.includes('monthly') || messageLower.includes('month')) {
+            frequency = 'monthly';
+        } else if (messageLower === '4' || messageLower.includes('only') || messageLower.includes('urgent') || messageLower.includes('needed')) {
+            frequency = 'never';
+        }
+
+        if (!frequency) {
+            // Show preferences question
+            return {
+                message: PersonalityFormatter.onboardingQuestion(
+                    "Last one! How often do you want tax insights?",
+                    [
+                        "1. Daily - Keep me posted every day",
+                        "2. Weekly - A summary once a week is good",
+                        "3. Monthly - Just monthly updates please",
+                        "4. Only when needed - Alert me when something's urgent"
+                    ],
+                    "You can always change this later"
+                ),
+                metadata: { skill: this.name, step: 'preferences', awaitingOnboarding: true }
+            };
+        }
+
+        // Save preferences and complete onboarding
         await this.saveProgress(context.userId, context.metadata?.businessId, {
             ...progress,
-            currentStep: progress.currentStep + 1,
+            currentStep: 8,
             completedSteps: [...progress.completedSteps, 'preferences'],
+            completed: true,
             data: {
                 ...progress.data,
-                insightFrequency: 'weekly',
+                insightFrequency: frequency,
                 autoCategorize: true
             }
         });
 
+        // Return entity-specific completion message
+        return this.getCompletionMessage(progress.data.entityType!, {
+            ...progress.data,
+            insightFrequency: frequency
+        });
+    }
+
+    /**
+     * Get entity-specific completion message
+     */
+    private getCompletionMessage(
+        entityType: 'business' | 'individual' | 'self_employed',
+        data: OnboardingState['data']
+    ): Static<typeof MessageResponseSchema> {
+
+        const frequencyMessage = {
+            'daily': "daily updates",
+            'weekly': "weekly summaries",
+            'monthly': "monthly reports",
+            'never': "alerts only when urgent"
+        }[data.insightFrequency!] || "weekly summaries";
+
+        if (entityType === 'individual') {
+            return {
+                message: `✅ **You're all set!**
+
+As a salaried individual, here's what I can help with:
+• 📊 Track your salary and deductions
+• 💰 Find tax relief opportunities (pension, mortgage, etc.)
+• 📈 Monitor any side income
+• 📋 Prepare for annual tax filing
+
+I'll send you ${frequencyMessage}.
+
+📤 **To get started**: Send me your payslip or bank statement, and I'll start tracking!`,
+                metadata: { skill: this.name, onboardingComplete: true }
+            };
+        }
+
+        if (entityType === 'self_employed') {
+            return {
+                message: `✅ **Freelancer Mode Activated!** 🎉
+
+Here's what I'll do for you:
+• 💵 Track client payments and income
+• 📝 Categorize business expenses (internet, equipment, transport)
+• 🧮 Calculate tax obligations
+• 💡 Find deductible expenses you might miss
+
+I'll send you ${frequencyMessage}.
+
+📤 **To get started**: Upload your bank statement and I'll find your income patterns!`,
+                metadata: { skill: this.name, onboardingComplete: true }
+            };
+        }
+
+        // Business owner - detailed summary
         return {
-            message: `
-✅ **Onboarding Complete!**
+            message: `✅ **Onboarding Complete!** 🎉
 
-Here's what I know about your business:
-• Stage: ${this.formatStage(progress.data.businessStage)}
-• Account Setup: ${this.formatAccountSetup(progress.data.accountSetup)}
-• Funding: ${this.formatCapitalSource(progress.data.capitalSource)}
+Here's your profile:
+• 🏢 Stage: ${this.formatStage(data.businessStage)}
+• 🏦 Accounts: ${this.formatAccountSetup(data.accountSetup)}
+• 💰 Funding: ${this.formatCapitalSource(data.capitalSource)}
+• 📊 Updates: ${frequencyMessage}
 
-📊 **Next Steps**:
-1. Upload your last bank statement
-2. I'll analyze and categorize your transactions
-3. You'll get tax insights and savings recommendations
+**What I'll do for you:**
+• Categorize transactions automatically
+• Track revenue vs capital injections
+• Calculate VAT and income tax
+• Alert you to filing deadlines
 
-Ready to upload your statement?
-            `.trim(),
+📤 **Next step**: Upload your bank statement and let's get started!`,
             metadata: { skill: this.name, onboardingComplete: true }
         };
     }
@@ -450,7 +784,8 @@ Ready to upload your statement?
                 current_step: progress.currentStep,
                 total_steps: progress.totalSteps,
                 completed_steps: progress.completedSteps,
-                completed: progress.currentStep >= progress.totalSteps,
+                completed: progress.completed || progress.currentStep >= progress.totalSteps,
+                data: progress.data,
                 last_updated_at: new Date().toISOString()
             }, {
                 onConflict: 'user_id,business_id'
@@ -465,8 +800,8 @@ Ready to upload your statement?
                     account_setup: progress.data.accountSetup,
                     receives_capital_support: progress.data.receivesCapitalSupport,
                     capital_source: progress.data.capitalSource,
-                    onboarding_completed: progress.currentStep >= progress.totalSteps,
-                    onboarding_completed_at: progress.currentStep >= progress.totalSteps ? new Date().toISOString() : null
+                    onboarding_completed: progress.completed || progress.currentStep >= progress.totalSteps,
+                    onboarding_completed_at: (progress.completed || progress.currentStep >= progress.totalSteps) ? new Date().toISOString() : null
                 })
                 .eq('id', businessId);
         }
@@ -484,33 +819,33 @@ Ready to upload your statement?
 
     // Formatting helpers
     private formatStage(stage?: string): string {
-        const stages = {
+        const stages: Record<string, string> = {
             'pre_revenue': 'Pre-revenue',
             'early': 'Early stage',
             'growing': 'Growing',
             'established': 'Established'
         };
-        return stages[stage as keyof typeof stages] || 'Unknown';
+        return stages[stage || ''] || 'Not specified';
     }
 
     private formatAccountSetup(setup?: string): string {
-        const setups = {
+        const setups: Record<string, string> = {
             'mixed': 'Mixed (personal + business)',
             'separate': 'Separate accounts',
             'multiple': 'Multiple business accounts'
         };
-        return setups[setup as keyof typeof setups] || 'Unknown';
+        return setups[setup || ''] || 'Not specified';
     }
 
     private formatCapitalSource(source?: string): string {
-        const sources = {
+        const sources: Record<string, string> = {
             'family': 'Family/Friends',
             'investors': 'Investors',
             'loan': 'Loan/Credit',
-            'bootstrapped': 'Bootstrapped',
+            'bootstrapped': 'Self-funded',
             'grant': 'Grant'
         };
-        return sources[source as keyof typeof sources] || 'Unknown';
+        return sources[source || ''] || 'Self-funded';
     }
 
     /**
