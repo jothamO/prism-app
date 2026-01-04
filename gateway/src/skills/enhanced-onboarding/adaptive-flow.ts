@@ -200,12 +200,19 @@ export function getCompletionMessage(profile: ExtractedProfile): string {
 
 /**
  * Format question for display using PRISM personality
+ * @param question The adaptive question to format
+ * @param aiMode Whether AI mode is enabled (affects hint text)
  */
-export function formatQuestion(question: AdaptiveQuestion): string {
+export function formatQuestion(question: AdaptiveQuestion, aiMode: boolean = false): string {
+    // Use different hint based on mode
+    const hint = aiMode 
+        ? (question.hint || "You can answer naturally or just type a number")
+        : "Just type the number!";
+    
     return PersonalityFormatter.onboardingQuestion(
         question.question,
         question.options.map((opt, i) => `${i + 1}. ${opt}`),
-        question.hint
+        hint
     );
 }
 

@@ -46,6 +46,8 @@ export interface OnboardingState {
         hasFreelanceIncome?: boolean;
         hasPensionIncome?: boolean;
         hasRentalIncome?: boolean;
+        hasInvestmentIncome?: boolean;
+        hasConsultingIncome?: boolean;
         isNYSC?: boolean;
         isRegistered?: boolean;  // CAC registration
     };
@@ -110,6 +112,7 @@ export class EnhancedOnboardingSkill {
         try {
             const lowerMessage = message.toLowerCase().trim();
             const isRestartCommand = lowerMessage === '/start' || lowerMessage === 'start';
+            const aiMode = context.metadata?.aiMode === true;
 
             // CRITICAL FIX: Get progress from session context first (avoids UUID/string mismatch)
             // The onboardingProgress is stored in session metadata between requests
@@ -132,7 +135,7 @@ export class EnhancedOnboardingSkill {
             if (progress.completed && !isRestartCommand) {
                 return {
                     message: "✅ You've already completed onboarding! How can I help you today?",
-                    metadata: { skill: this.name }
+                    metadata: { skill: this.name, aiMode }
                 };
             }
 
@@ -158,6 +161,7 @@ export class EnhancedOnboardingSkill {
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
 
         switch (stepName) {
             case 'entity_type':
@@ -175,13 +179,19 @@ export class EnhancedOnboardingSkill {
             case 'preferences':
                 return await this.handlePreferences(message, context, progress);
 
+            case 'retiree_other_income':
+                return await this.handleRetireeOtherIncome(message, context, progress);
+
+            case 'student_side_income':
+                return await this.handleStudentSideIncome(message, context, progress);
+
             case 'initial_analysis':
                 return await this.handleInitialAnalysis(message, context, progress);
 
             default:
                 return {
                     message: `Proceeding with step: ${stepName}`,
-                    metadata: { skill: this.name, step: stepName }
+                    metadata: { skill: this.name, step: stepName, aiMode }
                 };
         }
     }
@@ -208,9 +218,9 @@ export class EnhancedOnboardingSkill {
         let entityType: OnboardingState['data']['entityType'] | null = null;
 
         // Check if AI mode is enabled
-        const useAI = context.metadata?.aiMode === true;
+        const aiMode = context.metadata?.aiMode === true;
 
-        if (useAI) {
+        if (aiMode) {
             // AI Mode: Use full profile extraction for freeform understanding
             const profile = await extractUserProfile(message, context.metadata?.userName);
 
@@ -266,12 +276,13 @@ export class EnhancedOnboardingSkill {
                 if (nextQuestion) {
                     // More questions to ask
                     return {
-                        message: `${acknowledgment}\n\n${formatQuestion(nextQuestion)}`,
+                        message: `${acknowledgment}\n\n${formatQuestion(nextQuestion, aiMode)}`,
                         metadata: {
                             skill: this.name,
                             step: nextQuestion.id,
                             awaitingOnboarding: true,
-                            onboardingProgress: updatedProgress
+                            onboardingProgress: updatedProgress,
+                            aiMode
                         }
                     };
                 } else {
@@ -290,7 +301,8 @@ export class EnhancedOnboardingSkill {
                         metadata: {
                             skill: this.name,
                             onboardingComplete: true,
-                            taxCategory: profile.taxCategory
+                            taxCategory: profile.taxCategory,
+                            aiMode
                         }
                     };
                 }
@@ -306,18 +318,26 @@ export class EnhancedOnboardingSkill {
                         skill: this.name,
                         step: 'entity_type',
                         awaitingOnboarding: true,
-                        onboardingProgress: progress
+                        onboardingProgress: progress,
+                        aiMode
                     }
                 };
             }
         } else {
             // Strict Mode: Use pattern matching with numbers and keywords
+            // Extended to include student, retiree, corper
             if (messageLower === '1' || messageLower.includes('business') || messageLower.includes('company') || messageLower.includes('owner')) {
                 entityType = 'business';
             } else if (messageLower === '2' || messageLower.includes('employ') || messageLower.includes('individual') || messageLower.includes('salary')) {
                 entityType = 'individual';
             } else if (messageLower === '3' || messageLower.includes('self') || messageLower.includes('freelance') || messageLower.includes('contractor')) {
                 entityType = 'self_employed';
+            } else if (messageLower === '4' || messageLower.includes('student') || messageLower.includes('school') || messageLower.includes('university') || messageLower.includes('studying')) {
+                entityType = 'student';
+            } else if (messageLower === '5' || messageLower.includes('retire') || messageLower.includes('pension')) {
+                entityType = 'retiree';
+            } else if (messageLower === '6' || messageLower.includes('nysc') || messageLower.includes('corp') || messageLower.includes('youth service')) {
+                entityType = 'corper';
             }
         }
 
@@ -331,14 +351,17 @@ export class EnhancedOnboardingSkill {
 Welcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerians.
 
 ${PersonalityFormatter.onboardingQuestion(
-                "First, tell me about yourself:",
-                [
-                    "1. Business Owner - I run a registered or informal business",
-                    "2. Employed Individual - I earn a salary",
-                    "3. Self-Employed / Freelancer - I work for myself"
-                ],
-                "This helps me give you the right tax advice"
-            )}`;
+    "First, tell me about yourself:",
+    [
+        "1. Business Owner - I run a registered or informal business",
+        "2. Employed Individual - I earn a salary",
+        "3. Self-Employed / Freelancer - I work for myself",
+        "4. Student - I'm still in school",
+        "5. Retiree - I'm retired, receiving pension",
+        "6. NYSC / Other - Corp member, job hunting, etc."
+    ],
+    aiMode ? "You can answer naturally or just type a number" : "Just type the number!"
+)}`;
 
             return {
                 message: welcomeMessage,
@@ -346,7 +369,8 @@ ${PersonalityFormatter.onboardingQuestion(
                     skill: this.name,
                     step: 'entity_type',
                     awaitingOnboarding: true,
-                    onboardingProgress: progress  // Store progress in response metadata
+                    onboardingProgress: progress,
+                    aiMode
                 }
             };
         }
@@ -354,9 +378,58 @@ ${PersonalityFormatter.onboardingQuestion(
         // Get acknowledgment for their choice
         const acknowledgment = this.ENTITY_ACKNOWLEDGMENTS[entityType];
 
-        // Different flows based on entity type
+        // Handle different entity types with appropriate flows
+
+        // RETIREE: Ask about other income sources
+        if (entityType === 'retiree') {
+            await this.saveProgress(context.userId, context.metadata?.businessId, {
+                ...progress,
+                currentStep: 2,
+                completedSteps: [...progress.completedSteps, 'entity_type'],
+                data: { ...progress.data, entityType, hasPensionIncome: true }
+            });
+
+            return this.handleRetireeOtherIncomeWithAck(acknowledgment, context, {
+                ...progress,
+                currentStep: 2,
+                data: { ...progress.data, entityType, hasPensionIncome: true }
+            });
+        }
+
+        // STUDENT: Ask about side income
+        if (entityType === 'student') {
+            await this.saveProgress(context.userId, context.metadata?.businessId, {
+                ...progress,
+                currentStep: 2,
+                completedSteps: [...progress.completedSteps, 'entity_type'],
+                data: { ...progress.data, entityType }
+            });
+
+            return this.handleStudentSideIncomeWithAck(acknowledgment, context, {
+                ...progress,
+                currentStep: 2,
+                data: { ...progress.data, entityType }
+            });
+        }
+
+        // CORPER: Quick completion (allowance is tax-free)
+        if (entityType === 'corper') {
+            await this.saveProgress(context.userId, context.metadata?.businessId, {
+                ...progress,
+                currentStep: 7,
+                completedSteps: [...progress.completedSteps, 'entity_type'],
+                data: { ...progress.data, entityType, isNYSC: true }
+            });
+
+            return this.handlePreferencesWithAck(acknowledgment, context, {
+                ...progress,
+                currentStep: 7,
+                data: { ...progress.data, entityType, isNYSC: true }
+            });
+        }
+
+        // INDIVIDUAL: Skip to preferences for salaried individuals
         if (entityType === 'individual') {
-            // Skip to preferences for salaried individuals
             await this.saveProgress(context.userId, context.metadata?.businessId, {
                 ...progress,
                 currentStep: 7,
@@ -364,7 +437,6 @@ ${PersonalityFormatter.onboardingQuestion(
                 data: { ...progress.data, entityType }
             });
 
-            // Show acknowledgment + preferences question
             return this.handlePreferencesWithAck(acknowledgment, context, {
                 ...progress,
                 currentStep: 7,
@@ -372,16 +444,15 @@ ${PersonalityFormatter.onboardingQuestion(
             });
         }
 
+        // SELF_EMPLOYED: Simplified flow - skip business stage, ask about account setup
         if (entityType === 'self_employed') {
-            // Simplified flow for freelancers - skip business stage, ask about account setup
             await this.saveProgress(context.userId, context.metadata?.businessId, {
                 ...progress,
-                currentStep: 3, // Jump to account_setup
+                currentStep: 3,
                 completedSteps: [...progress.completedSteps, 'entity_type', 'business_stage'],
-                data: { ...progress.data, entityType, businessStage: 'early' } // Default stage
+                data: { ...progress.data, entityType, businessStage: 'early' }
             });
 
-            // Show acknowledgment + freelancer-specific account question
             return this.handleFreelancerAccountSetup(acknowledgment, context, {
                 ...progress,
                 currentStep: 3,
@@ -389,7 +460,7 @@ ${PersonalityFormatter.onboardingQuestion(
             });
         }
 
-        // Business owner - go through full flow
+        // BUSINESS: Full flow - go through all business questions
         await this.saveProgress(context.userId, context.metadata?.businessId, {
             ...progress,
             currentStep: 2,
@@ -397,12 +468,258 @@ ${PersonalityFormatter.onboardingQuestion(
             data: { ...progress.data, entityType }
         });
 
-        // Show acknowledgment + business stage question
         return this.handleBusinessStageWithAck(acknowledgment, context, {
             ...progress,
             currentStep: 2,
             data: { ...progress.data, entityType }
         });
+    }
+
+    /**
+     * Handle retiree other income question with acknowledgment
+     */
+    private async handleRetireeOtherIncomeWithAck(
+        acknowledgment: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
+
+        const question = PersonalityFormatter.onboardingQuestion(
+            "Besides your pension, do you have any other income?",
+            [
+                "1. Rental property income",
+                "2. Investment dividends",
+                "3. Part-time consulting",
+                "4. Just pension"
+            ],
+            aiMode ? "You can select multiple or describe your situation" : "Just type the number!"
+        );
+
+        return {
+            message: `${acknowledgment}\n\n${question}`,
+            metadata: {
+                skill: this.name,
+                step: 'retiree_other_income',
+                awaitingOnboarding: true,
+                onboardingProgress: progress,
+                aiMode
+            }
+        };
+    }
+
+    /**
+     * Handle retiree other income response
+     */
+    private async handleRetireeOtherIncome(
+        message: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const messageLower = message.toLowerCase().trim();
+        const aiMode = context.metadata?.aiMode === true;
+
+        let hasRentalIncome = false;
+        let hasInvestmentIncome = false;
+        let hasConsultingIncome = false;
+        let justPension = false;
+
+        if (aiMode) {
+            // AI Mode: Parse natural language
+            hasRentalIncome = messageLower.includes('rental') || messageLower.includes('property') || messageLower.includes('tenant') || messageLower.includes('rent');
+            hasInvestmentIncome = messageLower.includes('investment') || messageLower.includes('dividend') || messageLower.includes('stock') || messageLower.includes('interest');
+            hasConsultingIncome = messageLower.includes('consult') || messageLower.includes('part-time') || messageLower.includes('advisory') || messageLower.includes('freelance');
+            justPension = messageLower.includes('just pension') || messageLower.includes('only pension') || messageLower.includes('pension only') || messageLower === '4';
+        } else {
+            // Strict mode
+            if (messageLower === '1') hasRentalIncome = true;
+            else if (messageLower === '2') hasInvestmentIncome = true;
+            else if (messageLower === '3') hasConsultingIncome = true;
+            else if (messageLower === '4') justPension = true;
+        }
+
+        // If no option detected, show question again
+        if (!hasRentalIncome && !hasInvestmentIncome && !hasConsultingIncome && !justPension) {
+            return {
+                message: PersonalityFormatter.onboardingQuestion(
+                    "Besides your pension, do you have any other income?",
+                    [
+                        "1. Rental property income",
+                        "2. Investment dividends",
+                        "3. Part-time consulting",
+                        "4. Just pension"
+                    ],
+                    aiMode ? "You can select multiple or describe your situation" : "Just type the number!"
+                ),
+                metadata: {
+                    skill: this.name,
+                    step: 'retiree_other_income',
+                    awaitingOnboarding: true,
+                    onboardingProgress: progress,
+                    aiMode
+                }
+            };
+        }
+
+        // Build acknowledgment based on income types
+        let acknowledgment = '';
+        if (justPension) {
+            acknowledgment = "Just pension - nice and simple! 👍 Pension income has special tax treatment, I'll help you maximize your take-home.";
+        } else {
+            const incomeTypes = [];
+            if (hasRentalIncome) incomeTypes.push('rental');
+            if (hasInvestmentIncome) incomeTypes.push('investment');
+            if (hasConsultingIncome) incomeTypes.push('consulting');
+            acknowledgment = `Multiple income streams (${incomeTypes.join(', ')})! 📊 Great for retirement security. I'll track the tax treatment for each.`;
+        }
+
+        // Save and move to preferences
+        await this.saveProgress(context.userId, context.metadata?.businessId, {
+            ...progress,
+            currentStep: 7,
+            completedSteps: [...progress.completedSteps, 'retiree_other_income'],
+            data: {
+                ...progress.data,
+                hasRentalIncome,
+                hasInvestmentIncome,
+                hasConsultingIncome
+            }
+        });
+
+        return this.handlePreferencesWithAck(acknowledgment, context, {
+            ...progress,
+            currentStep: 7,
+            data: {
+                ...progress.data,
+                hasRentalIncome,
+                hasInvestmentIncome,
+                hasConsultingIncome
+            }
+        });
+    }
+
+    /**
+     * Handle student side income question with acknowledgment
+     */
+    private async handleStudentSideIncomeWithAck(
+        acknowledgment: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
+
+        const question = PersonalityFormatter.onboardingQuestion(
+            "Are you doing any work while studying?",
+            [
+                "1. Yes, part-time job",
+                "2. Yes, freelance/gig work",
+                "3. No, focusing on studies"
+            ],
+            aiMode ? "Tell me about any income you have" : "Just type the number!"
+        );
+
+        return {
+            message: `${acknowledgment}\n\n${question}`,
+            metadata: {
+                skill: this.name,
+                step: 'student_side_income',
+                awaitingOnboarding: true,
+                onboardingProgress: progress,
+                aiMode
+            }
+        };
+    }
+
+    /**
+     * Handle student side income response
+     */
+    private async handleStudentSideIncome(
+        message: string,
+        context: SessionContext,
+        progress: OnboardingState
+    ): Promise<Static<typeof MessageResponseSchema>> {
+        const messageLower = message.toLowerCase().trim();
+        const aiMode = context.metadata?.aiMode === true;
+
+        let hasSalaryIncome = false;
+        let hasFreelanceIncome = false;
+        let noIncome = false;
+
+        if (aiMode) {
+            hasSalaryIncome = messageLower.includes('part-time') || messageLower.includes('job') || messageLower.includes('work') || messageLower.includes('employ');
+            hasFreelanceIncome = messageLower.includes('freelance') || messageLower.includes('gig') || messageLower.includes('side hustle') || messageLower.includes('contract');
+            noIncome = messageLower.includes('no') || messageLower.includes('focus') || messageLower.includes('studi');
+        } else {
+            if (messageLower === '1') hasSalaryIncome = true;
+            else if (messageLower === '2') hasFreelanceIncome = true;
+            else if (messageLower === '3') noIncome = true;
+        }
+
+        if (!hasSalaryIncome && !hasFreelanceIncome && !noIncome) {
+            return {
+                message: PersonalityFormatter.onboardingQuestion(
+                    "Are you doing any work while studying?",
+                    [
+                        "1. Yes, part-time job",
+                        "2. Yes, freelance/gig work",
+                        "3. No, focusing on studies"
+                    ],
+                    aiMode ? "Tell me about any income you have" : "Just type the number!"
+                ),
+                metadata: {
+                    skill: this.name,
+                    step: 'student_side_income',
+                    awaitingOnboarding: true,
+                    onboardingProgress: progress,
+                    aiMode
+                }
+            };
+        }
+
+        let acknowledgment = '';
+        if (noIncome) {
+            acknowledgment = "Focused on studies - that's great! 📚 When you start earning, I'll be here to help with taxes.";
+        } else if (hasSalaryIncome) {
+            acknowledgment = "Part-time work! 💼 I'll help you track that income and understand your tax obligations.";
+        } else {
+            acknowledgment = "Freelance hustle! 🔥 I'll help you track client payments and any deductible expenses.";
+        }
+
+        // Save and complete quickly for students
+        await this.saveProgress(context.userId, context.metadata?.businessId, {
+            ...progress,
+            currentStep: 8,
+            completedSteps: [...progress.completedSteps, 'student_side_income', 'preferences'],
+            completed: true,
+            data: {
+                ...progress.data,
+                hasSalaryIncome,
+                hasFreelanceIncome,
+                insightFrequency: 'weekly',
+                autoCategorize: true
+            }
+        });
+
+        // Return quick completion for students
+        return {
+            message: `${acknowledgment}
+
+✅ **You're all set!**
+
+As a student, here's what I can help with:
+• 📊 Track any income you earn
+• 💡 Understand when tax obligations kick in
+• 📝 Keep records for when you start your career
+
+I'll send you weekly updates if anything relevant comes up.
+
+📤 **Next step**: When you have any income documents or bank statements, send them to me!`,
+            metadata: {
+                skill: this.name,
+                onboardingComplete: true,
+                aiMode
+            }
+        };
     }
 
     /**
@@ -413,6 +730,8 @@ ${PersonalityFormatter.onboardingQuestion(
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
+
         const question = PersonalityFormatter.onboardingQuestion(
             "What stage is your business?",
             [
@@ -421,7 +740,7 @@ ${PersonalityFormatter.onboardingQuestion(
                 "3. Growing - Scaling operations and revenue",
                 "4. Established - Mature business with steady income"
             ],
-            "This helps me tailor my advice to where you are"
+            aiMode ? "Describe where your business is at" : "Just type the number!"
         );
 
         return {
@@ -430,7 +749,8 @@ ${PersonalityFormatter.onboardingQuestion(
                 skill: this.name,
                 step: 'business_stage',
                 awaitingOnboarding: true,
-                onboardingProgress: progress
+                onboardingProgress: progress,
+                aiMode
             }
         };
     }
@@ -448,9 +768,9 @@ ${PersonalityFormatter.onboardingQuestion(
         let stage: OnboardingState['data']['businessStage'] | null = null;
 
         // Check if AI mode is enabled
-        const useAI = context.metadata?.aiMode === true;
+        const aiMode = context.metadata?.aiMode === true;
 
-        if (useAI) {
+        if (aiMode) {
             // AI Mode: Use natural language extraction
             const extraction = await extractOnboardingResponse(
                 message,
@@ -491,13 +811,14 @@ ${PersonalityFormatter.onboardingQuestion(
                         "3. Growing - Scaling operations and revenue",
                         "4. Established - Mature business with steady income"
                     ],
-                    "This helps me tailor my advice to where you are"
+                    aiMode ? "Describe where your business is at" : "Just type the number!"
                 ),
                 metadata: {
                     skill: this.name,
                     step: 'business_stage',
                     awaitingOnboarding: true,
-                    onboardingProgress: progress
+                    onboardingProgress: progress,
+                    aiMode
                 }
             };
         }
@@ -529,6 +850,8 @@ ${PersonalityFormatter.onboardingQuestion(
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
+
         const question = PersonalityFormatter.onboardingQuestion(
             "How do you manage your bank accounts?",
             [
@@ -536,7 +859,7 @@ ${PersonalityFormatter.onboardingQuestion(
                 "2. Separate - Different accounts for personal & business",
                 "3. Multiple - Several bank accounts for business"
             ],
-            "This affects how I categorize your transactions"
+            aiMode ? "Describe your banking setup" : "Just type the number!"
         );
 
         return {
@@ -545,7 +868,8 @@ ${PersonalityFormatter.onboardingQuestion(
                 skill: this.name,
                 step: 'account_setup',
                 awaitingOnboarding: true,
-                onboardingProgress: progress
+                onboardingProgress: progress,
+                aiMode
             }
         };
     }
@@ -558,6 +882,8 @@ ${PersonalityFormatter.onboardingQuestion(
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
+
         const question = PersonalityFormatter.onboardingQuestion(
             "Do you keep your freelance income separate from personal spending?",
             [
@@ -565,7 +891,7 @@ ${PersonalityFormatter.onboardingQuestion(
                 "2. No - Everything goes into one account",
                 "3. Kinda - I try to, but it's not always clean"
             ],
-            "This helps me identify your business transactions"
+            aiMode ? "Tell me about your banking setup" : "Just type the number!"
         );
 
         return {
@@ -574,7 +900,8 @@ ${PersonalityFormatter.onboardingQuestion(
                 skill: this.name,
                 step: 'account_setup',
                 awaitingOnboarding: true,
-                onboardingProgress: progress
+                onboardingProgress: progress,
+                aiMode
             }
         };
     }
@@ -592,10 +919,10 @@ ${PersonalityFormatter.onboardingQuestion(
         let setup: OnboardingState['data']['accountSetup'] | null = null;
 
         // Check if AI mode is enabled
-        const useAI = context.metadata?.aiMode === true;
+        const aiMode = context.metadata?.aiMode === true;
         const isFreelancer = progress.data.entityType === 'self_employed';
 
-        if (useAI) {
+        if (aiMode) {
             // AI Mode: Use natural language extraction
             const options = isFreelancer ? ONBOARDING_OPTIONS.freelancer_account : ONBOARDING_OPTIONS.account_setup;
             const extraction = await extractOnboardingResponse(
@@ -641,13 +968,14 @@ ${PersonalityFormatter.onboardingQuestion(
                             "2. No - Everything goes into one account",
                             "3. Kinda - I try to, but it's not always clean"
                         ],
-                        "This helps me identify your business transactions"
+                        aiMode ? "Tell me about your banking setup" : "Just type the number!"
                     ),
                     metadata: {
                         skill: this.name,
                         step: 'account_setup',
                         awaitingOnboarding: true,
-                        onboardingProgress: progress
+                        onboardingProgress: progress,
+                        aiMode
                     }
                 };
             }
@@ -660,13 +988,14 @@ ${PersonalityFormatter.onboardingQuestion(
                         "2. Separate - Different accounts for personal & business",
                         "3. Multiple - Several bank accounts for business"
                     ],
-                    "This affects how I categorize your transactions"
+                    aiMode ? "Describe your banking setup" : "Just type the number!"
                 ),
                 metadata: {
                     skill: this.name,
                     step: 'account_setup',
                     awaitingOnboarding: true,
-                    onboardingProgress: progress
+                    onboardingProgress: progress,
+                    aiMode
                 }
             };
         }
@@ -713,6 +1042,8 @@ ${PersonalityFormatter.onboardingQuestion(
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
+
         const stageHint = progress.data.businessStage === 'pre_revenue'
             ? "This helps me correctly classify capital injections vs revenue"
             : "This helps me understand your business funding";
@@ -726,7 +1057,7 @@ ${PersonalityFormatter.onboardingQuestion(
                 "4. Bootstrapped - Using own savings and revenue",
                 "5. Grant - Government or organization grant"
             ],
-            stageHint
+            aiMode ? stageHint : "Just type the number!"
         );
 
         return {
@@ -735,7 +1066,8 @@ ${PersonalityFormatter.onboardingQuestion(
                 skill: this.name,
                 step: 'capital_support',
                 awaitingOnboarding: true,
-                onboardingProgress: progress
+                onboardingProgress: progress,
+                aiMode
             }
         };
     }
@@ -753,9 +1085,9 @@ ${PersonalityFormatter.onboardingQuestion(
         let source: OnboardingState['data']['capitalSource'] | null = null;
 
         // Check if AI mode is enabled
-        const useAI = context.metadata?.aiMode === true;
+        const aiMode = context.metadata?.aiMode === true;
 
-        if (useAI) {
+        if (aiMode) {
             // AI Mode: Use natural language extraction
             const extraction = await extractOnboardingResponse(
                 message,
@@ -803,13 +1135,14 @@ ${PersonalityFormatter.onboardingQuestion(
                         "4. Bootstrapped - Using own savings and revenue",
                         "5. Grant - Government or organization grant"
                     ],
-                    stageHint
+                    aiMode ? stageHint : "Just type the number!"
                 ),
                 metadata: {
                     skill: this.name,
                     step: 'capital_support',
                     awaitingOnboarding: true,
-                    onboardingProgress: progress
+                    onboardingProgress: progress,
+                    aiMode
                 }
             };
         }
@@ -848,6 +1181,8 @@ ${PersonalityFormatter.onboardingQuestion(
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
+
         const question = PersonalityFormatter.onboardingQuestion(
             "Last one! How often do you want tax insights?",
             [
@@ -856,7 +1191,7 @@ ${PersonalityFormatter.onboardingQuestion(
                 "3. Monthly - Just monthly updates please",
                 "4. Only when needed - Alert me when something's urgent"
             ],
-            "You can always change this later"
+            aiMode ? "You can change this anytime" : "Just type the number!"
         );
 
         return {
@@ -865,7 +1200,8 @@ ${PersonalityFormatter.onboardingQuestion(
                 skill: this.name,
                 step: 'preferences',
                 awaitingOnboarding: true,
-                onboardingProgress: progress
+                onboardingProgress: progress,
+                aiMode
             }
         };
     }
@@ -883,9 +1219,9 @@ ${PersonalityFormatter.onboardingQuestion(
         let frequency: OnboardingState['data']['insightFrequency'] | null = null;
 
         // Check if AI mode is enabled
-        const useAI = context.metadata?.aiMode === true;
+        const aiMode = context.metadata?.aiMode === true;
 
-        if (useAI) {
+        if (aiMode) {
             // AI Mode: Use natural language extraction
             const extraction = await extractOnboardingResponse(
                 message,
@@ -927,13 +1263,14 @@ ${PersonalityFormatter.onboardingQuestion(
                         "3. Monthly - Just monthly updates please",
                         "4. Only when needed - Alert me when something's urgent"
                     ],
-                    "You can always change this later"
+                    aiMode ? "You can change this anytime" : "Just type the number!"
                 ),
                 metadata: {
                     skill: this.name,
                     step: 'preferences',
                     awaitingOnboarding: true,
-                    onboardingProgress: progress
+                    onboardingProgress: progress,
+                    aiMode
                 }
             };
         }
@@ -955,7 +1292,7 @@ ${PersonalityFormatter.onboardingQuestion(
         return this.getCompletionMessage(progress.data.entityType!, {
             ...progress.data,
             insightFrequency: frequency
-        });
+        }, aiMode);
     }
 
     /**
@@ -963,7 +1300,8 @@ ${PersonalityFormatter.onboardingQuestion(
      */
     private getCompletionMessage(
         entityType: OnboardingState['data']['entityType'],
-        data: OnboardingState['data']
+        data: OnboardingState['data'],
+        aiMode: boolean = false
     ): Static<typeof MessageResponseSchema> {
 
         const frequencyMessage = {
@@ -986,7 +1324,7 @@ As a salaried individual, here's what I can help with:
 I'll send you ${frequencyMessage}.
 
 📤 **To get started**: Send me your payslip or bank statement, and I'll start tracking!`,
-                metadata: { skill: this.name, onboardingComplete: true }
+                metadata: { skill: this.name, onboardingComplete: true, aiMode }
             };
         }
 
@@ -1003,7 +1341,50 @@ Here's what I'll do for you:
 I'll send you ${frequencyMessage}.
 
 📤 **To get started**: Upload your bank statement and I'll find your income patterns!`,
-                metadata: { skill: this.name, onboardingComplete: true }
+                metadata: { skill: this.name, onboardingComplete: true, aiMode }
+            };
+        }
+
+        if (entityType === 'retiree') {
+            const incomeTypes = [];
+            if (data.hasPensionIncome) incomeTypes.push('pension');
+            if (data.hasRentalIncome) incomeTypes.push('rental income');
+            if (data.hasInvestmentIncome) incomeTypes.push('investment returns');
+            if (data.hasConsultingIncome) incomeTypes.push('consulting');
+
+            return {
+                message: `✅ **Retirement Mode Activated!** 🎉
+
+Your income profile: ${incomeTypes.join(', ') || 'pension'}
+
+Here's what I'll do for you:
+• 💵 Track your pension and other income
+• 📊 Monitor withholding tax on investments
+• 🏠 Handle rental income tax (if applicable)
+• 📋 Prepare for annual filing
+
+I'll send you ${frequencyMessage}.
+
+📤 **To get started**: Send me your pension statement or bank statement!`,
+                metadata: { skill: this.name, onboardingComplete: true, aiMode }
+            };
+        }
+
+        if (entityType === 'corper') {
+            return {
+                message: `✅ **You're all set, Corp Member!** 🇳🇬
+
+Good news: Your NYSC allowance is **tax-free**!
+
+Here's what I'll do for you:
+• 📊 Track any side income you earn
+• 💡 Help you understand taxes before you start working
+• 📋 Prepare you for post-service employment
+
+I'll send you ${frequencyMessage}.
+
+📤 **Next step**: If you have any side income, send me your bank statement!`,
+                metadata: { skill: this.name, onboardingComplete: true, aiMode }
             };
         }
 
@@ -1024,7 +1405,7 @@ Here's your profile:
 • Alert you to filing deadlines
 
 📤 **Next step**: Upload your bank statement and let's get started!`,
-            metadata: { skill: this.name, onboardingComplete: true }
+            metadata: { skill: this.name, onboardingComplete: true, aiMode }
         };
     }
 
@@ -1156,11 +1537,12 @@ Here's your profile:
         context: SessionContext,
         progress: OnboardingState
     ): Promise<Static<typeof MessageResponseSchema>> {
+        const aiMode = context.metadata?.aiMode === true;
 
         // Placeholder for auto-triggering document analysis
         return {
             message: "Initial analysis step - implementation pending",
-            metadata: { skill: this.name, step: 'initial_analysis' }
+            metadata: { skill: this.name, step: 'initial_analysis', aiMode }
         };
     }
 }

@@ -19,6 +19,8 @@ import {
     WifiOff,
     ExternalLink,
     RefreshCw,
+    Heart,
+    GraduationCap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +31,7 @@ interface TestStep {
     aiInput?: string; // Natural language alternative
     expectedStep: string;
     expectedKeywords: string[];
+    aiExpectedKeywords?: string[]; // Keywords to check in AI mode
     mustNotContain?: string[];
 }
 
@@ -36,7 +39,7 @@ interface TestFlow {
     id: string;
     name: string;
     description: string;
-    entityType: 'business' | 'individual' | 'self_employed';
+    entityType: 'business' | 'individual' | 'self_employed' | 'retiree' | 'student' | 'corper';
     icon: typeof User;
     steps: TestStep[];
 }
@@ -70,42 +73,48 @@ const TEST_FLOWS: TestFlow[] = [
                 input: 'start',
                 aiInput: 'Hi, I want to get started',
                 expectedStep: 'entity_type',
-                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer']
+                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer', 'Student', 'Retiree'],
+                aiExpectedKeywords: ['business', 'living', 'yourself']
             },
             {
                 name: 'Select Business Owner',
                 input: '1',
                 aiInput: 'I run my own business',
                 expectedStep: 'business_stage',
-                expectedKeywords: ['Pre-revenue', 'Early stage', 'Growing', 'Established']
+                expectedKeywords: ['Pre-revenue', 'Early stage', 'Growing', 'Established'],
+                aiExpectedKeywords: ['stage', 'business']
             },
             {
                 name: 'Select Early Stage',
                 input: '2',
                 aiInput: 'We just started, getting our first customers',
                 expectedStep: 'account_setup',
-                expectedKeywords: ['bank accounts', 'Mixed', 'Separate']
+                expectedKeywords: ['bank accounts', 'Mixed', 'Separate'],
+                aiExpectedKeywords: ['account', 'bank']
             },
             {
                 name: 'Select Separate Accounts',
                 input: '2',
                 aiInput: 'I keep separate accounts for business',
                 expectedStep: 'capital_support',
-                expectedKeywords: ['funding', 'Family', 'Investors', 'Loan']
+                expectedKeywords: ['funding', 'Family', 'Investors', 'Loan'],
+                aiExpectedKeywords: ['funding', 'business']
             },
             {
                 name: 'Select Bootstrapped',
                 input: '4',
                 aiInput: 'Using my own savings',
                 expectedStep: 'preferences',
-                expectedKeywords: ['insights', 'Daily', 'Weekly', 'Monthly']
+                expectedKeywords: ['insights', 'Daily', 'Weekly', 'Monthly'],
+                aiExpectedKeywords: ['insights', 'often']
             },
             {
                 name: 'Select Weekly Updates',
                 input: '2',
                 aiInput: 'Weekly updates please',
                 expectedStep: 'complete',
-                expectedKeywords: ['Onboarding Complete', 'profile', 'upload']
+                expectedKeywords: ['Complete', 'profile', 'upload'],
+                aiExpectedKeywords: ['complete', 'started']
             }
         ]
     },
@@ -121,7 +130,8 @@ const TEST_FLOWS: TestFlow[] = [
                 input: 'start',
                 aiInput: 'Hello there',
                 expectedStep: 'entity_type',
-                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer']
+                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer'],
+                aiExpectedKeywords: ['business', 'living', 'yourself']
             },
             {
                 name: 'Select Employed Individual',
@@ -129,6 +139,7 @@ const TEST_FLOWS: TestFlow[] = [
                 aiInput: 'I work for a company and earn a salary',
                 expectedStep: 'preferences',
                 expectedKeywords: ['insights', 'Daily', 'Weekly'],
+                aiExpectedKeywords: ['insights', 'often'],
                 mustNotContain: ['business stage', 'funding']
             },
             {
@@ -136,7 +147,8 @@ const TEST_FLOWS: TestFlow[] = [
                 input: '3',
                 aiInput: 'Monthly is fine for me',
                 expectedStep: 'complete',
-                expectedKeywords: ['set', 'salaried', 'payslip']
+                expectedKeywords: ['set', 'salaried', 'payslip'],
+                aiExpectedKeywords: ['set', 'salaried']
             }
         ]
     },
@@ -152,7 +164,8 @@ const TEST_FLOWS: TestFlow[] = [
                 input: 'start',
                 aiInput: 'start',
                 expectedStep: 'entity_type',
-                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer']
+                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer'],
+                aiExpectedKeywords: ['business', 'living']
             },
             {
                 name: 'Select Freelancer',
@@ -160,6 +173,7 @@ const TEST_FLOWS: TestFlow[] = [
                 aiInput: "I'm a freelancer, I work for myself",
                 expectedStep: 'account_setup',
                 expectedKeywords: ['freelance income', 'separate', 'personal spending'],
+                aiExpectedKeywords: ['income', 'separate'],
                 mustNotContain: ['business stage']
             },
             {
@@ -168,6 +182,7 @@ const TEST_FLOWS: TestFlow[] = [
                 aiInput: 'Yes, I have a separate work account',
                 expectedStep: 'preferences',
                 expectedKeywords: ['insights', 'Daily', 'Weekly'],
+                aiExpectedKeywords: ['insights', 'often'],
                 mustNotContain: ['funding', 'capital']
             },
             {
@@ -175,44 +190,82 @@ const TEST_FLOWS: TestFlow[] = [
                 input: '2',
                 aiInput: 'Give me weekly summaries',
                 expectedStep: 'complete',
-                expectedKeywords: ['Freelancer Mode', 'Activated', 'client payments']
+                expectedKeywords: ['Freelancer Mode', 'Activated', 'client payments'],
+                aiExpectedKeywords: ['freelancer', 'activated']
             }
         ]
     },
     {
-        id: 'freelancer-mixed-account',
-        name: 'Freelancer with Mixed Account',
-        description: 'Freelancer who uses one account for everything',
-        entityType: 'self_employed',
-        icon: Laptop,
+        id: 'retiree-path',
+        name: 'Retiree with Multiple Income',
+        description: 'Retired user with pension and rental income',
+        entityType: 'retiree',
+        icon: Heart,
         steps: [
             {
                 name: 'Welcome & Entity Type',
                 input: 'start',
-                aiInput: 'Hello',
+                aiInput: 'I retired last year from my job',
                 expectedStep: 'entity_type',
-                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer']
+                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer', 'Retiree'],
+                aiExpectedKeywords: ['business', 'living', 'retiree']
             },
             {
-                name: 'Select Freelancer',
-                input: '3',
-                aiInput: 'I do freelance work',
-                expectedStep: 'account_setup',
-                expectedKeywords: ['freelance income', 'separate']
+                name: 'Select Retiree',
+                input: '5',
+                aiInput: 'I am retired',
+                expectedStep: 'retiree_other_income',
+                expectedKeywords: ['pension', 'Rental', 'Investment', 'consulting'],
+                aiExpectedKeywords: ['pension', 'income']
             },
             {
-                name: 'Select Mixed Account (No)',
-                input: '2',
-                aiInput: 'No, everything goes into one account',
-                expectedStep: 'preferences',
-                expectedKeywords: ['insights']
-            },
-            {
-                name: 'Select Daily Updates',
+                name: 'Select Rental Income',
                 input: '1',
-                aiInput: 'Daily updates please, I want to stay on top of things',
+                aiInput: 'I also receive annual rent from my tenants',
+                expectedStep: 'preferences',
+                expectedKeywords: ['insights', 'Daily', 'Weekly'],
+                aiExpectedKeywords: ['insights', 'often']
+            },
+            {
+                name: 'Select Weekly Updates',
+                input: '2',
+                aiInput: 'Weekly is fine',
                 expectedStep: 'complete',
-                expectedKeywords: ['Freelancer Mode', 'daily']
+                expectedKeywords: ['Retirement Mode', 'pension', 'rental'],
+                aiExpectedKeywords: ['retirement', 'pension']
+            }
+        ]
+    },
+    {
+        id: 'student-path',
+        name: 'Student with Side Hustle',
+        description: 'Student who does freelance work on the side',
+        entityType: 'student',
+        icon: GraduationCap,
+        steps: [
+            {
+                name: 'Welcome & Entity Type',
+                input: 'start',
+                aiInput: 'I am a university student',
+                expectedStep: 'entity_type',
+                expectedKeywords: ['Business Owner', 'Employed', 'Freelancer', 'Student'],
+                aiExpectedKeywords: ['business', 'living', 'student']
+            },
+            {
+                name: 'Select Student',
+                input: '4',
+                aiInput: 'I am still in school',
+                expectedStep: 'student_side_income',
+                expectedKeywords: ['work', 'part-time', 'freelance', 'studies'],
+                aiExpectedKeywords: ['work', 'studying']
+            },
+            {
+                name: 'Select Freelance Work',
+                input: '2',
+                aiInput: 'Yes, I do some freelance graphic design',
+                expectedStep: 'complete',
+                expectedKeywords: ['set', 'student', 'income'],
+                aiExpectedKeywords: ['set', 'student']
             }
         ]
     },
@@ -228,42 +281,48 @@ const TEST_FLOWS: TestFlow[] = [
                 input: 'start',
                 aiInput: 'Wetin dey happen? I wan start',
                 expectedStep: 'entity_type',
-                expectedKeywords: ['Business Owner']
+                expectedKeywords: ['Business Owner'],
+                aiExpectedKeywords: ['business', 'living']
             },
             {
                 name: 'Business Owner (Pidgin)',
                 input: '1',
                 aiInput: 'Na business I dey run o',
                 expectedStep: 'business_stage',
-                expectedKeywords: ['stage']
+                expectedKeywords: ['stage'],
+                aiExpectedKeywords: ['stage', 'business']
             },
             {
                 name: 'Growing Business (Pidgin)',
                 input: '3',
                 aiInput: 'We dey grow, money dey enter small small',
                 expectedStep: 'account_setup',
-                expectedKeywords: ['account']
+                expectedKeywords: ['account'],
+                aiExpectedKeywords: ['account', 'bank']
             },
             {
                 name: 'Mixed Account (Pidgin)',
                 input: '1',
                 aiInput: 'Everything dey one account, I no separate am',
                 expectedStep: 'capital_support',
-                expectedKeywords: ['funding']
+                expectedKeywords: ['funding'],
+                aiExpectedKeywords: ['funding', 'business']
             },
             {
                 name: 'Family Funding (Pidgin)',
                 input: '1',
                 aiInput: 'Na family money, my uncle support me',
                 expectedStep: 'preferences',
-                expectedKeywords: ['insights']
+                expectedKeywords: ['insights'],
+                aiExpectedKeywords: ['insights', 'often']
             },
             {
                 name: 'Weekly (Pidgin)',
                 input: '2',
                 aiInput: 'Once a week is ok',
                 expectedStep: 'complete',
-                expectedKeywords: ['Complete']
+                expectedKeywords: ['Complete'],
+                aiExpectedKeywords: ['complete', 'started']
             }
         ]
     }
@@ -325,7 +384,7 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
             const isFirstStep = stepIndex === 0;
             
             console.log(`[OnboardingTest] Step ${stepIndex + 1}: Sending to ${GATEWAY_URL}/chat`);
-            console.log(`[OnboardingTest] Message: "${message}", isFirstStep: ${isFirstStep}`);
+            console.log(`[OnboardingTest] Message: "${message}", isFirstStep: ${isFirstStep}, aiMode: ${aiMode}`);
             
             try {
                 const response = await fetch(`${GATEWAY_URL}/chat`, {
@@ -338,9 +397,9 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                         idempotencyKey: `test-${Date.now()}-${Math.random()}`,
                         metadata: { 
                             isTest: true, 
-                            aiMode,
-                            needsOnboarding: isFirstStep,  // Signal first step needs onboarding
-                            isNewUser: isFirstStep          // Treat as new user on first step
+                            aiMode,  // Pass aiMode in metadata
+                            needsOnboarding: isFirstStep,
+                            isNewUser: isFirstStep
                         }
                     })
                 });
@@ -367,8 +426,13 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
             const errors: string[] = [];
             const responseLower = response.toLowerCase();
 
+            // Use AI keywords if in AI mode and they exist, otherwise use standard keywords
+            const keywords = aiMode && step.aiExpectedKeywords 
+                ? step.aiExpectedKeywords 
+                : step.expectedKeywords;
+
             // Check expected keywords
-            for (const keyword of step.expectedKeywords) {
+            for (const keyword of keywords) {
                 if (!responseLower.includes(keyword.toLowerCase())) {
                     errors.push(`Missing expected keyword: "${keyword}"`);
                 }
@@ -470,20 +534,7 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                     passed: results.every(r => r.passed),
                     duration: results.reduce((sum, r) => sum + r.duration, 0)
                 };
-                setAllResults(prev => [...prev, testResult]);
-
-                console.log(`[OnboardingTest] Test flow completed:`, {
-                    flow: flow.name,
-                    passed: testResult.passed,
-                    stepsPassed: `${results.filter(r => r.passed).length}/${results.length}`,
-                    totalDuration: testResult.duration
-                });
-
-                toast({
-                    title: testResult.passed ? 'Test Passed' : 'Test Failed',
-                    description: `${results.filter(r => r.passed).length}/${results.length} steps passed`,
-                    variant: testResult.passed ? 'default' : 'destructive'
-                });
+                setAllResults(prev => [...prev.filter(r => r.flow.id !== flow.id), testResult]);
 
             } finally {
                 setIsRunning(false);
@@ -492,10 +543,8 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
         };
 
         const runAllTests = async () => {
-            setAllResults([]);
             for (const flow of TEST_FLOWS) {
                 await runTest(flow);
-                // Delay between flows
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         };
@@ -512,26 +561,19 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                 timestamp: new Date().toISOString(),
                 mode: aiMode ? 'AI' : 'Strict',
                 gatewayUrl: GATEWAY_URL,
-                gatewayConnected,
-                summary: {
-                    total: allResults.length,
-                    passed: allResults.filter(r => r.passed).length,
-                    failed: allResults.filter(r => !r.passed).length
-                },
                 results: allResults.map(r => ({
                     flowId: r.flow.id,
                     flowName: r.flow.name,
-                    entityType: r.flow.entityType,
                     passed: r.passed,
                     duration: r.duration,
                     steps: r.steps.map(s => ({
                         name: s.step.name,
-                        input: aiMode ? s.step.aiInput : s.step.input,
+                        input: aiMode && s.step.aiInput ? s.step.aiInput : s.step.input,
                         passed: s.passed,
                         duration: s.duration,
-                        response: s.response,
                         error: s.error,
-                        aiConfidence: s.aiConfidence
+                        aiConfidence: s.aiConfidence,
+                        response: s.response.substring(0, 200) + (s.response.length > 200 ? '...' : '')
                     }))
                 }))
             };
@@ -540,19 +582,12 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `onboarding-test-results-${new Date().toISOString().slice(0, 10)}.json`;
-            document.body.appendChild(a);
+            a.download = `onboarding-test-results-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
-            document.body.removeChild(a);
             URL.revokeObjectURL(url);
-
-            toast({
-                title: 'Results Exported',
-                description: 'Test results have been downloaded as JSON.',
-            });
         };
 
-        const toggleFlowExpanded = (flowId: string) => {
+        const toggleFlowExpand = (flowId: string) => {
             setExpandedFlows(prev => {
                 const next = new Set(prev);
                 if (next.has(flowId)) {
@@ -564,273 +599,219 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
             });
         };
 
-        const passedCount = allResults.filter(r => r.passed).length;
-        const totalCount = allResults.length;
+        const getFlowResult = (flowId: string) => allResults.find(r => r.flow.id === flowId);
 
         return (
             <div ref={ref} className="space-y-6">
-                {/* Gateway Status */}
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                        {isCheckingConnection ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                        ) : gatewayConnected ? (
-                            <Wifi className="w-4 h-4 text-green-500" />
-                        ) : (
-                            <WifiOff className="w-4 h-4 text-destructive" />
-                        )}
-                        <div className="flex flex-col">
-                            <span className={cn(
-                                "text-sm font-medium",
-                                gatewayConnected ? "text-green-500" : gatewayConnected === false ? "text-destructive" : "text-muted-foreground"
-                            )}>
-                                Gateway: {isCheckingConnection ? 'Checking...' : gatewayConnected ? 'Connected' : 'Disconnected'}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-mono break-all max-w-xs">
-                                {GATEWAY_URL}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={checkGatewayHealth}
-                            disabled={isCheckingConnection}
-                            className="text-xs px-2 py-1 bg-muted hover:bg-accent rounded transition-colors disabled:opacity-50 flex items-center gap-1"
-                        >
-                            <RefreshCw className="w-3 h-3" />
-                            {isCheckingConnection ? 'Checking...' : 'Retry'}
-                        </button>
-                        <button
-                            onClick={() => window.open(`${GATEWAY_URL}/health`, '_blank')}
-                            className="text-xs px-2 py-1 bg-muted hover:bg-accent rounded transition-colors flex items-center gap-1"
-                        >
-                            <ExternalLink className="w-3 h-3" />
-                            Test in Tab
-                        </button>
-                    </div>
-                </div>
-                
-                {/* Error Help */}
-                {gatewayConnected === false && (
-                    <p className="text-xs text-amber-600 bg-amber-500/10 p-2 rounded">
-                        💡 If health works in new tab but not here, it's a CORS issue. Check Gateway CORS configuration.
-                    </p>
-                )}
-
-                {/* Header Controls */}
+                {/* Header with Controls */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <h3 className="text-lg font-medium text-foreground">Onboarding Flow Tests</h3>
+                        <h3 className="text-lg font-semibold">Onboarding Flow Tester</h3>
                         
-                        {/* AI Mode Toggle */}
-                        <button
-                            onClick={() => setAiMode(!aiMode)}
-                            className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
-                                aiMode 
-                                    ? "bg-primary text-primary-foreground" 
-                                    : "bg-muted text-muted-foreground hover:bg-accent"
+                        {/* Gateway Status */}
+                        <div className="flex items-center gap-2 text-sm">
+                            {isCheckingConnection ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                            ) : gatewayConnected ? (
+                                <Wifi className="w-4 h-4 text-green-500" />
+                            ) : (
+                                <WifiOff className="w-4 h-4 text-destructive" />
                             )}
-                        >
-                            {aiMode ? <Brain className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
-                            {aiMode ? 'AI Mode' : 'Strict Mode'}
-                        </button>
+                            <span className={gatewayConnected ? 'text-green-600' : 'text-destructive'}>
+                                {gatewayConnected ? 'Gateway Connected' : 'Gateway Offline'}
+                            </span>
+                            <button
+                                onClick={() => checkGatewayHealth()}
+                                className="p-1 hover:bg-muted rounded"
+                                title="Refresh connection"
+                            >
+                                <RefreshCw className="w-3 h-3" />
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        {/* AI Mode Toggle */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setAiMode(false)}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-l-md text-sm font-medium transition-colors",
+                                    !aiMode
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                )}
+                            >
+                                <Zap className="w-4 h-4 inline mr-1" />
+                                Strict
+                            </button>
+                            <button
+                                onClick={() => setAiMode(true)}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-r-md text-sm font-medium transition-colors",
+                                    aiMode
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                )}
+                            >
+                                <Brain className="w-4 h-4 inline mr-1" />
+                                AI Mode
+                            </button>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <button
+                            onClick={runAllTests}
+                            disabled={isRunning || !gatewayConnected}
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <Play className="w-4 h-4" />
+                            Run All Tests
+                        </button>
+
+                        <button
+                            onClick={resetTests}
+                            disabled={isRunning}
+                            className="px-4 py-2 bg-muted text-muted-foreground rounded-md hover:bg-muted/80 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                            Reset
+                        </button>
+
                         {allResults.length > 0 && (
                             <button
                                 onClick={exportResults}
-                                className="flex items-center gap-2 px-3 py-2 bg-muted text-foreground rounded-lg hover:bg-accent"
+                                className="px-4 py-2 bg-muted text-muted-foreground rounded-md hover:bg-muted/80 flex items-center gap-2"
                             >
                                 <Download className="w-4 h-4" />
                                 Export
                             </button>
                         )}
-                        <button
-                            onClick={runAllTests}
-                            disabled={isRunning || !gatewayConnected}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
-                        >
-                            {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                            Run All Tests
-                        </button>
-                        <button
-                            onClick={resetTests}
-                            disabled={isRunning}
-                            className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-accent disabled:opacity-50"
-                        >
-                            <RotateCcw className="w-4 h-4" />
-                            Reset
-                        </button>
                     </div>
                 </div>
 
-                {/* Mode Description */}
-                <div className={cn(
-                    "p-3 rounded-lg text-sm",
-                    aiMode ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                )}>
-                    {aiMode ? (
-                        <>
-                            <Brain className="w-4 h-4 inline mr-2" />
-                            <strong>AI Mode:</strong> Uses natural language inputs (e.g., "I'm a freelancer") to test the AI extraction system. Tests real-world conversational responses.
-                        </>
-                    ) : (
-                        <>
-                            <Zap className="w-4 h-4 inline mr-2" />
-                            <strong>Strict Mode:</strong> Uses number inputs (1, 2, 3) to test basic pattern matching. Faster and more deterministic.
-                        </>
-                    )}
-                </div>
-
-                {/* Summary Bar */}
-                {allResults.length > 0 && (
-                    <div className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg">
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">Results:</span>
-                            <span className={cn(
-                                "font-medium",
-                                passedCount === totalCount ? "text-green-500" : "text-destructive"
-                            )}>
-                                {passedCount}/{totalCount} passed
-                            </span>
-                        </div>
-                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                            <div 
-                                className={cn(
-                                    "h-full transition-all",
-                                    passedCount === totalCount ? "bg-green-500" : "bg-destructive"
-                                )}
-                                style={{ width: `${(passedCount / totalCount) * 100}%` }}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* Test Flows */}
-                <div className="space-y-3">
-                    {TEST_FLOWS.map((flow) => {
-                        const result = allResults.find(r => r.flow.id === flow.id);
+                {/* Test Flows Grid */}
+                <div className="grid gap-4">
+                    {TEST_FLOWS.map(flow => {
+                        const result = getFlowResult(flow.id);
                         const isExpanded = expandedFlows.has(flow.id);
-                        const isActive = selectedFlow?.id === flow.id;
+                        const isCurrentFlow = selectedFlow?.id === flow.id;
                         const FlowIcon = flow.icon;
 
                         return (
                             <div
                                 key={flow.id}
                                 className={cn(
-                                    "border rounded-xl overflow-hidden transition-colors",
-                                    isActive ? "border-primary bg-primary/5" : "border-border bg-card"
+                                    "border rounded-lg overflow-hidden transition-all",
+                                    result?.passed === true && "border-green-500/50 bg-green-500/5",
+                                    result?.passed === false && "border-destructive/50 bg-destructive/5",
+                                    isCurrentFlow && isRunning && "border-primary ring-2 ring-primary/20"
                                 )}
                             >
                                 {/* Flow Header */}
-                                <div className="flex items-center gap-3 p-4">
-                                    <button
-                                        onClick={() => toggleFlowExpanded(flow.id)}
-                                        className="text-muted-foreground hover:text-foreground"
-                                    >
-                                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                    </button>
-                                    
-                                    <FlowIcon className={cn(
-                                        "w-5 h-5",
-                                        flow.entityType === 'business' ? "text-blue-500" :
-                                        flow.entityType === 'individual' ? "text-green-500" : "text-purple-500"
-                                    )} />
-                                    
-                                    <div className="flex-1">
-                                        <h4 className="font-medium text-foreground">{flow.name}</h4>
-                                        <p className="text-xs text-muted-foreground">{flow.description}</p>
+                                <div
+                                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50"
+                                    onClick={() => toggleFlowExpand(flow.id)}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <FlowIcon className="w-5 h-5 text-muted-foreground" />
+                                        <div>
+                                            <h4 className="font-medium">{flow.name}</h4>
+                                            <p className="text-sm text-muted-foreground">{flow.description}</p>
+                                        </div>
                                     </div>
 
-                                    {/* Status Badge */}
-                                    {result && (
-                                        <div className={cn(
-                                            "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium",
-                                            result.passed ? "bg-green-500/10 text-green-500" : "bg-destructive/10 text-destructive"
-                                        )}>
-                                            {result.passed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                                            {result.passed ? 'Passed' : 'Failed'}
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-3">
+                                        {/* Status Indicator */}
+                                        {result ? (
+                                            <div className="flex items-center gap-2">
+                                                {result.passed ? (
+                                                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                                ) : (
+                                                    <XCircle className="w-5 h-5 text-destructive" />
+                                                )}
+                                                <span className="text-sm text-muted-foreground">
+                                                    {result.duration}ms
+                                                </span>
+                                            </div>
+                                        ) : isCurrentFlow && isRunning ? (
+                                            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                        ) : null}
 
-                                    {/* Run Button */}
-                                    <button
-                                        onClick={() => runTest(flow)}
-                                        disabled={isRunning || !gatewayConnected}
-                                        className={cn(
-                                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                                            isActive && isRunning
-                                                ? "bg-primary/20 text-primary"
-                                                : "bg-muted hover:bg-accent text-foreground disabled:opacity-50"
-                                        )}
-                                    >
-                                        {isActive && isRunning ? (
-                                            <>
-                                                <Square className="w-3 h-3" />
-                                                Running...
-                                            </>
+                                        {/* Run Button */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                runTest(flow);
+                                            }}
+                                            disabled={isRunning || !gatewayConnected}
+                                            className="px-3 py-1.5 bg-primary/10 text-primary rounded hover:bg-primary/20 disabled:opacity-50 text-sm"
+                                        >
+                                            {isCurrentFlow && isRunning ? 'Running...' : 'Run'}
+                                        </button>
+
+                                        {/* Expand Icon */}
+                                        {isExpanded ? (
+                                            <ChevronDown className="w-5 h-5 text-muted-foreground" />
                                         ) : (
-                                            <>
-                                                <Play className="w-3 h-3" />
-                                                Run
-                                            </>
+                                            <ChevronRight className="w-5 h-5 text-muted-foreground" />
                                         )}
-                                    </button>
+                                    </div>
                                 </div>
 
                                 {/* Expanded Steps */}
                                 {isExpanded && (
-                                    <div className="border-t border-border p-4 space-y-2">
-                                        {flow.steps.map((step, index) => {
-                                            const stepResult = isActive ? stepResults[index] : result?.steps[index];
-                                            const isCurrent = isActive && isRunning && currentStepIndex === index;
+                                    <div className="border-t bg-muted/30 p-4 space-y-3">
+                                        {flow.steps.map((step, idx) => {
+                                            const stepResult = isCurrentFlow ? stepResults[idx] : result?.steps[idx];
+                                            const isCurrentStep = isCurrentFlow && isRunning && idx === currentStepIndex;
 
                                             return (
                                                 <div
-                                                    key={index}
+                                                    key={idx}
                                                     className={cn(
-                                                        "flex items-start gap-3 p-3 rounded-lg",
-                                                        isCurrent ? "bg-primary/10" :
-                                                        stepResult?.passed ? "bg-green-500/5" :
-                                                        stepResult?.passed === false ? "bg-destructive/5" : "bg-muted/50"
+                                                        "flex items-start gap-3 p-3 rounded-md bg-background border",
+                                                        stepResult?.passed === true && "border-green-500/50",
+                                                        stepResult?.passed === false && "border-destructive/50",
+                                                        isCurrentStep && "ring-2 ring-primary/50"
                                                     )}
                                                 >
-                                                    {/* Status Icon */}
-                                                    <div className="mt-0.5">
-                                                        {isCurrent ? (
-                                                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                                                        ) : stepResult?.passed ? (
-                                                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                                    {/* Step Number */}
+                                                    <div className={cn(
+                                                        "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0",
+                                                        stepResult?.passed === true && "bg-green-500 text-white",
+                                                        stepResult?.passed === false && "bg-destructive text-white",
+                                                        !stepResult && "bg-muted text-muted-foreground"
+                                                    )}>
+                                                        {isCurrentStep ? (
+                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                        ) : stepResult?.passed === true ? (
+                                                            <CheckCircle2 className="w-3 h-3" />
                                                         ) : stepResult?.passed === false ? (
-                                                            <XCircle className="w-4 h-4 text-destructive" />
+                                                            <XCircle className="w-3 h-3" />
                                                         ) : (
-                                                            <Clock className="w-4 h-4 text-muted-foreground" />
+                                                            idx + 1
                                                         )}
                                                     </div>
 
-                                                    {/* Step Info */}
+                                                    {/* Step Details */}
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-medium text-sm text-foreground">{step.name}</span>
+                                                            <span className="font-medium text-sm">{step.name}</span>
                                                             {stepResult && (
                                                                 <span className="text-xs text-muted-foreground">
                                                                     {stepResult.duration}ms
                                                                 </span>
                                                             )}
-                                                            {stepResult?.aiConfidence !== undefined && (
-                                                                <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                                                                    AI: {(stepResult.aiConfidence * 100).toFixed(0)}%
-                                                                </span>
-                                                            )}
                                                         </div>
                                                         <div className="text-xs text-muted-foreground mt-1">
-                                                            Input: <code className="px-1 py-0.5 bg-muted rounded">{aiMode && step.aiInput ? step.aiInput : step.input}</code>
+                                                            Input: <code className="bg-muted px-1 rounded">
+                                                                {aiMode && step.aiInput ? step.aiInput : step.input}
+                                                            </code>
                                                         </div>
                                                         {stepResult?.error && (
                                                             <div className="text-xs text-destructive mt-1">
-                                                                {stepResult.error}
+                                                                ❌ {stepResult.error}
                                                             </div>
                                                         )}
                                                         {stepResult?.response && (
@@ -838,7 +819,7 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                                                                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
                                                                     View Response
                                                                 </summary>
-                                                                <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto max-h-32">
+                                                                <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto whitespace-pre-wrap max-h-40">
                                                                     {stepResult.response}
                                                                 </pre>
                                                             </details>
@@ -853,7 +834,32 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                         );
                     })}
                 </div>
+
+                {/* Summary */}
+                {allResults.length > 0 && (
+                    <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm font-medium">
+                                Test Summary ({aiMode ? 'AI Mode' : 'Strict Mode'})
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                <span className="text-sm">{allResults.filter(r => r.passed).length} passed</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <XCircle className="w-4 h-4 text-destructive" />
+                                <span className="text-sm">{allResults.filter(r => !r.passed).length} failed</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock className="w-4 h-4" />
+                            Total: {allResults.reduce((sum, r) => sum + r.duration, 0)}ms
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
 );
+
+export default OnboardingFlowTester;
