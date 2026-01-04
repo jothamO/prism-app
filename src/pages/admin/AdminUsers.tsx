@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { UserProfileModal } from "@/components/admin/UserProfileModal";
 
 type User = {
   id: string;
@@ -108,6 +109,7 @@ export default function AdminUsers() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -182,8 +184,7 @@ export default function AdminUsers() {
   async function handleUserAction(action: string, user: User) {
     switch (action) {
       case 'view':
-        toast({ title: "View Profile", description: `Viewing ${user.name}'s profile` });
-        // TODO: Open profile modal
+        setSelectedUserId(user.id);
         break;
       
       case 'message':
@@ -351,6 +352,13 @@ export default function AdminUsers() {
   }
 
   return (
+    <>
+    {selectedUserId && (
+      <UserProfileModal 
+        userId={selectedUserId} 
+        onClose={() => setSelectedUserId(null)} 
+      />
+    )}
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -439,5 +447,7 @@ export default function AdminUsers() {
         </div>
       </div>
     </div>
+    </>
+  );
   );
 }

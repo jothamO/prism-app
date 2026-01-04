@@ -10,6 +10,11 @@ import {
   RefreshCw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { RevenueChart } from "@/components/admin/charts/RevenueChart";
+import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart";
+import { ClassificationPieChart } from "@/components/admin/charts/ClassificationPieChart";
+import { MLQuickMetricsRow } from "@/components/admin/MLQuickMetricsRow";
+import { GatewayHealthWidget } from "@/components/admin/GatewayHealthWidget";
 
 interface DashboardMetrics {
   totalUsers: number;
@@ -22,11 +27,14 @@ interface DashboardMetrics {
   revenueGrowth: string;
 }
 
-interface RecentUser {
+interface RecentActivity {
   id: string;
-  name: string;
-  platform: string;
-  created_at: string;
+  type: "user" | "filing" | "review" | "correction";
+  title: string;
+  description: string;
+  timestamp: string;
+  icon: typeof Users;
+  iconColor: string;
 }
 
 export default function AdminDashboard() {
@@ -41,7 +49,7 @@ export default function AdminDashboard() {
     userGrowth: "+0%",
     revenueGrowth: "+0%"
   });
-  const [recentActivity, setRecentActivity] = useState<RecentUser[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -100,12 +108,83 @@ export default function AdminDashboard() {
         .eq('status', 'pending')
         .eq('priority', 'high');
 
-      // Get recent users
-      const { data: recentUsers } = await supabase
-        .from('users')
-        .select('id, full_name, first_name, telegram_username, whatsapp_number, platform, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5);
+      // Get recent mixed activity
+      const [recentUsers, recentFilings, recentReviews, recentFeedback] = await Promise.all([
+        supabase
+          .from('users')
+          .select('id, full_name, first_name, telegram_username, whatsapp_number, platform, created_at')
+          .order('created_at', { ascending: false })
+          .limit(3),
+        supabase
+          .from('filings')
+          .select('id, tax_type, auto_filed, created_at')
+          .order('created_at', { ascending: false })
+          .limit(2),
+        supabase
+          .from('review_queue')
+          .select('id, issue_type, priority, created_at')
+          .order('created_at', { ascending: false })
+          .limit(2),
+        supabase
+          .from('ai_feedback')
+          .select('id, correction_type, created_at')
+          .order('created_at', { ascending: false })
+          .limit(2)
+      ]);
+
+      // Build activity feed
+      const activities: RecentActivity[] = [];
+      
+      (recentUsers.data || []).forEach(u => {
+        activities.push({
+          id: `user-${u.id}`,
+          type: "user",
+          title: "New user registration",
+          description: `${u.full_name || u.first_name || u.telegram_username || u.whatsapp_number || 'User'} joined via ${u.platform || 'unknown'}`,
+          timestamp: u.created_at,
+          icon: Users,
+          iconColor: "text-blue-400"
+        });
+      });
+
+      (recentFilings.data || []).forEach(f => {
+        activities.push({
+          id: `filing-${f.id}`,
+          type: "filing",
+          title: `${f.tax_type || 'Tax'} filing submitted`,
+          description: f.auto_filed ? "Auto-filed by system" : "Manual submission",
+          timestamp: f.created_at,
+          icon: FileText,
+          iconColor: "text-purple-400"
+        });
+      });
+
+      (recentReviews.data || []).forEach(r => {
+        activities.push({
+          id: `review-${r.id}`,
+          type: "review",
+          title: "Review item added",
+          description: `${r.issue_type || 'Issue'} - ${r.priority || 'normal'} priority`,
+          timestamp: r.created_at,
+          icon: ShieldAlert,
+          iconColor: "text-orange-400"
+        });
+      });
+
+      (recentFeedback.data || []).forEach(f => {
+        activities.push({
+          id: `feedback-${f.id}`,
+          type: "correction",
+          title: "AI correction received",
+          description: `User corrected ${f.correction_type || 'classification'}`,
+          timestamp: f.created_at,
+          icon: Activity,
+          iconColor: "text-green-400"
+        });
+      });
+
+      // Sort by timestamp
+      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       setMetrics({
         totalUsers: userCount || 0,
@@ -115,17 +194,10 @@ export default function AdminDashboard() {
         autoFiledPercentage: autoFiledPct,
         highPriorityReviews: highPriorityCount || 0,
         userGrowth: `${userGrowth >= 0 ? '+' : ''}${userGrowth}%`,
-        revenueGrowth: "+0%" // Would need historical data
+        revenueGrowth: "+0%"
       });
 
-      setRecentActivity(
-        (recentUsers || []).map(u => ({
-          id: u.id,
-          name: u.full_name || `${u.first_name || ''}`.trim() || u.telegram_username || u.whatsapp_number || 'Unknown User',
-          platform: u.platform || 'unknown',
-          created_at: u.created_at
-        }))
-      );
+      setRecentActivity(activities.slice(0, 8));
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     } finally {
@@ -205,6 +277,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
@@ -218,6 +291,7 @@ export default function AdminDashboard() {
         </button>
       </div>
 
+      {/* Main Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {metricCards.map((metric) => (
           <div key={metric.title} className="bg-card border border-border rounded-xl p-6">
@@ -242,54 +316,65 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {/* ML Quick Metrics */}
+      <MLQuickMetricsRow />
+
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 h-96">
+        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
           <h3 className="text-lg font-medium text-foreground mb-4">Revenue Overview</h3>
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <div className="text-center">
-              <DollarSign className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p>Revenue chart coming soon</p>
-            </div>
+          <div className="h-64">
+            <RevenueChart />
           </div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-6 h-96">
+        <div className="bg-card border border-border rounded-xl p-6">
           <h3 className="text-lg font-medium text-foreground mb-4">User Growth</h3>
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <div className="text-center">
-              <Users className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p>Growth chart coming soon</p>
-            </div>
+          <div className="h-64">
+            <UserGrowthChart />
           </div>
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl p-6">
-        <h3 className="text-lg font-medium text-foreground mb-6 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-blue-400" />
-          Recent Activity
-        </h3>
-        {recentActivity.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No recent user activity
+      {/* Second Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h3 className="text-lg font-medium text-foreground mb-4">Classification Sources</h3>
+          <div className="h-56">
+            <ClassificationPieChart />
           </div>
-        ) : (
-          <div className="space-y-4">
-            {recentActivity.map((user) => (
-              <div key={user.id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center">
-                    <Users className="w-5 h-5 text-muted-foreground" />
+        </div>
+        
+        <GatewayHealthWidget />
+
+        {/* Recent Activity */}
+        <div className="bg-card border border-border rounded-xl p-6">
+          <h3 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-400" />
+            Recent Activity
+          </h3>
+          {recentActivity.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No recent activity
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-48 overflow-y-auto">
+              {recentActivity.map((activity) => (
+                <div key={activity.id} className="flex items-start gap-3 py-2 border-b border-border last:border-0">
+                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+                    <activity.icon className={`w-4 h-4 ${activity.iconColor}`} />
                   </div>
-                  <div>
-                    <p className="text-foreground font-medium">New user registration</p>
-                    <p className="text-sm text-muted-foreground">{user.name} joined via {user.platform}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{activity.title}</p>
+                    <p className="text-xs text-muted-foreground truncate">{activity.description}</p>
                   </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatRelativeTime(activity.timestamp)}
+                  </span>
                 </div>
-                <span className="text-sm text-muted-foreground">{formatRelativeTime(user.created_at)}</span>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

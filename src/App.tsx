@@ -26,6 +26,8 @@ import AdminProfiles from "./pages/admin/AdminProfiles";
 import AdminNLUTesting from "./pages/admin/AdminNLUTesting";
 import AdminMLHealth from "./pages/admin/AdminMLHealth";
 import AdminPatterns from "./pages/admin/AdminPatterns";
+import AdminOnboarding from "./pages/admin/AdminOnboarding";
+import AdminDocuments from "./pages/admin/AdminDocuments";
 
 function App() {
   return (
@@ -74,6 +76,8 @@ function App() {
               <Route path="nlu-testing" element={<AdminNLUTesting />} />
               <Route path="vat-testing" element={<AdminVATTesting />} />
               <Route path="patterns" element={<AdminPatterns />} />
+              <Route path="onboarding" element={<AdminOnboarding />} />
+              <Route path="documents" element={<AdminDocuments />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
             

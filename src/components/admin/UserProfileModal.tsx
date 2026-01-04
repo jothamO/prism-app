@@ -13,9 +13,11 @@ import {
   Building2,
   CreditCard,
   RefreshCw,
+  Brain,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { ProfileLearningTab } from "./ProfileLearningTab";
 
 interface UserProfileModalProps {
   userId: string;
@@ -70,12 +72,14 @@ interface Message {
   created_at: string | null;
 }
 
+type TabId = "details" | "receipts" | "messages" | "learning";
+
 export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"details" | "receipts" | "messages">("details");
+  const [activeTab, setActiveTab] = useState<TabId>("details");
 
   useEffect(() => {
     fetchUserData();
@@ -139,17 +143,18 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
         ) : profile ? (
           <>
             {/* Tabs */}
-            <div className="flex border-b border-border">
+            <div className="flex border-b border-border overflow-x-auto">
               {[
-                { id: "details", label: "Details", icon: User },
-                { id: "receipts", label: `Receipts (${receipts.length})`, icon: Receipt },
-                { id: "messages", label: `Messages (${messages.length})`, icon: MessageSquare },
+                { id: "details" as TabId, label: "Details", icon: User },
+                { id: "learning" as TabId, label: "Profile Learning", icon: Brain },
+                { id: "receipts" as TabId, label: `Receipts (${receipts.length})`, icon: Receipt },
+                { id: "messages" as TabId, label: `Messages (${messages.length})`, icon: MessageSquare },
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2",
+                    "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap",
                     activeTab === tab.id
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground"
@@ -263,6 +268,10 @@ export function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
                     </div>
                   )}
                 </div>
+              )}
+
+              {activeTab === "learning" && (
+                <ProfileLearningTab userId={userId} />
               )}
 
               {activeTab === "receipts" && (
