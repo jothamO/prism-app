@@ -1488,38 +1488,71 @@ export type Database = {
       }
       onboarding_progress: {
         Row: {
+          age_group: string | null
           business_id: string | null
           completed: boolean | null
           completed_steps: Json | null
           current_step: number | null
           data: Json | null
+          employment_status: string | null
+          extracted_profile: Json | null
           id: string
+          income_source: string | null
+          income_sources_detected: string[] | null
+          last_learning_update: string | null
           last_updated_at: string | null
+          occupation: string | null
+          pattern_metrics: Json | null
+          profile_confidence: number | null
           started_at: string | null
+          tax_category: string | null
+          tax_category_reason: string | null
           total_steps: number | null
           user_id: string
         }
         Insert: {
+          age_group?: string | null
           business_id?: string | null
           completed?: boolean | null
           completed_steps?: Json | null
           current_step?: number | null
           data?: Json | null
+          employment_status?: string | null
+          extracted_profile?: Json | null
           id?: string
+          income_source?: string | null
+          income_sources_detected?: string[] | null
+          last_learning_update?: string | null
           last_updated_at?: string | null
+          occupation?: string | null
+          pattern_metrics?: Json | null
+          profile_confidence?: number | null
           started_at?: string | null
+          tax_category?: string | null
+          tax_category_reason?: string | null
           total_steps?: number | null
           user_id: string
         }
         Update: {
+          age_group?: string | null
           business_id?: string | null
           completed?: boolean | null
           completed_steps?: Json | null
           current_step?: number | null
           data?: Json | null
+          employment_status?: string | null
+          extracted_profile?: Json | null
           id?: string
+          income_source?: string | null
+          income_sources_detected?: string[] | null
+          last_learning_update?: string | null
           last_updated_at?: string | null
+          occupation?: string | null
+          pattern_metrics?: Json | null
+          profile_confidence?: number | null
           started_at?: string | null
+          tax_category?: string | null
+          tax_category_reason?: string | null
           total_steps?: number | null
           user_id?: string
         }
@@ -1568,6 +1601,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profile_learning_history: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          field_name: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          reason: string | null
+          source: string
+          transaction_id: string | null
+          user_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          field_name: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+          source?: string
+          transaction_id?: string | null
+          user_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          field_name?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+          source?: string
+          transaction_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -2260,9 +2332,11 @@ export type Database = {
           onboarding_completed: boolean | null
           onboarding_step: number | null
           platform: string | null
+          primary_tax_category: string | null
           subscription_expires_at: string | null
           subscription_status: string | null
           subscription_tier: string | null
+          tax_profile_summary: Json | null
           tax_regime: string | null
           telegram_id: string | null
           telegram_username: string | null
@@ -2301,9 +2375,11 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           platform?: string | null
+          primary_tax_category?: string | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
+          tax_profile_summary?: Json | null
           tax_regime?: string | null
           telegram_id?: string | null
           telegram_username?: string | null
@@ -2342,9 +2418,11 @@ export type Database = {
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           platform?: string | null
+          primary_tax_category?: string | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
+          tax_profile_summary?: Json | null
           tax_regime?: string | null
           telegram_id?: string | null
           telegram_username?: string | null
@@ -2481,6 +2559,13 @@ export type Database = {
           id: string
           item_pattern: string
           similarity: number
+        }[]
+      }
+      get_profile_confidence_trend: {
+        Args: { p_days?: number; p_user_id: string }
+        Returns: {
+          avg_confidence: number
+          date: string
         }[]
       }
       has_role: {
