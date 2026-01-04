@@ -545,6 +545,27 @@ const AdminSimulator = () => {
         // Parse buttons from gateway response
         const buttons = response.buttons?.flat().map(b => ({ id: b.callback_data, title: b.text }));
         
+        // Extract NLU metadata from Gateway response
+        const nluMetadata = response.metadata?.nlu as {
+          intent?: string;
+          confidence?: number;
+          source?: 'ai' | 'fallback';
+          entities?: Record<string, unknown>;
+          reasoning?: string;
+          artificialCheck?: { isSuspicious: boolean; warning?: string; actReference?: string };
+        } | undefined;
+        
+        if (nluMetadata) {
+          setNluIntent({
+            name: nluMetadata.intent || 'general_query',
+            confidence: nluMetadata.confidence || 0.5,
+            entities: nluMetadata.entities || {},
+            reasoning: nluMetadata.reasoning
+          });
+          setNluSource(nluMetadata.source || 'fallback');
+          setArtificialCheck(nluMetadata.artificialCheck || null);
+        }
+        
         addBotMessageImmediate(response.message, buttons);
         setConversationContext(prev => [...prev.slice(-4), { role: 'assistant', content: response.message }]);
         return;
@@ -2822,6 +2843,23 @@ const AdminSimulator = () => {
 
       {/* Testing Panel */}
       <div className="w-72 flex-shrink-0 space-y-4 overflow-y-auto">
+        {/* NLU Debug Panel (for Gateway mode) */}
+        {useGateway && (
+          <NLUDebugPanel
+            intent={nluIntent}
+            source={nluSource}
+            isLoading={isClassifying}
+            artificialCheck={artificialCheck}
+            onTestIntent={(msg) => {
+              setInputMessage(msg);
+              setTimeout(() => {
+                const btn = document.querySelector('[data-send-button]') as HTMLButtonElement;
+                btn?.click();
+              }, 100);
+            }}
+          />
+        )}
+
         {/* Flow Tester */}
         <ConversationFlowTester
           onSendMessage={(msg) => {
