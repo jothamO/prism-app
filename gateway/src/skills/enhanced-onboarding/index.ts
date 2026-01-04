@@ -107,6 +107,16 @@ export class EnhancedOnboardingSkill {
     }
 
     /**
+     * Get time of day for personalized greetings
+     */
+    private getTimeOfDay(): 'morning' | 'afternoon' | 'evening' {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'morning';
+        if (hour < 17) return 'afternoon';
+        return 'evening';
+    }
+
+    /**
      * Handle business stage question
      */
     private async handleBusinessStage(
@@ -118,32 +128,42 @@ export class EnhancedOnboardingSkill {
         const messageLower = message.toLowerCase();
         let stage: OnboardingState['data']['businessStage'] | null = null;
 
-        if (messageLower.includes('pre') || messageLower.includes('idea') || messageLower.includes('planning')) {
+        // Check for number responses
+        if (messageLower === '1' || messageLower.includes('pre') || messageLower.includes('idea') || messageLower.includes('planning')) {
             stage = 'pre_revenue';
-        } else if (messageLower.includes('early') || messageLower.includes('started') || messageLower.includes('first')) {
+        } else if (messageLower === '2' || messageLower.includes('early') || messageLower.includes('started') || messageLower.includes('first')) {
             stage = 'early';
-        } else if (messageLower.includes('grow') || messageLower.includes('scaling')) {
+        } else if (messageLower === '3' || messageLower.includes('grow') || messageLower.includes('scaling')) {
             stage = 'growing';
-        } else if (messageLower.includes('established') || messageLower.includes('mature')) {
+        } else if (messageLower === '4' || messageLower.includes('established') || messageLower.includes('mature')) {
             stage = 'established';
         }
 
         if (!stage) {
-            // First time asking
+            // First time asking - use personality layer for warm welcome
+            const timeOfDay = this.getTimeOfDay();
+            const greeting = PersonalityFormatter.greet(context.metadata?.userName, timeOfDay);
+
+            const welcomeMessage = `${greeting}
+
+Welcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerian businesses.
+
+Let me learn a bit about you so I can give you the best advice.
+
+${PersonalityFormatter.onboardingQuestion(
+    "What stage is your business?",
+    [
+        "1. Pre-revenue - Still planning or setting up",
+        "2. Early stage - First customers, building product",
+        "3. Growing - Scaling operations and revenue",
+        "4. Established - Mature business with steady revenue"
+    ],
+    "This helps me tailor my advice to your needs"
+)}`;
+
             return {
-                message: `
-📊 **What stage is your business?**
-
-This helps me understand your needs better:
-
-1️⃣ **Pre-revenue** - Still planning or setting up
-2️⃣ **Early stage** - First customers, building product
-3️⃣ **Growing** - Scaling operations and revenue
-4️⃣ **Established** - Mature business with steady revenue
-
-Just reply with the number or stage name!
-                `.trim(),
-                metadata: { skill: this.name, step: 'business_stage', awaitingInput: true }
+                message: welcomeMessage,
+                metadata: { skill: this.name, step: 'business_stage', awaitingOnboarding: true }
             };
         }
 

@@ -4,6 +4,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -12,10 +13,30 @@ const corsHeaders = {
 
 const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_TOKEN");
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-const RAILWAY_GATEWAY_URL = Deno.env.get("RAILWAY_GATEWAY_URL");
+const RAW_GATEWAY_URL = Deno.env.get("RAILWAY_GATEWAY_URL");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_NUMBER_ID || !RAILWAY_GATEWAY_URL) {
+if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_NUMBER_ID || !RAW_GATEWAY_URL) {
     throw new Error("Missing WhatsApp or Gateway configuration");
+}
+
+// Ensure URL has protocol prefix
+const RAILWAY_GATEWAY_URL = RAW_GATEWAY_URL.startsWith("http") 
+    ? RAW_GATEWAY_URL 
+    : `https://${RAW_GATEWAY_URL}`;
+
+// Initialize Supabase client
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+// ============= Gateway Metadata =============
+
+interface GatewayMetadata {
+    source: string;
+    timestamp: string;
+    needsOnboarding?: boolean;
+    isNewUser?: boolean;
+    userName?: string;
 }
 
 // ============= WhatsApp API Helpers =============
@@ -59,7 +80,12 @@ async function sendWhatsAppMessage(to: string, text: string, buttons?: { id: str
 
 // ============= Gateway Adapter =============
 
-async function forwardToGateway(userId: string, message: string, messageId: string) {
+async function forwardToGateway(
+    userId: string, 
+    message: string, 
+    messageId: string,
+    metadata?: Partial<GatewayMetadata>
+) {
     console.log(`[WhatsApp] Forwarding to Gateway: ${userId} - ${message.substring(0, 50)}...`);
 
     try {
@@ -73,7 +99,8 @@ async function forwardToGateway(userId: string, message: string, messageId: stri
                 idempotencyKey: `whatsapp_${userId}_${messageId}`,
                 metadata: {
                     source: "whatsapp_bot",
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    ...metadata
                 }
             }),
         });
@@ -133,8 +160,21 @@ serve(async (req) => {
                 text = message.interactive.button_reply.id;
             }
 
-            // Forward to Gateway
-            const gatewayResponse = await forwardToGateway(from, text, messageId);
+            // Check if user exists and needs onboarding
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('id, onboarding_completed')
+                .eq('whatsapp_id', from)
+                .single();
+
+            const isNewUser = !existingUser;
+            const needsOnboarding = isNewUser || !existingUser?.onboarding_completed;
+
+            // Forward to Gateway with user status metadata
+            const gatewayResponse = await forwardToGateway(from, text, messageId, {
+                needsOnboarding,
+                isNewUser
+            });
 
             // Convert Telegram-style buttons to WhatsApp format
             let whatsappButtons = undefined;
