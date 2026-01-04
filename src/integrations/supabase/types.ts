@@ -62,6 +62,7 @@ export type Database = {
           metadata: Json | null
           trained_at: string | null
           training_batch_id: string | null
+          updated_at: string | null
           used_in_training: boolean | null
           user_correction: Json
           user_id: string
@@ -80,6 +81,7 @@ export type Database = {
           metadata?: Json | null
           trained_at?: string | null
           training_batch_id?: string | null
+          updated_at?: string | null
           used_in_training?: boolean | null
           user_correction: Json
           user_id: string
@@ -98,6 +100,7 @@ export type Database = {
           metadata?: Json | null
           trained_at?: string | null
           training_batch_id?: string | null
+          updated_at?: string | null
           used_in_training?: boolean | null
           user_correction?: Json
           user_id?: string
@@ -1180,6 +1183,7 @@ export type Database = {
           fields_changed: string[] | null
           id: string
           invoice_id: string
+          needs_review: boolean | null
           ocr_confidence_score: number | null
           original_data: Json
           user_id: string
@@ -1191,6 +1195,7 @@ export type Database = {
           fields_changed?: string[] | null
           id?: string
           invoice_id: string
+          needs_review?: boolean | null
           ocr_confidence_score?: number | null
           original_data: Json
           user_id: string
@@ -1202,6 +1207,7 @@ export type Database = {
           fields_changed?: string[] | null
           id?: string
           invoice_id?: string
+          needs_review?: boolean | null
           ocr_confidence_score?: number | null
           original_data?: Json
           user_id?: string
