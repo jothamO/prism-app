@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database, Brain, FlaskConical, Cloud, CloudOff, CheckCircle, XCircle } from "lucide-react";
+import { Send, Upload, Phone, Bot, User, Loader2, Zap, Database, Brain, FlaskConical, Cloud, CloudOff, CheckCircle, XCircle, ExternalLink, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction, callPublicEdgeFunction } from "@/lib/supabase-functions";
@@ -2611,14 +2611,15 @@ const AdminSimulator = () => {
               )}
             </div>
             {useGateway && (
-              <div className="text-xs space-y-1">
+              <div className="text-xs space-y-2">
                 {GATEWAY_URL === 'NOT_CONFIGURED' ? (
                   <p className="text-amber-600">
                     ⚠️ Set VITE_RAILWAY_GATEWAY_URL in .env.local
                   </p>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1">
+                    {/* Connection Status */}
+                    <div className="flex items-center gap-2">
                       {gatewayStatus === 'connected' && <CheckCircle className="w-3 h-3 text-green-500" />}
                       {gatewayStatus === 'error' && <XCircle className="w-3 h-3 text-destructive" />}
                       {gatewayStatus === 'unknown' && <Loader2 className="w-3 h-3 animate-spin" />}
@@ -2627,12 +2628,44 @@ const AdminSimulator = () => {
                         gatewayStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'
                       }>
                         {gatewayStatus === 'connected' ? 'Connected' : 
-                         gatewayStatus === 'error' ? 'Connection failed' : 'Checking...'}
+                         gatewayStatus === 'error' ? 'Disconnected' : 'Checking...'}
                       </span>
                     </div>
-                    <p className="text-muted-foreground truncate" title={GATEWAY_URL}>
-                      {GATEWAY_URL.replace('https://', '')}
+                    
+                    {/* Gateway URL (full) */}
+                    <p className="text-muted-foreground font-mono text-[10px] break-all">
+                      {GATEWAY_URL}
                     </p>
+                    
+                    {/* Fallback Actions */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          setGatewayStatus('unknown');
+                          gatewayClient.checkHealth()
+                            .then(() => setGatewayStatus('connected'))
+                            .catch(() => setGatewayStatus('error'));
+                        }}
+                        className="text-[10px] px-2 py-1 bg-muted hover:bg-accent rounded transition-colors flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Retry
+                      </button>
+                      <button
+                        onClick={() => window.open(`${GATEWAY_URL}/health`, '_blank')}
+                        className="text-[10px] px-2 py-1 bg-muted hover:bg-accent rounded transition-colors flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Test in Tab
+                      </button>
+                    </div>
+                    
+                    {/* Error Help Text */}
+                    {gatewayStatus === 'error' && (
+                      <p className="text-[10px] text-amber-600 bg-amber-500/10 p-2 rounded mt-1">
+                        💡 If the health endpoint works in a new tab but not here, it's a CORS issue on the Gateway.
+                      </p>
+                    )}
                   </>
                 )}
               </div>

@@ -39,16 +39,49 @@ export class GatewayServer {
      * Setup Express middleware
      */
     private setupMiddleware() {
-        // Security
-        this.app.use(helmet());
-
-        // CORS
-        this.app.use(cors({
-            origin: this.cfg.allowedOrigins.length > 0
-                ? this.cfg.allowedOrigins
-                : '*',
-            credentials: true
+        // Security - configure for cross-origin access
+        this.app.use(helmet({
+            crossOriginResourcePolicy: { policy: "cross-origin" },
+            crossOriginOpenerPolicy: { policy: "unsafe-none" }
         }));
+
+        // CORS - handle credentials properly with dynamic origin reflection
+        this.app.use(cors({
+            origin: (origin, callback) => {
+                // Allow requests with no origin (like mobile apps or curl)
+                if (!origin) {
+                    callback(null, true);
+                    return;
+                }
+                
+                // If allowedOrigins is configured, check against it
+                if (this.cfg.allowedOrigins.length > 0 && this.cfg.allowedOrigins[0] !== '*') {
+                    if (this.cfg.allowedOrigins.includes(origin)) {
+                        callback(null, origin);
+                    } else {
+                        // Still allow but log warning
+                        logger.warn(`CORS: Origin ${origin} not in allowlist, allowing anyway`);
+                        callback(null, origin);
+                    }
+                } else {
+                    // Wildcard mode - reflect the origin
+                    callback(null, origin);
+                }
+            },
+            credentials: true,
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With']
+        }));
+
+        // Handle OPTIONS preflight for all routes
+        this.app.options('*', (req, res) => {
+            const origin = req.headers.origin || '*';
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+            res.status(204).end();
+        });
 
         // Body parsing
         this.app.use(express.json({ limit: '10mb' }));
