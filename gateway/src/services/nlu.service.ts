@@ -203,7 +203,7 @@ Return ONLY valid JSON, no markdown or explanation.`;
                 return null;
             }
 
-            const aiData = await response.json();
+            const aiData = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
             const content = aiData.choices?.[0]?.message?.content;
 
             if (!content) return null;
