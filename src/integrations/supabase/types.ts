@@ -1951,6 +1951,7 @@ export type Database = {
           default_tax_year: number | null
           filing_reminder_days: number | null
           id: string
+          onboarding_mode: string | null
           telegram_enabled: boolean | null
           updated_at: string | null
           updated_by: string | null
@@ -1963,6 +1964,7 @@ export type Database = {
           default_tax_year?: number | null
           filing_reminder_days?: number | null
           id?: string
+          onboarding_mode?: string | null
           telegram_enabled?: boolean | null
           updated_at?: string | null
           updated_by?: string | null
@@ -1975,6 +1977,7 @@ export type Database = {
           default_tax_year?: number | null
           filing_reminder_days?: number | null
           id?: string
+          onboarding_mode?: string | null
           telegram_enabled?: boolean | null
           updated_at?: string | null
           updated_by?: string | null

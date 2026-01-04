@@ -82,11 +82,18 @@ export class EnhancedOnboardingSkill {
         context: SessionContext
     ): Promise<Static<typeof MessageResponseSchema>> {
         try {
+            const lowerMessage = message.toLowerCase().trim();
+            const isRestartCommand = lowerMessage === '/start' || lowerMessage === 'start';
+            
             // CRITICAL FIX: Get progress from session context first (avoids UUID/string mismatch)
             // The onboardingProgress is stored in session metadata between requests
             let progress: OnboardingState;
             
-            if (context.metadata?.onboardingProgress) {
+            // If user sends /start, reset their onboarding progress
+            if (isRestartCommand) {
+                progress = this.getInitialProgress();
+                logger.info(`[EnhancedOnboarding] User sent /start - restarting onboarding from step 1`);
+            } else if (context.metadata?.onboardingProgress) {
                 // Use session-stored progress (works with any user ID format)
                 progress = context.metadata.onboardingProgress as OnboardingState;
                 logger.info(`[EnhancedOnboarding] Using session progress, step ${progress.currentStep}`);
@@ -96,7 +103,7 @@ export class EnhancedOnboardingSkill {
                 logger.info(`[EnhancedOnboarding] Using DB progress, step ${progress.currentStep}`);
             }
 
-            if (progress.completed) {
+            if (progress.completed && !isRestartCommand) {
                 return {
                     message: "✅ You've already completed onboarding! How can I help you today?",
                     metadata: { skill: this.name }
