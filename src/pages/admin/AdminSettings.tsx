@@ -20,6 +20,7 @@ interface SystemSettings {
   default_tax_year: number;
   welcome_message_telegram: string;
   welcome_message_whatsapp: string;
+  onboarding_mode: 'strict' | 'ai';
 }
 
 interface Profile {
@@ -445,6 +446,7 @@ function GeneralTab() {
     default_tax_year: 2025,
     welcome_message_telegram: "",
     welcome_message_whatsapp: "",
+    onboarding_mode: 'strict',
   });
 
   useEffect(() => {
@@ -468,6 +470,7 @@ function GeneralTab() {
           default_tax_year: data.default_tax_year ?? 2025,
           welcome_message_telegram: data.welcome_message_telegram ?? "",
           welcome_message_whatsapp: data.welcome_message_whatsapp ?? "",
+          onboarding_mode: data.onboarding_mode ?? 'strict',
         });
       }
     } catch (error) {
@@ -561,6 +564,46 @@ function GeneralTab() {
           </button>
         </div>
 
+        {/* Onboarding Mode */}
+        <div className="pt-4 border-t border-border">
+          <h4 className="text-sm font-medium text-muted-foreground mb-4">Onboarding Mode</h4>
+          <div className="bg-background rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-foreground font-medium">Onboarding Question Style</p>
+                <p className="text-sm text-muted-foreground">
+                  {settings.onboarding_mode === 'strict' 
+                    ? 'Users must reply with numbers (1, 2, 3)' 
+                    : 'Users can reply naturally (e.g., "I run a business")'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSettings({ ...settings, onboarding_mode: 'strict' })}
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg border transition-colors",
+                  settings.onboarding_mode === 'strict'
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                )}
+              >
+                Strict Mode
+              </button>
+              <button
+                onClick={() => setSettings({ ...settings, onboarding_mode: 'ai' })}
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg border transition-colors",
+                  settings.onboarding_mode === 'ai'
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                )}
+              >
+                AI Mode
+              </button>
+            </div>
+          </div>
+        </div>
         {/* Bot Welcome Messages */}
         <div className="pt-4 border-t border-border">
           <h4 className="text-sm font-medium text-muted-foreground mb-4">Bot Welcome Messages</h4>

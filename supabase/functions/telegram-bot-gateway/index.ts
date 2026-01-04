@@ -157,6 +157,7 @@ interface GatewayMetadata {
     needsOnboarding?: boolean;
     isNewUser?: boolean;
     userName?: string;
+    onboardingMode?: string;
 }
 
 async function forwardToGateway(
@@ -423,11 +424,47 @@ serve(async (req) => {
             const isNewUser = !existingUser;
             const needsOnboarding = isNewUser || !existingUser?.onboarding_completed;
 
+            // CREATE USER IF DOESN'T EXIST
+            if (isNewUser) {
+                console.log(`[Telegram] Creating new user: ${telegramId}`);
+                
+                const { data: newUser, error: createError } = await supabase
+                    .from('users')
+                    .insert({
+                        telegram_id: telegramId,
+                        telegram_username: message.from?.username || null,
+                        full_name: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(' ') || null,
+                        first_name: message.from?.first_name || null,
+                        last_name: message.from?.last_name || null,
+                        platform: 'telegram',
+                        onboarding_completed: false,
+                        subscription_tier: 'basic'
+                    })
+                    .select('id')
+                    .single();
+                
+                if (createError) {
+                    console.error('[Telegram] Failed to create user:', createError);
+                } else {
+                    console.log(`[Telegram] Created user with UUID: ${newUser?.id}`);
+                }
+            }
+
+            // Fetch onboarding mode from system settings
+            const { data: systemSettings } = await supabase
+                .from('system_settings')
+                .select('onboarding_mode')
+                .limit(1)
+                .single();
+            
+            const onboardingMode = systemSettings?.onboarding_mode || 'strict';
+
             // Forward to Gateway with user status metadata
             const gatewayResponse = await forwardToGateway(telegramId, text, message.message_id, {
                 needsOnboarding,
                 isNewUser,
-                userName: message.from?.first_name
+                userName: message.from?.first_name,
+                onboardingMode
             });
 
             // Send response back to Telegram
