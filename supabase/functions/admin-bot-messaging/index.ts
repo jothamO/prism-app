@@ -261,19 +261,29 @@ Deno.serve(async (req) => {
 
       const cleared: string[] = [];
 
-      // Clear conversation state
+      // Clear conversation state (includes Gateway chatbot_sessions)
       if (clearOption === "state" || clearOption === "full") {
         if (userData.telegram_id) {
           await supabaseClient
             .from("conversation_state")
             .update({ expecting: null, context: {} })
             .eq("telegram_id", userData.telegram_id);
+          // Clear Gateway chatbot sessions
+          await supabaseClient
+            .from("chatbot_sessions")
+            .delete()
+            .eq("user_id", userData.telegram_id);
         }
         if (userData.whatsapp_id) {
           await supabaseClient
             .from("conversation_state")
             .update({ expecting: null, context: {} })
             .eq("whatsapp_id", userData.whatsapp_id);
+          // Clear Gateway chatbot sessions
+          await supabaseClient
+            .from("chatbot_sessions")
+            .delete()
+            .eq("user_id", userData.whatsapp_id);
         }
         cleared.push("state");
       }
@@ -284,8 +294,15 @@ Deno.serve(async (req) => {
         cleared.push("messages");
       }
 
-      // Reset onboarding
+      // Reset onboarding (includes onboarding_progress table)
       if (clearOption === "onboarding" || clearOption === "full") {
+        // Clear onboarding_progress table
+        await supabaseClient
+          .from("onboarding_progress")
+          .delete()
+          .eq("user_id", userId);
+        
+        // Reset user onboarding fields
         await supabaseClient
           .from("users")
           .update({
@@ -304,10 +321,24 @@ Deno.serve(async (req) => {
         cleared.push("onboarding");
       }
 
-      // Full reset also clears receipts
+      // Full reset also clears receipts, bank statements, and document jobs
       if (clearOption === "full") {
         await supabaseClient.from("receipts").delete().eq("user_id", userId);
-        cleared.push("receipts");
+        await supabaseClient.from("document_processing_jobs").delete().eq("user_id", userId);
+        // Delete bank transactions first (FK to statements)
+        const { data: statements } = await supabaseClient
+          .from("bank_statements")
+          .select("id")
+          .eq("user_id", userId);
+        if (statements && statements.length > 0) {
+          const statementIds = statements.map(s => s.id);
+          await supabaseClient
+            .from("bank_transactions")
+            .delete()
+            .in("statement_id", statementIds);
+        }
+        await supabaseClient.from("bank_statements").delete().eq("user_id", userId);
+        cleared.push("receipts", "documents", "statements");
       }
 
       console.log(`[admin-bot-messaging] Cleared for user ${userId}: ${cleared.join(", ")}`);
@@ -574,51 +605,112 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Delete related data in order (foreign key constraints)
-      await supabaseClient.from("receipts").delete().eq("user_id", userId);
-      await supabaseClient.from("messages").delete().eq("user_id", userId);
-      await supabaseClient.from("expenses").delete().eq("user_id", userId);
-      await supabaseClient.from("invoices").delete().eq("user_id", userId);
-      await supabaseClient.from("user_insights").delete().eq("user_id", userId);
-      await supabaseClient.from("reminders").delete().eq("user_id", userId);
-      
-      // Delete conversation state
-      if (userData.telegram_id) {
-        await supabaseClient.from("conversation_state").delete().eq("telegram_id", userData.telegram_id);
-      }
-      if (userData.whatsapp_id) {
-        await supabaseClient.from("conversation_state").delete().eq("whatsapp_id", userData.whatsapp_id);
-      }
+      try {
+        // Delete in order of foreign key dependencies (children first)
+        
+        // 1. Get bank statement IDs for this user
+        const { data: statements } = await supabaseClient
+          .from("bank_statements")
+          .select("id")
+          .eq("user_id", userId);
+        
+        // 2. Delete bank transactions (FK to statements)
+        if (statements && statements.length > 0) {
+          const statementIds = statements.map(s => s.id);
+          await supabaseClient
+            .from("bank_transactions")
+            .delete()
+            .in("statement_id", statementIds);
+        }
+        
+        // 3. Delete document processing jobs (FK to statements)
+        await supabaseClient.from("document_processing_jobs").delete().eq("user_id", userId);
+        
+        // 4. Delete bank statements
+        await supabaseClient.from("bank_statements").delete().eq("user_id", userId);
+        
+        // 5. Delete other user-related data
+        await supabaseClient.from("receipts").delete().eq("user_id", userId);
+        await supabaseClient.from("messages").delete().eq("user_id", userId);
+        await supabaseClient.from("expenses").delete().eq("user_id", userId);
+        await supabaseClient.from("invoices").delete().eq("user_id", userId);
+        await supabaseClient.from("filings").delete().eq("user_id", userId);
+        await supabaseClient.from("reminders").delete().eq("user_id", userId);
+        await supabaseClient.from("ai_feedback").delete().eq("user_id", userId);
+        await supabaseClient.from("profile_corrections").delete().eq("user_id", userId);
+        await supabaseClient.from("analytics_events").delete().eq("user_id", userId);
+        await supabaseClient.from("bank_charges").delete().eq("user_id", userId);
+        await supabaseClient.from("emtl_charges").delete().eq("user_id", userId);
+        
+        // 6. Delete onboarding and session data
+        await supabaseClient.from("onboarding_progress").delete().eq("user_id", userId);
+        
+        // 7. Delete conversation state
+        if (userData.telegram_id) {
+          await supabaseClient.from("conversation_state").delete().eq("telegram_id", userData.telegram_id);
+          await supabaseClient.from("chatbot_sessions").delete().eq("user_id", userData.telegram_id);
+        }
+        if (userData.whatsapp_id) {
+          await supabaseClient.from("conversation_state").delete().eq("whatsapp_id", userData.whatsapp_id);
+          await supabaseClient.from("chatbot_sessions").delete().eq("user_id", userData.whatsapp_id);
+        }
+        
+        // 8. Get and delete businesses (and their related patterns)
+        const { data: businesses } = await supabaseClient
+          .from("businesses")
+          .select("id")
+          .eq("user_id", userId);
+        
+        if (businesses && businesses.length > 0) {
+          const businessIds = businesses.map(b => b.id);
+          await supabaseClient
+            .from("business_classification_patterns")
+            .delete()
+            .in("business_id", businessIds);
+        }
+        await supabaseClient.from("businesses").delete().eq("user_id", userId);
+        
+        // 9. Delete the user
+        const { error: deleteError } = await supabaseClient
+          .from("users")
+          .delete()
+          .eq("id", userId);
 
-      // Delete user
-      const { error: deleteError } = await supabaseClient
-        .from("users")
-        .delete()
-        .eq("id", userId);
+        if (deleteError) {
+          console.error("[admin-bot-messaging] Delete user error:", deleteError);
+          return new Response(JSON.stringify({ error: "Failed to delete user", detail: deleteError.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
-      if (deleteError) {
-        console.error("[admin-bot-messaging] Delete user error:", deleteError);
-        return new Response(JSON.stringify({ error: "Failed to delete user" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        // Log audit
+        await supabaseClient.from("audit_log").insert({
+          admin_id: user.id,
+          user_id: userId,
+          action: "user_deleted",
+          entity_type: "user",
+          entity_id: userId,
+          old_values: userData,
         });
+
+        console.log(`[admin-bot-messaging] User ${userId} deleted by admin ${user.id}`);
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("[admin-bot-messaging] Delete user cascade error:", error);
+        return new Response(
+          JSON.stringify({ 
+            error: "Failed to delete user", 
+            detail: error instanceof Error ? error.message : String(error) 
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
-
-      // Log audit
-      await supabaseClient.from("audit_log").insert({
-        admin_id: user.id,
-        user_id: userId,
-        action: "user_deleted",
-        entity_type: "user",
-        entity_id: userId,
-        old_values: userData,
-      });
-
-      console.log(`[admin-bot-messaging] User ${userId} deleted by admin ${user.id}`);
-      return new Response(
-        JSON.stringify({ success: true }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     // ==================== BROADCAST / DIRECT MESSAGE ====================
