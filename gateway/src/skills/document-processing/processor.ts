@@ -13,6 +13,7 @@ import { AIClassifier } from './classifiers/ai-classifier';
 import { NigerianDetectors } from './nigerian-detectors/index';
 import { ComplianceChecker } from './compliance/index';
 import { FeedbackHandler } from './feedback/correction-handler';
+import { processTransactionForLearning } from '../../services/transaction-learning-hook';
 
 const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
 
@@ -142,7 +143,7 @@ export class DocumentProcessor {
 
         const needsReview = classification.confidence < 0.75 || complianceFlags.length > 0;
         
-        const { error: insertError } = await supabase.from('bank_transactions').insert({
+        const { data: insertedTxn, error: insertError } = await supabase.from('bank_transactions').insert({
             statement_id: statementId,
             user_id: job.user_id,
             transaction_date: txn.date,
@@ -180,7 +181,7 @@ export class DocumentProcessor {
             // Compliance and metadata
             compliance_flags: complianceFlags,
             metadata: { requires_confirmation: needsReview }
-        });
+        }).select('id').single();
 
         if (insertError) {
             logger.error('[Processor] Failed to save transaction:', {
@@ -195,6 +196,22 @@ export class DocumentProcessor {
             description: txn.description?.substring(0, 30),
             classification: classification.classification 
         });
+
+        // Step 7: Learn from transaction for profile enhancement
+        if (insertedTxn?.id) {
+            try {
+                await processTransactionForLearning(job.user_id, {
+                    id: insertedTxn.id,
+                    narration: txn.description,
+                    amount: txn.credit || txn.debit || 0,
+                    type: txn.credit ? 'credit' : 'debit',
+                    classification: classification.classification,
+                    date: txn.date
+                });
+            } catch (learningError) {
+                logger.warn('[Processor] Profile learning failed (non-critical)', learningError);
+            }
+        }
     }
 
     /**

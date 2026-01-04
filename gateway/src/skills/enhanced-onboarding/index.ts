@@ -227,12 +227,14 @@ export class EnhancedOnboardingSkill {
                 // Successfully detected user type - use adaptive flow
                 entityType = profile.entityType;
 
-                // Store full profile data
+                // Store full profile data with step advancement
                 const updatedProgress: OnboardingState = {
                     ...progress,
+                    currentStep: progress.currentStep + 1,  // Advance step in AI mode
                     isAdaptiveMode: true,
                     extractedProfile: profile,
                     completedQuestions: ['entity_type'],
+                    completedSteps: [...progress.completedSteps, 'entity_type'],  // Track completed step
                     data: {
                         ...progress.data,
                         entityType: profile.entityType,

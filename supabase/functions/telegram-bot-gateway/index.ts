@@ -157,7 +157,7 @@ interface GatewayMetadata {
     needsOnboarding?: boolean;
     isNewUser?: boolean;
     userName?: string;
-    onboardingMode?: string;
+    aiMode?: boolean;  // boolean: true for AI mode, false for strict mode
 }
 
 async function forwardToGateway(
@@ -457,14 +457,16 @@ serve(async (req) => {
                 .limit(1)
                 .single();
             
-            const onboardingMode = systemSettings?.onboarding_mode || 'strict';
+            // Convert string mode to boolean for Gateway compatibility
+            const aiMode = systemSettings?.onboarding_mode === 'ai';
+            console.log(`[Telegram] Onboarding mode: ${systemSettings?.onboarding_mode} -> aiMode: ${aiMode}`);
 
             // Forward to Gateway with user status metadata
             const gatewayResponse = await forwardToGateway(telegramId, text, message.message_id, {
                 needsOnboarding,
                 isNewUser,
                 userName: message.from?.first_name,
-                onboardingMode
+                aiMode  // boolean instead of onboardingMode string
             });
 
             // Send response back to Telegram
