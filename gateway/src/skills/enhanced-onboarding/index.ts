@@ -815,6 +815,19 @@ Here's your profile:
     }
 
     /**
+     * Get initial/default onboarding progress (for restarting)
+     */
+    private getInitialProgress(): OnboardingState {
+        return {
+            currentStep: 1,
+            totalSteps: 8,
+            completedSteps: [],
+            completed: false,
+            data: {}
+        };
+    }
+
+    /**
      * Get onboarding progress from database
      */
     private async getOnboardingProgress(userId: string, businessId?: string): Promise<OnboardingState> {
