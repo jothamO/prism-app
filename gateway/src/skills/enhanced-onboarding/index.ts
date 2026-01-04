@@ -10,14 +10,22 @@ import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
 import { supabase } from '../../config';
 import { PersonalityFormatter } from '../../utils/personality';
+import { extractOnboardingResponse, ONBOARDING_OPTIONS } from './ai-extractor';
+import { extractUserProfile, ExtractedProfile, TaxCategory, IncomeSource } from './profile-extractor';
+import { getNextQuestion, getCompletionMessage, formatQuestion, getTaxGuidance, shouldSkipQuestion } from './adaptive-flow';
 
 export interface OnboardingState {
     currentStep: number;
     totalSteps: number;
     completedSteps: string[];
     completed: boolean;
+    // Adaptive mode tracking
+    isAdaptiveMode?: boolean;
+    extractedProfile?: ExtractedProfile;
+    completedQuestions?: string[];
     data: {
-        entityType?: 'business' | 'individual' | 'self_employed';
+        // Extended entity types
+        entityType?: 'business' | 'individual' | 'self_employed' | 'student' | 'retiree' | 'unemployed' | 'corper';
         businessStage?: 'pre_revenue' | 'early' | 'growing' | 'established';
         accountSetup?: 'mixed' | 'separate' | 'multiple';
         receivesCapitalSupport?: boolean;
@@ -26,6 +34,20 @@ export interface OnboardingState {
         autoCategorize?: boolean;
         informalBusiness?: boolean;
         freelanceAccountSeparate?: boolean;
+        // New adaptive profile fields
+        occupation?: string;
+        incomeSource?: IncomeSource;
+        ageGroup?: 'youth' | 'adult' | 'senior' | 'unknown';
+        employmentStatus?: 'employed' | 'self_employed' | 'unemployed' | 'retired' | 'student' | 'corper';
+        taxCategory?: TaxCategory;
+        taxCategoryReason?: string;
+        hasBusinessIncome?: boolean;
+        hasSalaryIncome?: boolean;
+        hasFreelanceIncome?: boolean;
+        hasPensionIncome?: boolean;
+        hasRentalIncome?: boolean;
+        isNYSC?: boolean;
+        isRegistered?: boolean;  // CAC registration
     };
 }
 
@@ -44,10 +66,14 @@ export class EnhancedOnboardingSkill {
     ];
 
     // Warm acknowledgments for each entity type selection
-    private readonly ENTITY_ACKNOWLEDGMENTS = {
+    private readonly ENTITY_ACKNOWLEDGMENTS: Record<string, string> = {
         'business': "Business owner! 💼 I love it. Let's make sure you're on top of your tax game.",
         'individual': "Working the 9-to-5! 💪 Let me help you track your salary and find any tax relief you're entitled to.",
-        'self_employed': "Freelancer life! 💻 You're your own boss - and I'm here to handle the tax side of things."
+        'self_employed': "Freelancer life! 💻 You're your own boss - and I'm here to handle the tax side of things.",
+        'student': "Student! 🎓 Focus on your studies - I'll help you understand taxes when you start earning.",
+        'retiree': "Retired and relaxing! 🎉 I'll help you manage taxes on pension and any other income.",
+        'unemployed': "Job hunting! 💪 When you land that role, I'll be ready to help with your taxes.",
+        'corper': "Corp member! 🇳🇬 Your NYSC allowance is tax-free. I'll track any side income you make."
     };
 
     // Warm acknowledgments for business stage
@@ -84,11 +110,11 @@ export class EnhancedOnboardingSkill {
         try {
             const lowerMessage = message.toLowerCase().trim();
             const isRestartCommand = lowerMessage === '/start' || lowerMessage === 'start';
-            
+
             // CRITICAL FIX: Get progress from session context first (avoids UUID/string mismatch)
             // The onboardingProgress is stored in session metadata between requests
             let progress: OnboardingState;
-            
+
             // If user sends /start, reset their onboarding progress
             if (isRestartCommand) {
                 progress = this.getInitialProgress();
@@ -181,13 +207,116 @@ export class EnhancedOnboardingSkill {
         const messageLower = message.toLowerCase().trim();
         let entityType: OnboardingState['data']['entityType'] | null = null;
 
-        // Check for responses - both numbers and keywords
-        if (messageLower === '1' || messageLower.includes('business') || messageLower.includes('company') || messageLower.includes('owner')) {
-            entityType = 'business';
-        } else if (messageLower === '2' || messageLower.includes('employ') || messageLower.includes('individual') || messageLower.includes('salary')) {
-            entityType = 'individual';
-        } else if (messageLower === '3' || messageLower.includes('self') || messageLower.includes('freelance') || messageLower.includes('contractor')) {
-            entityType = 'self_employed';
+        // Check if AI mode is enabled
+        const useAI = context.metadata?.aiMode === true;
+
+        if (useAI) {
+            // AI Mode: Use full profile extraction for freeform understanding
+            const profile = await extractUserProfile(message, context.metadata?.userName);
+
+            logger.info('[EnhancedOnboarding] Profile extraction', {
+                step: 'entity_type',
+                input: message,
+                entityType: profile.entityType,
+                confidence: profile.entityTypeConfidence,
+                taxCategory: profile.taxCategory,
+                occupation: profile.attributes?.occupation
+            });
+
+            if (profile.entityTypeConfidence >= 0.5) {
+                // Successfully detected user type - use adaptive flow
+                entityType = profile.entityType;
+
+                // Store full profile data
+                const updatedProgress: OnboardingState = {
+                    ...progress,
+                    isAdaptiveMode: true,
+                    extractedProfile: profile,
+                    completedQuestions: ['entity_type'],
+                    data: {
+                        ...progress.data,
+                        entityType: profile.entityType,
+                        occupation: profile.attributes?.occupation,
+                        incomeSource: profile.attributes?.incomeSource,
+                        ageGroup: profile.attributes?.ageGroup,
+                        employmentStatus: profile.attributes?.employmentStatus,
+                        taxCategory: profile.taxCategory,
+                        taxCategoryReason: profile.taxCategoryReason,
+                        hasBusinessIncome: profile.attributes?.hasBusinessIncome,
+                        hasSalaryIncome: profile.attributes?.hasSalaryIncome,
+                        hasFreelanceIncome: profile.attributes?.hasFreelanceIncome,
+                        hasPensionIncome: profile.attributes?.hasPensionIncome,
+                        hasRentalIncome: profile.attributes?.hasRentalIncome,
+                        isNYSC: profile.attributes?.isNYSC
+                    }
+                };
+
+                // Save profile data
+                await this.saveProgress(context.userId, context.metadata?.businessId, updatedProgress);
+
+                // Get acknowledgment
+                const acknowledgment = this.ENTITY_ACKNOWLEDGMENTS[profile.entityType] ||
+                    `Got it! I understand you're a ${profile.attributes?.occupation || profile.entityType}.`;
+
+                // Get next adaptive question based on user type
+                const nextQuestion = getNextQuestion(profile, ['entity_type']);
+
+                if (nextQuestion) {
+                    // More questions to ask
+                    return {
+                        message: `${acknowledgment}\n\n${formatQuestion(nextQuestion)}`,
+                        metadata: {
+                            skill: this.name,
+                            step: nextQuestion.id,
+                            awaitingOnboarding: true,
+                            onboardingProgress: updatedProgress
+                        }
+                    };
+                } else {
+                    // No more questions - complete onboarding
+                    const taxGuidance = getTaxGuidance(profile);
+                    const completionMsg = getCompletionMessage(profile);
+
+                    await this.saveProgress(context.userId, context.metadata?.businessId, {
+                        ...updatedProgress,
+                        completed: true,
+                        completedSteps: [...updatedProgress.completedSteps, 'entity_type', 'completed']
+                    });
+
+                    return {
+                        message: `${acknowledgment}\n\n${taxGuidance}\n\n${completionMsg}\n\n📤 **To get started**: Connect your bank or send me a document, and I'll start tracking!`,
+                        metadata: {
+                            skill: this.name,
+                            onboardingComplete: true,
+                            taxCategory: profile.taxCategory
+                        }
+                    };
+                }
+            }
+
+            // Low confidence - AI suggests asking for clarification
+            if (profile.suggestedNextQuestion) {
+                return {
+                    message: profile.suggestedNextQuestion + (profile.suggestedOptions?.length
+                        ? `\n\n${profile.suggestedOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`
+                        : ''),
+                    metadata: {
+                        skill: this.name,
+                        step: 'entity_type',
+                        awaitingOnboarding: true,
+                        onboardingProgress: progress
+                    }
+                };
+            }
+        } else {
+            // Strict Mode: Use pattern matching with numbers and keywords
+            if (messageLower === '1' || messageLower.includes('business') || messageLower.includes('company') || messageLower.includes('owner')) {
+                entityType = 'business';
+            } else if (messageLower === '2' || messageLower.includes('employ') || messageLower.includes('individual') || messageLower.includes('salary')) {
+                entityType = 'individual';
+            } else if (messageLower === '3' || messageLower.includes('self') || messageLower.includes('freelance') || messageLower.includes('contractor')) {
+                entityType = 'self_employed';
+            }
         }
 
         if (!entityType) {
@@ -200,20 +329,20 @@ export class EnhancedOnboardingSkill {
 Welcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerians.
 
 ${PersonalityFormatter.onboardingQuestion(
-    "First, tell me about yourself:",
-    [
-        "1. Business Owner - I run a registered or informal business",
-        "2. Employed Individual - I earn a salary",
-        "3. Self-Employed / Freelancer - I work for myself"
-    ],
-    "This helps me give you the right tax advice"
-)}`;
+                "First, tell me about yourself:",
+                [
+                    "1. Business Owner - I run a registered or informal business",
+                    "2. Employed Individual - I earn a salary",
+                    "3. Self-Employed / Freelancer - I work for myself"
+                ],
+                "This helps me give you the right tax advice"
+            )}`;
 
             return {
                 message: welcomeMessage,
-                metadata: { 
-                    skill: this.name, 
-                    step: 'entity_type', 
+                metadata: {
+                    skill: this.name,
+                    step: 'entity_type',
                     awaitingOnboarding: true,
                     onboardingProgress: progress  // Store progress in response metadata
                 }
@@ -295,9 +424,9 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { 
-                skill: this.name, 
-                step: 'business_stage', 
+            metadata: {
+                skill: this.name,
+                step: 'business_stage',
                 awaitingOnboarding: true,
                 onboardingProgress: progress
             }
@@ -316,15 +445,38 @@ ${PersonalityFormatter.onboardingQuestion(
         const messageLower = message.toLowerCase().trim();
         let stage: OnboardingState['data']['businessStage'] | null = null;
 
-        // Check for number responses AND keywords
-        if (messageLower === '1' || messageLower.includes('pre') || messageLower.includes('idea') || messageLower.includes('planning') || messageLower.includes('setting')) {
-            stage = 'pre_revenue';
-        } else if (messageLower === '2' || messageLower.includes('early') || messageLower.includes('started') || messageLower.includes('first') || messageLower.includes('just')) {
-            stage = 'early';
-        } else if (messageLower === '3' || messageLower.includes('grow') || messageLower.includes('scaling')) {
-            stage = 'growing';
-        } else if (messageLower === '4' || messageLower.includes('established') || messageLower.includes('mature') || messageLower.includes('steady')) {
-            stage = 'established';
+        // Check if AI mode is enabled
+        const useAI = context.metadata?.aiMode === true;
+
+        if (useAI) {
+            // AI Mode: Use natural language extraction
+            const extraction = await extractOnboardingResponse(
+                message,
+                "What stage is your business?",
+                ONBOARDING_OPTIONS.business_stage,
+                `${progress.data.entityType} user`
+            );
+
+            if (extraction.selectedValue) {
+                stage = extraction.selectedValue as OnboardingState['data']['businessStage'];
+                logger.info('[EnhancedOnboarding] AI extraction', {
+                    step: 'business_stage',
+                    input: message,
+                    extracted: stage,
+                    confidence: extraction.confidence
+                });
+            }
+        } else {
+            // Strict Mode: Check for number responses AND keywords
+            if (messageLower === '1' || messageLower.includes('pre') || messageLower.includes('idea') || messageLower.includes('planning') || messageLower.includes('setting')) {
+                stage = 'pre_revenue';
+            } else if (messageLower === '2' || messageLower.includes('early') || messageLower.includes('started') || messageLower.includes('first') || messageLower.includes('just')) {
+                stage = 'early';
+            } else if (messageLower === '3' || messageLower.includes('grow') || messageLower.includes('scaling')) {
+                stage = 'growing';
+            } else if (messageLower === '4' || messageLower.includes('established') || messageLower.includes('mature') || messageLower.includes('steady')) {
+                stage = 'established';
+            }
         }
 
         if (!stage) {
@@ -339,9 +491,9 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     "This helps me tailor my advice to where you are"
                 ),
-                metadata: { 
-                    skill: this.name, 
-                    step: 'business_stage', 
+                metadata: {
+                    skill: this.name,
+                    step: 'business_stage',
                     awaitingOnboarding: true,
                     onboardingProgress: progress
                 }
@@ -387,9 +539,9 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { 
-                skill: this.name, 
-                step: 'account_setup', 
+            metadata: {
+                skill: this.name,
+                step: 'account_setup',
                 awaitingOnboarding: true,
                 onboardingProgress: progress
             }
@@ -416,9 +568,9 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { 
-                skill: this.name, 
-                step: 'account_setup', 
+            metadata: {
+                skill: this.name,
+                step: 'account_setup',
                 awaitingOnboarding: true,
                 onboardingProgress: progress
             }
@@ -437,28 +589,42 @@ ${PersonalityFormatter.onboardingQuestion(
         const messageLower = message.toLowerCase().trim();
         let setup: OnboardingState['data']['accountSetup'] | null = null;
 
-        // Handle both number and keyword responses
-        if (messageLower === '1' || messageLower.includes('mixed') || messageLower.includes('same') || messageLower.includes('one') || messageLower.includes('yes')) {
-            setup = progress.data.entityType === 'self_employed' ? 'separate' : 'mixed';
-            // For freelancers, "1. Yes - separate" maps to 'separate'
-            if (progress.data.entityType === 'self_employed') {
-                setup = 'separate';
-            } else {
-                setup = 'mixed';
+        // Check if AI mode is enabled
+        const useAI = context.metadata?.aiMode === true;
+        const isFreelancer = progress.data.entityType === 'self_employed';
+
+        if (useAI) {
+            // AI Mode: Use natural language extraction
+            const options = isFreelancer ? ONBOARDING_OPTIONS.freelancer_account : ONBOARDING_OPTIONS.account_setup;
+            const extraction = await extractOnboardingResponse(
+                message,
+                isFreelancer
+                    ? "Do you keep your freelance income separate from personal spending?"
+                    : "How do you manage your bank accounts?",
+                options,
+                `${progress.data.entityType} user`
+            );
+
+            if (extraction.selectedValue) {
+                setup = extraction.selectedValue as OnboardingState['data']['accountSetup'];
+                logger.info('[EnhancedOnboarding] AI extraction', {
+                    step: 'account_setup',
+                    input: message,
+                    extracted: setup,
+                    confidence: extraction.confidence
+                });
             }
-        } else if (messageLower === '2' || messageLower.includes('separate') || messageLower.includes('different') || messageLower.includes('no')) {
-            // For freelancers, "2. No - one account" maps to 'mixed'
-            if (progress.data.entityType === 'self_employed') {
-                setup = 'mixed';
-            } else {
-                setup = 'separate';
-            }
-        } else if (messageLower === '3' || messageLower.includes('multiple') || messageLower.includes('many') || messageLower.includes('kinda') || messageLower.includes('try')) {
-            // For freelancers, "3. Kinda" also maps to 'mixed'
-            if (progress.data.entityType === 'self_employed') {
-                setup = 'mixed';
-            } else {
-                setup = 'multiple';
+        } else {
+            // Strict Mode: Handle both number and keyword responses
+            if (messageLower === '1' || messageLower.includes('mixed') || messageLower.includes('same') || messageLower.includes('one') || messageLower.includes('yes')) {
+                // For freelancers, "1. Yes - separate" maps to 'separate'
+                setup = isFreelancer ? 'separate' : 'mixed';
+            } else if (messageLower === '2' || messageLower.includes('separate') || messageLower.includes('different') || messageLower.includes('no')) {
+                // For freelancers, "2. No - one account" maps to 'mixed'
+                setup = isFreelancer ? 'mixed' : 'separate';
+            } else if (messageLower === '3' || messageLower.includes('multiple') || messageLower.includes('many') || messageLower.includes('kinda') || messageLower.includes('try')) {
+                // For freelancers, "3. Kinda" also maps to 'mixed'
+                setup = isFreelancer ? 'mixed' : 'multiple';
             }
         }
 
@@ -475,9 +641,9 @@ ${PersonalityFormatter.onboardingQuestion(
                         ],
                         "This helps me identify your business transactions"
                     ),
-                    metadata: { 
-                        skill: this.name, 
-                        step: 'account_setup', 
+                    metadata: {
+                        skill: this.name,
+                        step: 'account_setup',
                         awaitingOnboarding: true,
                         onboardingProgress: progress
                     }
@@ -494,9 +660,9 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     "This affects how I categorize your transactions"
                 ),
-                metadata: { 
-                    skill: this.name, 
-                    step: 'account_setup', 
+                metadata: {
+                    skill: this.name,
+                    step: 'account_setup',
                     awaitingOnboarding: true,
                     onboardingProgress: progress
                 }
@@ -563,9 +729,9 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { 
-                skill: this.name, 
-                step: 'capital_support', 
+            metadata: {
+                skill: this.name,
+                step: 'capital_support',
                 awaitingOnboarding: true,
                 onboardingProgress: progress
             }
@@ -584,17 +750,40 @@ ${PersonalityFormatter.onboardingQuestion(
         const messageLower = message.toLowerCase().trim();
         let source: OnboardingState['data']['capitalSource'] | null = null;
 
-        // Handle both number and keyword responses
-        if (messageLower === '1' || messageLower.includes('family') || messageLower.includes('friend') || messageLower.includes('personal')) {
-            source = 'family';
-        } else if (messageLower === '2' || messageLower.includes('investor') || messageLower.includes('vc') || messageLower.includes('angel')) {
-            source = 'investors';
-        } else if (messageLower === '3' || messageLower.includes('loan') || messageLower.includes('credit') || messageLower.includes('bank')) {
-            source = 'loan';
-        } else if (messageLower === '4' || messageLower.includes('bootstrap') || messageLower.includes('self') || messageLower.includes('own') || messageLower.includes('saving')) {
-            source = 'bootstrapped';
-        } else if (messageLower === '5' || messageLower.includes('grant') || messageLower.includes('award')) {
-            source = 'grant';
+        // Check if AI mode is enabled
+        const useAI = context.metadata?.aiMode === true;
+
+        if (useAI) {
+            // AI Mode: Use natural language extraction
+            const extraction = await extractOnboardingResponse(
+                message,
+                "How are you funding your business?",
+                ONBOARDING_OPTIONS.capital_source,
+                `${progress.data.entityType} user at ${progress.data.businessStage} stage`
+            );
+
+            if (extraction.selectedValue) {
+                source = extraction.selectedValue as OnboardingState['data']['capitalSource'];
+                logger.info('[EnhancedOnboarding] AI extraction', {
+                    step: 'capital_support',
+                    input: message,
+                    extracted: source,
+                    confidence: extraction.confidence
+                });
+            }
+        } else {
+            // Strict Mode: Handle both number and keyword responses
+            if (messageLower === '1' || messageLower.includes('family') || messageLower.includes('friend') || messageLower.includes('personal')) {
+                source = 'family';
+            } else if (messageLower === '2' || messageLower.includes('investor') || messageLower.includes('vc') || messageLower.includes('angel')) {
+                source = 'investors';
+            } else if (messageLower === '3' || messageLower.includes('loan') || messageLower.includes('credit') || messageLower.includes('bank')) {
+                source = 'loan';
+            } else if (messageLower === '4' || messageLower.includes('bootstrap') || messageLower.includes('self') || messageLower.includes('own') || messageLower.includes('saving')) {
+                source = 'bootstrapped';
+            } else if (messageLower === '5' || messageLower.includes('grant') || messageLower.includes('award')) {
+                source = 'grant';
+            }
         }
 
         if (!source) {
@@ -614,9 +803,9 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     stageHint
                 ),
-                metadata: { 
-                    skill: this.name, 
-                    step: 'capital_support', 
+                metadata: {
+                    skill: this.name,
+                    step: 'capital_support',
                     awaitingOnboarding: true,
                     onboardingProgress: progress
                 }
@@ -670,9 +859,9 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { 
-                skill: this.name, 
-                step: 'preferences', 
+            metadata: {
+                skill: this.name,
+                step: 'preferences',
                 awaitingOnboarding: true,
                 onboardingProgress: progress
             }
@@ -691,15 +880,38 @@ ${PersonalityFormatter.onboardingQuestion(
         const messageLower = message.toLowerCase().trim();
         let frequency: OnboardingState['data']['insightFrequency'] | null = null;
 
-        // Check for number and keyword responses
-        if (messageLower === '1' || messageLower.includes('daily') || messageLower.includes('every day')) {
-            frequency = 'daily';
-        } else if (messageLower === '2' || messageLower.includes('weekly') || messageLower.includes('week')) {
-            frequency = 'weekly';
-        } else if (messageLower === '3' || messageLower.includes('monthly') || messageLower.includes('month')) {
-            frequency = 'monthly';
-        } else if (messageLower === '4' || messageLower.includes('only') || messageLower.includes('urgent') || messageLower.includes('needed')) {
-            frequency = 'never';
+        // Check if AI mode is enabled
+        const useAI = context.metadata?.aiMode === true;
+
+        if (useAI) {
+            // AI Mode: Use natural language extraction
+            const extraction = await extractOnboardingResponse(
+                message,
+                "How often do you want tax insights?",
+                ONBOARDING_OPTIONS.insight_frequency,
+                `${progress.data.entityType} user completing onboarding`
+            );
+
+            if (extraction.selectedValue) {
+                frequency = extraction.selectedValue as OnboardingState['data']['insightFrequency'];
+                logger.info('[EnhancedOnboarding] AI extraction', {
+                    step: 'preferences',
+                    input: message,
+                    extracted: frequency,
+                    confidence: extraction.confidence
+                });
+            }
+        } else {
+            // Strict Mode: Check for number and keyword responses
+            if (messageLower === '1' || messageLower.includes('daily') || messageLower.includes('every day')) {
+                frequency = 'daily';
+            } else if (messageLower === '2' || messageLower.includes('weekly') || messageLower.includes('week')) {
+                frequency = 'weekly';
+            } else if (messageLower === '3' || messageLower.includes('monthly') || messageLower.includes('month')) {
+                frequency = 'monthly';
+            } else if (messageLower === '4' || messageLower.includes('only') || messageLower.includes('urgent') || messageLower.includes('needed')) {
+                frequency = 'never';
+            }
         }
 
         if (!frequency) {
@@ -715,9 +927,9 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     "You can always change this later"
                 ),
-                metadata: { 
-                    skill: this.name, 
-                    step: 'preferences', 
+                metadata: {
+                    skill: this.name,
+                    step: 'preferences',
                     awaitingOnboarding: true,
                     onboardingProgress: progress
                 }
@@ -748,7 +960,7 @@ ${PersonalityFormatter.onboardingQuestion(
      * Get entity-specific completion message
      */
     private getCompletionMessage(
-        entityType: 'business' | 'individual' | 'self_employed',
+        entityType: OnboardingState['data']['entityType'],
         data: OnboardingState['data']
     ): Static<typeof MessageResponseSchema> {
 

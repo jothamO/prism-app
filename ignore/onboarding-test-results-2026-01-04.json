@@ -1,0 +1,234 @@
+{
+  "timestamp": "2026-01-04T01:22:39.672Z",
+  "mode": "AI",
+  "gatewayUrl": "https://prism-app-production-1021.up.railway.app",
+  "gatewayConnected": true,
+  "summary": {
+    "total": 5,
+    "passed": 2,
+    "failed": 3
+  },
+  "results": [
+    {
+      "flowId": "business-happy-path",
+      "flowName": "Business Owner Full Path",
+      "entityType": "business",
+      "passed": false,
+      "duration": 3848,
+      "steps": [
+        {
+          "name": "Welcome & Entity Type",
+          "input": "Hi, I want to get started",
+          "passed": false,
+          "duration": 1337,
+          "response": "Oya, let's start the day! What can I help with today?\n\nI can help you with:\n\n📊 *Tax Calculations:*\n• `vat 50000 electronics` - Calculate VAT\n• `tax 10000000` - Income tax calculation\n• `salary 350000` - PAYE calculation\n\n🆔 *Identity Verification:*\n• `verify NIN 12345678901` - Verify NIN\n• `verify CAC RC123456` - Verify company\n\n📄 *Document Processing:*\n• Upload a bank statement (PDF/image)\n• Upload receipts for expense tracking\n\nWhat would you like to do today?",
+          "error": "Missing expected keyword: \"Business Owner\"; Missing expected keyword: \"Employed\"; Missing expected keyword: \"Freelancer\""
+        },
+        {
+          "name": "Select Business Owner",
+          "input": "I run my own business",
+          "passed": false,
+          "duration": 519,
+          "response": "Good morning! What can I help with today?\n\nI can help you with:\n\n📊 *Tax Calculations:*\n• `vat 50000 electronics` - Calculate VAT\n• `tax 10000000` - Income tax calculation\n• `salary 350000` - PAYE calculation\n\n🆔 *Identity Verification:*\n• `verify NIN 12345678901` - Verify NIN\n• `verify CAC RC123456` - Verify company\n\n📄 *Document Processing:*\n• Upload a bank statement (PDF/image)\n• Upload receipts for expense tracking\n\nWhat would you like to do today?",
+          "error": "Missing expected keyword: \"Pre-revenue\"; Missing expected keyword: \"Early stage\"; Missing expected keyword: \"Growing\"; Missing expected keyword: \"Established\""
+        },
+        {
+          "name": "Select Early Stage",
+          "input": "We just started, getting our first customers",
+          "passed": false,
+          "duration": 499,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"bank accounts\"; Missing expected keyword: \"Mixed\"; Missing expected keyword: \"Separate\""
+        },
+        {
+          "name": "Select Separate Accounts",
+          "input": "I keep separate accounts for business",
+          "passed": false,
+          "duration": 495,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"funding\"; Missing expected keyword: \"Family\"; Missing expected keyword: \"Investors\"; Missing expected keyword: \"Loan\""
+        },
+        {
+          "name": "Select Bootstrapped",
+          "input": "Using my own savings",
+          "passed": false,
+          "duration": 497,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"insights\"; Missing expected keyword: \"Daily\"; Missing expected keyword: \"Weekly\"; Missing expected keyword: \"Monthly\""
+        },
+        {
+          "name": "Select Weekly Updates",
+          "input": "Weekly updates please",
+          "passed": false,
+          "duration": 501,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"Onboarding Complete\"; Missing expected keyword: \"profile\"; Missing expected keyword: \"upload\""
+        }
+      ]
+    },
+    {
+      "flowId": "individual-quick-path",
+      "flowName": "Employed Individual Quick Path",
+      "entityType": "individual",
+      "passed": false,
+      "duration": 3178,
+      "steps": [
+        {
+          "name": "Welcome & Entity Type",
+          "input": "Hello there",
+          "passed": false,
+          "duration": 2155,
+          "response": "Morning! What can I help with today?\n\nI can help you with:\n\n📊 *Tax Calculations:*\n• `vat 50000 electronics` - Calculate VAT\n• `tax 10000000` - Income tax calculation\n• `salary 350000` - PAYE calculation\n\n🆔 *Identity Verification:*\n• `verify NIN 12345678901` - Verify NIN\n• `verify CAC RC123456` - Verify company\n\n📄 *Document Processing:*\n• Upload a bank statement (PDF/image)\n• Upload receipts for expense tracking\n\nWhat would you like to do today?",
+          "error": "Missing expected keyword: \"Business Owner\"; Missing expected keyword: \"Employed\"; Missing expected keyword: \"Freelancer\""
+        },
+        {
+          "name": "Select Employed Individual",
+          "input": "I work for a company and earn a salary",
+          "passed": false,
+          "duration": 512,
+          "response": "Good morning! What can I help with today?\n\nI can help you with:\n\n📊 *Tax Calculations:*\n• `vat 50000 electronics` - Calculate VAT\n• `tax 10000000` - Income tax calculation\n• `salary 350000` - PAYE calculation\n\n🆔 *Identity Verification:*\n• `verify NIN 12345678901` - Verify NIN\n• `verify CAC RC123456` - Verify company\n\n📄 *Document Processing:*\n• Upload a bank statement (PDF/image)\n• Upload receipts for expense tracking\n\nWhat would you like to do today?",
+          "error": "Missing expected keyword: \"insights\"; Missing expected keyword: \"Daily\"; Missing expected keyword: \"Weekly\""
+        },
+        {
+          "name": "Select Monthly Updates",
+          "input": "Monthly is fine for me",
+          "passed": false,
+          "duration": 511,
+          "response": "Oya, let's start the day! What can I help with today?\n\nI can help you with:\n\n📊 *Tax Calculations:*\n• `vat 50000 electronics` - Calculate VAT\n• `tax 10000000` - Income tax calculation\n• `salary 350000` - PAYE calculation\n\n🆔 *Identity Verification:*\n• `verify NIN 12345678901` - Verify NIN\n• `verify CAC RC123456` - Verify company\n\n📄 *Document Processing:*\n• Upload a bank statement (PDF/image)\n• Upload receipts for expense tracking\n\nWhat would you like to do today?",
+          "error": "Missing expected keyword: \"set\"; Missing expected keyword: \"salaried\"; Missing expected keyword: \"payslip\""
+        }
+      ]
+    },
+    {
+      "flowId": "freelancer-path",
+      "flowName": "Self-Employed / Freelancer Path",
+      "entityType": "self_employed",
+      "passed": true,
+      "duration": 4121,
+      "steps": [
+        {
+          "name": "Welcome & Entity Type",
+          "input": "start",
+          "passed": true,
+          "duration": 1168,
+          "response": "Morning! What can I help with today?\n\nWelcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerians.\n\nFirst, tell me about yourself:\n\n💡 *This helps me give you the right tax advice*\n\n1. Business Owner - I run a registered or informal business\n2. Employed Individual - I earn a salary\n3. Self-Employed / Freelancer - I work for myself\n\nJust type the number!"
+        },
+        {
+          "name": "Select Freelancer",
+          "input": "I'm a freelancer, I work for myself",
+          "passed": true,
+          "duration": 1045,
+          "response": "Freelancer life! 💻 You're your own boss - and I'm here to handle the tax side of things.\n\nDo you keep your freelance income separate from personal spending?\n\n💡 *This helps me identify your business transactions*\n\n1. Yes - I have a separate account for work income\n2. No - Everything goes into one account\n3. Kinda - I try to, but it's not always clean\n\nJust type the number!"
+        },
+        {
+          "name": "Select Separate Account",
+          "input": "Yes, I have a separate work account",
+          "passed": true,
+          "duration": 956,
+          "response": "Separate accounts! Smart move 👏 This makes tracking so much easier.\n\nLast one! How often do you want tax insights?\n\n💡 *You can always change this later*\n\n1. Daily - Keep me posted every day\n2. Weekly - A summary once a week is good\n3. Monthly - Just monthly updates please\n4. Only when needed - Alert me when something's urgent\n\nJust type the number!"
+        },
+        {
+          "name": "Select Weekly Updates",
+          "input": "Give me weekly summaries",
+          "passed": true,
+          "duration": 952,
+          "response": "✅ **Freelancer Mode Activated!** 🎉\n\nHere's what I'll do for you:\n• 💵 Track client payments and income\n• 📝 Categorize business expenses (internet, equipment, transport)\n• 🧮 Calculate tax obligations\n• 💡 Find deductible expenses you might miss\n\nI'll send you weekly summaries.\n\n📤 **To get started**: Upload your bank statement and I'll find your income patterns!"
+        }
+      ]
+    },
+    {
+      "flowId": "freelancer-mixed-account",
+      "flowName": "Freelancer with Mixed Account",
+      "entityType": "self_employed",
+      "passed": true,
+      "duration": 4185,
+      "steps": [
+        {
+          "name": "Welcome & Entity Type",
+          "input": "Hello",
+          "passed": true,
+          "duration": 1204,
+          "response": "Good morning! What can I help with today?\n\nWelcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerians.\n\nFirst, tell me about yourself:\n\n💡 *This helps me give you the right tax advice*\n\n1. Business Owner - I run a registered or informal business\n2. Employed Individual - I earn a salary\n3. Self-Employed / Freelancer - I work for myself\n\nJust type the number!"
+        },
+        {
+          "name": "Select Freelancer",
+          "input": "I do freelance work",
+          "passed": true,
+          "duration": 1068,
+          "response": "Freelancer life! 💻 You're your own boss - and I'm here to handle the tax side of things.\n\nDo you keep your freelance income separate from personal spending?\n\n💡 *This helps me identify your business transactions*\n\n1. Yes - I have a separate account for work income\n2. No - Everything goes into one account\n3. Kinda - I try to, but it's not always clean\n\nJust type the number!"
+        },
+        {
+          "name": "Select Mixed Account (No)",
+          "input": "No, everything goes into one account",
+          "passed": true,
+          "duration": 956,
+          "response": "Separate accounts! Smart move 👏 This makes tracking so much easier.\n\nLast one! How often do you want tax insights?\n\n💡 *You can always change this later*\n\n1. Daily - Keep me posted every day\n2. Weekly - A summary once a week is good\n3. Monthly - Just monthly updates please\n4. Only when needed - Alert me when something's urgent\n\nJust type the number!"
+        },
+        {
+          "name": "Select Daily Updates",
+          "input": "Daily updates please, I want to stay on top of things",
+          "passed": true,
+          "duration": 957,
+          "response": "✅ **Freelancer Mode Activated!** 🎉\n\nHere's what I'll do for you:\n• 💵 Track client payments and income\n• 📝 Categorize business expenses (internet, equipment, transport)\n• 🧮 Calculate tax obligations\n• 💡 Find deductible expenses you might miss\n\nI'll send you daily updates.\n\n📤 **To get started**: Upload your bank statement and I'll find your income patterns!"
+        }
+      ]
+    },
+    {
+      "flowId": "nigerian-slang-test",
+      "flowName": "Nigerian Slang / Pidgin Test",
+      "entityType": "business",
+      "passed": false,
+      "duration": 3892,
+      "steps": [
+        {
+          "name": "Greeting",
+          "input": "Wetin dey happen? I wan start",
+          "passed": false,
+          "duration": 1000,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"Business Owner\""
+        },
+        {
+          "name": "Business Owner (Pidgin)",
+          "input": "Na business I dey run o",
+          "passed": false,
+          "duration": 810,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"stage\""
+        },
+        {
+          "name": "Growing Business (Pidgin)",
+          "input": "We dey grow, money dey enter small small",
+          "passed": false,
+          "duration": 511,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"account\""
+        },
+        {
+          "name": "Mixed Account (Pidgin)",
+          "input": "Everything dey one account, I no separate am",
+          "passed": false,
+          "duration": 535,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"funding\""
+        },
+        {
+          "name": "Family Funding (Pidgin)",
+          "input": "Na family money, my uncle support me",
+          "passed": false,
+          "duration": 514,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"insights\""
+        },
+        {
+          "name": "Weekly (Pidgin)",
+          "input": "Once a week is ok",
+          "passed": false,
+          "duration": 522,
+          "response": "📝 Please enter your TIN (Tax Identification Number):\n\nFormat: 10-14 digits",
+          "error": "Missing expected keyword: \"Complete\""
+        }
+      ]
+    }
+  ]
+}

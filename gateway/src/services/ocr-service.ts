@@ -126,7 +126,7 @@ export class OCRService {
             // Calculate confidence from individual text detections
             let totalConfidence = 0;
             let count = 0;
-            annotations.slice(1).forEach(annotation => {
+            annotations.slice(1).forEach((annotation: { confidence?: number | null }) => {
                 if (annotation.confidence !== undefined && annotation.confidence !== null) {
                     totalConfidence += annotation.confidence;
                     count++;
@@ -193,7 +193,7 @@ export class OCRService {
             // Generate page numbers (1-indexed, max 5 for sync API)
             // Use -1 for last page if we want more than 5 pages
             const effectiveMaxPages = Math.min(maxPages, 5);
-            const pages = effectiveMaxPages <= 5 
+            const pages = effectiveMaxPages <= 5
                 ? Array.from({ length: effectiveMaxPages }, (_, i) => i + 1)
                 : [1, 2, 3, 4, -1]; // First 4 pages + last page
 
@@ -221,11 +221,11 @@ export class OCRService {
             });
 
             const [result] = await this.client.batchAnnotateFiles(request as any);
-            
+
             // Extract text from all pages - structure per official docs
             const fileResponse = (result as any).responses?.[0];
             const responses = fileResponse?.responses || [];
-            
+
             if (responses.length === 0) {
                 logger.warn('[OCR Service] No responses from Vision API for PDF');
                 return { text: '', confidence: 0 };
@@ -238,7 +238,7 @@ export class OCRService {
             for (const response of responses) {
                 const pageText = response.fullTextAnnotation?.text || '';
                 pageTexts.push(pageText);
-                
+
                 // Calculate confidence from pages
                 const pagesData = response.fullTextAnnotation?.pages || [];
                 for (const page of pagesData) {

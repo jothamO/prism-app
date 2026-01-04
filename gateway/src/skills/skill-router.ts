@@ -42,7 +42,7 @@ export class SkillRouter {
             // ===== PRIORITY 1: Document uploads (highest priority) =====
             if (context.metadata?.documentUrl) {
                 const docType = context.metadata.documentType;
-                
+
                 if (docType === 'receipt') {
                     logger.info('[Router] Routing to receipt-processing skill', {
                         userId: context.userId,
@@ -50,7 +50,7 @@ export class SkillRouter {
                     });
                     return await receiptProcessingSkill.handle(message, context);
                 }
-                
+
                 logger.info('[Router] Routing to document-processing skill', {
                     userId: context.userId,
                     documentType: docType
@@ -67,7 +67,7 @@ export class SkillRouter {
             // These are direct, unambiguous commands that should bypass NLU
 
             // VAT calculation: "vat 50000" or "vat 50000 electronics"
-            if (this.matchesPattern(lowerMessage, /^vat\s+\d/i) || 
+            if (this.matchesPattern(lowerMessage, /^vat\s+\d/i) ||
                 this.matchesPattern(lowerMessage, /calculate vat|vat calc/i)) {
                 logger.info('[Router] Pattern match: VAT calculation', { userId });
                 return await vatCalculationSkill.handle(message, context);
@@ -80,31 +80,33 @@ export class SkillRouter {
                 return await taxCalculationSkill.handle(message, context);
             }
 
-            // Identity verification: "verify NIN 12345678901"
-            if (this.matchesPattern(lowerMessage, /verify|nin|cac|tin|bvn|rc\d+/i) ||
-                context.metadata?.awaitingNIN || 
-                context.metadata?.awaitingTIN ||
-                context.metadata?.awaitingCAC ||
-                context.metadata?.awaitingBVN) {
-                logger.info('[Router] Pattern match: Identity verification', { userId });
-                return await identityVerificationSkill.handle(message, context);
-            }
-
+            // ===== PRIORITY 3: Onboarding (BEFORE identity verification) =====
             // Onboarding: "/start", new user, or natural language triggers
-            if (context.metadata?.needsOnboarding || 
+            if (context.metadata?.needsOnboarding ||
                 context.metadata?.isNewUser ||
                 context.metadata?.awaitingOnboarding ||
-                this.matchesPattern(lowerMessage, /^\/?(start|onboard|setup|begin)$/i) ||
+                this.matchesPattern(lowerMessage, /^\/?(?:start|onboard|setup|begin)$/i) ||
                 this.matchesPattern(lowerMessage, /(get started|want to start|getting started|wan start)/i) ||
                 (this.matchesPattern(lowerMessage, /^(hi|hello|hey|morning|afternoon|evening|wetin)/i) && context.metadata?.isNewUser)) {
                 logger.info('[Router] Pattern match: Onboarding', { userId, triggeredBy: context.metadata?.needsOnboarding ? 'needsOnboarding' : 'pattern' });
                 return await enhancedOnboardingSkill.handle(message, context);
             }
-            
+
             // AI Mode: Always route new users to onboarding
             if (context.metadata?.aiMode && context.metadata?.isNewUser) {
                 logger.info('[Router] AI Mode: New user onboarding', { userId });
                 return await enhancedOnboardingSkill.handle(message, context);
+            }
+
+            // Identity verification: "verify NIN 12345678901" (with word boundaries to prevent false matches)
+            // MOVED AFTER ONBOARDING to prevent "tin" in "getting" from matching
+            if (this.matchesPattern(lowerMessage, /\bverify\b|\bnin\b|\bcac\b|\btin\b|\bbvn\b|rc\d+/i) ||
+                context.metadata?.awaitingNIN ||
+                context.metadata?.awaitingTIN ||
+                context.metadata?.awaitingCAC ||
+                context.metadata?.awaitingBVN) {
+                logger.info('[Router] Pattern match: Identity verification', { userId });
+                return await identityVerificationSkill.handle(message, context);
             }
 
             // Help command
@@ -114,9 +116,9 @@ export class SkillRouter {
 
             // ===== PRIORITY 3: NLU-based routing =====
             // Use NLU for natural language queries
-            
+
             const nluResult = await this.classifyWithNLU(message, userId, context);
-            
+
             if (nluResult && nluResult.intent.confidence >= NLU_CONFIDENCE_THRESHOLD) {
                 logger.info('[Router] NLU classification', {
                     userId,
@@ -135,10 +137,10 @@ export class SkillRouter {
 
                 // Route based on NLU intent
                 const response = await this.handleNLUIntent(nluResult, message, context);
-                
+
                 // Track assistant response
                 conversationContext.addAssistantMessage(userId, response.message);
-                
+
                 return response;
             }
 
@@ -179,7 +181,7 @@ export class SkillRouter {
             return {
                 message: result.message,
                 buttons: result.buttons,
-                metadata: { 
+                metadata: {
                     skill: 'conversational',
                     nlu: nluResult ? {
                         intent: nluResult.intent.name,
@@ -210,7 +212,7 @@ export class SkillRouter {
     ): Promise<NLUResult | null> {
         try {
             const recentMessages = conversationContext.getRecentMessages(userId, 5);
-            
+
             return await nluService.classifyIntent(message, {
                 recentMessages,
                 userId,
@@ -257,20 +259,20 @@ export class SkillRouter {
                 if (intent.entities.amount) {
                     const taxType = intent.entities.tax_type as string || 'income';
                     const amount = intent.entities.amount as number;
-                    
+
                     if (taxType === 'vat') {
                         return await vatCalculationSkill.handle(
                             `vat ${amount} ${intent.entities.description || ''}`,
                             context
                         );
                     }
-                    
+
                     return await taxCalculationSkill.handle(
                         `tax ${amount}`,
                         context
                     );
                 }
-                
+
                 // Otherwise, ask for details
                 return {
                     message: "🧮 *Tax Calculator*\n\nWhat type of tax would you like to calculate?\n\n" +
@@ -313,14 +315,14 @@ export class SkillRouter {
                             { text: '👤 Personal', callback_data: 'cat_personal' },
                             { text: '📋 Review', callback_data: 'cat_review' }
                         ]],
-                        metadata: { 
+                        metadata: {
                             skill: 'categorization',
                             section191: true,
                             nlu: this.formatNLUMetadata(nluResult)
                         }
                     };
                 }
-                
+
                 return {
                     message: "🏷️ How would you like to categorize this expense?",
                     buttons: [[
@@ -357,7 +359,7 @@ export class SkillRouter {
                         context
                     );
                 }
-                
+
                 return {
                     message: "🆔 *Identity Verification*\n\n" +
                         "Which ID would you like to verify?\n\n" +
