@@ -449,5 +449,4 @@ export default function AdminUsers() {
     </div>
     </>
   );
-  );
 }
