@@ -154,6 +154,9 @@ interface GatewayMetadata {
     documentUrl?: string;
     documentType?: string;
     fileName?: string;
+    needsOnboarding?: boolean;
+    isNewUser?: boolean;
+    userName?: string;
 }
 
 async function forwardToGateway(
@@ -410,8 +413,22 @@ serve(async (req) => {
             // Handle text message
             const text = message.text || "";
 
-            // Forward to Gateway
-            const gatewayResponse = await forwardToGateway(telegramId, text, message.message_id);
+            // Check if user exists and needs onboarding
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('id, onboarding_completed')
+                .eq('telegram_id', telegramId)
+                .single();
+
+            const isNewUser = !existingUser;
+            const needsOnboarding = isNewUser || !existingUser?.onboarding_completed;
+
+            // Forward to Gateway with user status metadata
+            const gatewayResponse = await forwardToGateway(telegramId, text, message.message_id, {
+                needsOnboarding,
+                isNewUser,
+                userName: message.from?.first_name
+            });
 
             // Send response back to Telegram
             await sendMessage(chatId, gatewayResponse.message, gatewayResponse.buttons);

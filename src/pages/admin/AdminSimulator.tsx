@@ -532,7 +532,12 @@ const AdminSimulator = () => {
           platform: 'simulator',
           message: messageToSend,
           idempotencyKey: `simulator_${simulatorUserId}_${Date.now()}`,
-          metadata: { testMode, entityType }
+          metadata: { 
+            testMode, 
+            entityType,
+            needsOnboarding: userState === 'new',
+            isNewUser: userState === 'new'
+          }
         });
         
         setIsTyping(false);

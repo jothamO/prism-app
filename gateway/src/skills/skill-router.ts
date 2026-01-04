@@ -82,8 +82,9 @@ export class SkillRouter {
 
             // Enhanced onboarding (for new users or incomplete onboarding)
             if (context.metadata?.needsOnboarding || 
+                context.metadata?.isNewUser ||
                 context.metadata?.awaitingOnboarding ||
-                this.matchesPattern(lowerMessage, /^(start|onboard|setup|get started|begin)$/i)) {
+                this.matchesPattern(lowerMessage, /^\/?(start|onboard|setup|get started|begin)$/i)) {
                 logger.info('[Router] Routing to enhanced-onboarding skill', { userId: context.userId });
                 return await enhancedOnboardingSkill.handle(message, context);
             }
