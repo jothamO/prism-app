@@ -17,6 +17,8 @@ import {
     Download,
     Wifi,
     WifiOff,
+    ExternalLink,
+    RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -577,24 +579,43 @@ export const OnboardingFlowTester = forwardRef<HTMLDivElement, OnboardingFlowTes
                         ) : (
                             <WifiOff className="w-4 h-4 text-destructive" />
                         )}
-                        <div>
+                        <div className="flex flex-col">
                             <span className={cn(
                                 "text-sm font-medium",
                                 gatewayConnected ? "text-green-500" : gatewayConnected === false ? "text-destructive" : "text-muted-foreground"
                             )}>
                                 Gateway: {isCheckingConnection ? 'Checking...' : gatewayConnected ? 'Connected' : 'Disconnected'}
                             </span>
-                            <span className="text-xs text-muted-foreground ml-2">({GATEWAY_URL})</span>
+                            <span className="text-[10px] text-muted-foreground font-mono break-all max-w-xs">
+                                {GATEWAY_URL}
+                            </span>
                         </div>
                     </div>
-                    <button
-                        onClick={checkGatewayHealth}
-                        disabled={isCheckingConnection}
-                        className="text-xs px-2 py-1 bg-muted hover:bg-accent rounded transition-colors disabled:opacity-50"
-                    >
-                        {isCheckingConnection ? 'Checking...' : 'Test Connection'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={checkGatewayHealth}
+                            disabled={isCheckingConnection}
+                            className="text-xs px-2 py-1 bg-muted hover:bg-accent rounded transition-colors disabled:opacity-50 flex items-center gap-1"
+                        >
+                            <RefreshCw className="w-3 h-3" />
+                            {isCheckingConnection ? 'Checking...' : 'Retry'}
+                        </button>
+                        <button
+                            onClick={() => window.open(`${GATEWAY_URL}/health`, '_blank')}
+                            className="text-xs px-2 py-1 bg-muted hover:bg-accent rounded transition-colors flex items-center gap-1"
+                        >
+                            <ExternalLink className="w-3 h-3" />
+                            Test in Tab
+                        </button>
+                    </div>
                 </div>
+                
+                {/* Error Help */}
+                {gatewayConnected === false && (
+                    <p className="text-xs text-amber-600 bg-amber-500/10 p-2 rounded">
+                        💡 If health works in new tab but not here, it's a CORS issue. Check Gateway CORS configuration.
+                    </p>
+                )}
 
                 {/* Header Controls */}
                 <div className="flex items-center justify-between">
