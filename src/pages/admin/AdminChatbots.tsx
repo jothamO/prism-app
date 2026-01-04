@@ -20,6 +20,7 @@ import {
   Brain,
   BarChart3,
   TrendingUp,
+  FlaskConical,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,8 +28,9 @@ import { cn } from "@/lib/utils";
 import { BotCommandsManager } from "@/components/admin/BotCommandsManager";
 import { UserActionMenu } from "@/components/admin/UserActionMenu";
 import { ConfirmationProgressDialog, ProgressStep } from "@/components/admin/ConfirmationProgressDialog";
+import { OnboardingFlowTester } from "@/components/admin/OnboardingFlowTester";
 
-type Tab = "overview" | "users" | "conversations" | "broadcast";
+type Tab = "overview" | "users" | "conversations" | "broadcast" | "onboarding-tests";
 
 interface BotUser {
   id: string;
@@ -74,6 +76,7 @@ export default function AdminChatbots() {
     { id: "users" as Tab, name: "Bot Users", icon: Users },
     { id: "conversations" as Tab, name: "Conversations", icon: MessagesSquare },
     { id: "broadcast" as Tab, name: "Broadcast", icon: Send },
+    { id: "onboarding-tests" as Tab, name: "Onboarding Tests", icon: FlaskConical },
   ];
 
   return (
@@ -109,6 +112,7 @@ export default function AdminChatbots() {
       {activeTab === "users" && <UsersTab />}
       {activeTab === "conversations" && <ConversationsTab />}
       {activeTab === "broadcast" && <BroadcastTab />}
+      {activeTab === "onboarding-tests" && <OnboardingTestsTab />}
     </div>
   );
 }
@@ -1004,6 +1008,16 @@ function BroadcastTab() {
           {sending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           {sending ? "Sending..." : "Send Message"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function OnboardingTestsTab() {
+  return (
+    <div className="space-y-6">
+      <div className="bg-card border border-border rounded-xl p-6">
+        <OnboardingFlowTester />
       </div>
     </div>
   );

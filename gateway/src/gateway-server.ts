@@ -238,10 +238,11 @@ export class GatewayServer {
 
         // Merge request metadata into session context (for document uploads via /chat endpoint)
         // This allows Telegram bot to pass documentUrl, documentType, fileName through the /chat route
+        // CRITICAL: Also include saved session context (like onboardingProgress) from previous requests
         const contextWithMetadata = {
             ...session,
             metadata: {
-                ...session.metadata,
+                ...session.context,  // Include saved context (onboardingProgress, etc.)
                 ...request.metadata  // Include documentUrl, documentType, fileName from request
             }
         };
@@ -250,10 +251,12 @@ export class GatewayServer {
         const { skillRouter } = await import('./skills/skill-router');
         const response = await skillRouter.route(request.message, contextWithMetadata);
 
-        // Update session with metadata from response
+        // Update session with ALL metadata from response (including onboardingProgress)
+        // This persists state between requests
         if (response.metadata) {
             await this.sessionManager.updateSession(request.userId, request.platform, {
-                ...session.metadata,
+                ...session.context,          // Keep existing context
+                ...response.metadata,        // Merge all response metadata (onboardingProgress, etc.)
                 lastSkill: response.metadata.skill,
                 lastResponse: new Date().toISOString()
             });

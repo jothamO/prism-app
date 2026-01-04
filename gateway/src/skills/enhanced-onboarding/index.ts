@@ -82,8 +82,19 @@ export class EnhancedOnboardingSkill {
         context: SessionContext
     ): Promise<Static<typeof MessageResponseSchema>> {
         try {
-            // Get or create onboarding progress
-            const progress = await this.getOnboardingProgress(context.userId, context.metadata?.businessId);
+            // CRITICAL FIX: Get progress from session context first (avoids UUID/string mismatch)
+            // The onboardingProgress is stored in session metadata between requests
+            let progress: OnboardingState;
+            
+            if (context.metadata?.onboardingProgress) {
+                // Use session-stored progress (works with any user ID format)
+                progress = context.metadata.onboardingProgress as OnboardingState;
+                logger.info(`[EnhancedOnboarding] Using session progress, step ${progress.currentStep}`);
+            } else {
+                // Fallback: try database (may fail with non-UUID IDs, that's OK)
+                progress = await this.getOnboardingProgress(context.userId, context.metadata?.businessId);
+                logger.info(`[EnhancedOnboarding] Using DB progress, step ${progress.currentStep}`);
+            }
 
             if (progress.completed) {
                 return {
@@ -193,7 +204,12 @@ ${PersonalityFormatter.onboardingQuestion(
 
             return {
                 message: welcomeMessage,
-                metadata: { skill: this.name, step: 'entity_type', awaitingOnboarding: true }
+                metadata: { 
+                    skill: this.name, 
+                    step: 'entity_type', 
+                    awaitingOnboarding: true,
+                    onboardingProgress: progress  // Store progress in response metadata
+                }
             };
         }
 
@@ -272,7 +288,12 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { skill: this.name, step: 'business_stage', awaitingOnboarding: true }
+            metadata: { 
+                skill: this.name, 
+                step: 'business_stage', 
+                awaitingOnboarding: true,
+                onboardingProgress: progress
+            }
         };
     }
 
@@ -311,7 +332,12 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     "This helps me tailor my advice to where you are"
                 ),
-                metadata: { skill: this.name, step: 'business_stage', awaitingOnboarding: true }
+                metadata: { 
+                    skill: this.name, 
+                    step: 'business_stage', 
+                    awaitingOnboarding: true,
+                    onboardingProgress: progress
+                }
             };
         }
 
@@ -354,7 +380,12 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
+            metadata: { 
+                skill: this.name, 
+                step: 'account_setup', 
+                awaitingOnboarding: true,
+                onboardingProgress: progress
+            }
         };
     }
 
@@ -378,7 +409,12 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
+            metadata: { 
+                skill: this.name, 
+                step: 'account_setup', 
+                awaitingOnboarding: true,
+                onboardingProgress: progress
+            }
         };
     }
 
@@ -432,7 +468,12 @@ ${PersonalityFormatter.onboardingQuestion(
                         ],
                         "This helps me identify your business transactions"
                     ),
-                    metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
+                    metadata: { 
+                        skill: this.name, 
+                        step: 'account_setup', 
+                        awaitingOnboarding: true,
+                        onboardingProgress: progress
+                    }
                 };
             }
 
@@ -446,7 +487,12 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     "This affects how I categorize your transactions"
                 ),
-                metadata: { skill: this.name, step: 'account_setup', awaitingOnboarding: true }
+                metadata: { 
+                    skill: this.name, 
+                    step: 'account_setup', 
+                    awaitingOnboarding: true,
+                    onboardingProgress: progress
+                }
             };
         }
 
@@ -510,7 +556,12 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { skill: this.name, step: 'capital_support', awaitingOnboarding: true }
+            metadata: { 
+                skill: this.name, 
+                step: 'capital_support', 
+                awaitingOnboarding: true,
+                onboardingProgress: progress
+            }
         };
     }
 
@@ -556,7 +607,12 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     stageHint
                 ),
-                metadata: { skill: this.name, step: 'capital_support', awaitingOnboarding: true }
+                metadata: { 
+                    skill: this.name, 
+                    step: 'capital_support', 
+                    awaitingOnboarding: true,
+                    onboardingProgress: progress
+                }
             };
         }
 
@@ -607,7 +663,12 @@ ${PersonalityFormatter.onboardingQuestion(
 
         return {
             message: `${acknowledgment}\n\n${question}`,
-            metadata: { skill: this.name, step: 'preferences', awaitingOnboarding: true }
+            metadata: { 
+                skill: this.name, 
+                step: 'preferences', 
+                awaitingOnboarding: true,
+                onboardingProgress: progress
+            }
         };
     }
 
@@ -647,7 +708,12 @@ ${PersonalityFormatter.onboardingQuestion(
                     ],
                     "You can always change this later"
                 ),
-                metadata: { skill: this.name, step: 'preferences', awaitingOnboarding: true }
+                metadata: { 
+                    skill: this.name, 
+                    step: 'preferences', 
+                    awaitingOnboarding: true,
+                    onboardingProgress: progress
+                }
             };
         }
 
