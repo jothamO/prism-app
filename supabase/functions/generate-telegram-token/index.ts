@@ -46,17 +46,37 @@ serve(async (req) => {
         console.log('[generate-telegram-token] Request from user:', user.id);
 
         // Find the user in our users table
-        const { data: userData, error: userError } = await supabase
+        let { data: userData, error: userError } = await supabase
             .from('users')
             .select('id, telegram_id')
             .eq('auth_user_id', user.id)
             .single();
 
+        // If user profile not found, create one for legacy auth users
         if (userError || !userData) {
-            return new Response(
-                JSON.stringify({ success: false, error: 'User profile not found' }),
-                { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+            console.log('[generate-telegram-token] User profile not found, creating for legacy user:', user.id);
+            
+            const { data: newUser, error: createError } = await supabase
+                .from('users')
+                .insert({
+                    auth_user_id: user.id,
+                    email: user.email,
+                    full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+                    onboarding_completed: true,
+                })
+                .select('id, telegram_id')
+                .single();
+
+            if (createError) {
+                console.error('[generate-telegram-token] Failed to create user profile:', createError);
+                return new Response(
+                    JSON.stringify({ success: false, error: 'Failed to create user profile' }),
+                    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+            }
+            
+            userData = newUser;
+            console.log('[generate-telegram-token] Created user profile:', userData.id);
         }
 
         // Check if already connected
