@@ -27,16 +27,52 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    const { userId, telegramId } = await req.json();
+    const { userId, telegramId, authUserId } = await req.json();
 
-    console.log('[mono-connect-init] Creating session for user:', userId);
+    console.log('[mono-connect-init] Creating session for user:', userId || authUserId);
 
-    // Fetch user to get email
-    const { data: user } = await supabase
-      .from('users')
-      .select('email, full_name')
-      .eq('id', userId)
-      .single();
+    // Fetch user to get email - try userId first, then authUserId
+    let user = null;
+    
+    if (userId) {
+      const { data } = await supabase
+        .from('users')
+        .select('id, email, full_name')
+        .eq('id', userId)
+        .single();
+      user = data;
+    }
+    
+    // If no user found by id, try auth_user_id
+    if (!user && authUserId) {
+      const { data } = await supabase
+        .from('users')
+        .select('id, email, full_name')
+        .eq('auth_user_id', authUserId)
+        .single();
+      user = data;
+    }
+    
+    // If still no user and we have authUserId, create one for legacy users
+    if (!user && authUserId) {
+      console.log('[mono-connect-init] Creating user profile for legacy user:', authUserId);
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({
+          auth_user_id: authUserId,
+          email: `user_${authUserId.slice(0, 8)}@prism.tax`,
+          full_name: 'PRISM User',
+          onboarding_completed: true,
+        })
+        .select('id, email, full_name')
+        .single();
+      
+      if (!createError) {
+        user = newUser;
+      }
+    }
+    
+    const effectiveUserId = user?.id || userId;
 
     // Create Mono Connect session
     const monoResponse = await fetch('https://api.withmono.com/v2/accounts/initiate', {
@@ -51,10 +87,10 @@ serve(async (req) => {
           email: user?.email || `user_${userId}@prism.tax`
         },
         meta: {
-          ref: userId
+          ref: effectiveUserId
         },
         scope: 'auth',
-        redirect_url: `https://prism.tax/bank-connected?userId=${userId}`
+        redirect_url: `https://prism.tax/bank-connected?userId=${effectiveUserId}`
       })
     });
 
