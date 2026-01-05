@@ -7,7 +7,8 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   SortingState,
-  getFilteredRowModel
+  getFilteredRowModel,
+  RowSelectionState,
 } from "@tanstack/react-table";
 import { 
   Search, 
@@ -28,12 +29,14 @@ import { useToast } from "@/hooks/use-toast";
 import { UserProfileModal } from "@/components/admin/UserProfileModal";
 import { SendMessageModal } from "@/components/admin/SendMessageModal";
 import { AddUserModal } from "@/components/admin/AddUserModal";
+import { BulkActionBar } from "@/components/admin/BulkActionBar";
+import { BulkConfirmModal } from "@/components/admin/BulkConfirmModal";
 
 type User = {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "user" | "support";
+  role: "admin" | "user" | "support" | "moderator";
   status: "active" | "suspended" | "pending";
   lastActive: string;
   platform: string;
@@ -41,6 +44,8 @@ type User = {
   whatsappNumber?: string | null;
   authUserId?: string | null;
 };
+
+type BulkAction = "block" | "unblock" | "delete" | "assign_role";
 
 const columnHelper = createColumnHelper<User>();
 
@@ -112,11 +117,17 @@ export default function AdminUsers() {
   const { toast } = useToast();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messageUser, setMessageUser] = useState<User | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  
+  // Bulk action state
+  const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
+  const [bulkRoleValue, setBulkRoleValue] = useState<string | undefined>();
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -163,11 +174,11 @@ export default function AdminUsers() {
         .select('user_id, role');
 
       // Create role map - prioritize admin role if user has multiple
-      const roleMap = new Map<string, "admin" | "user" | "support">();
+      const roleMap = new Map<string, "admin" | "user" | "support" | "moderator">();
       roles?.forEach(r => {
         const existingRole = roleMap.get(r.user_id);
         if (!existingRole || r.role === 'admin') {
-          roleMap.set(r.user_id, r.role as "admin" | "user" | "support");
+          roleMap.set(r.user_id, r.role as "admin" | "user" | "support" | "moderator");
         }
       });
 
@@ -227,7 +238,7 @@ export default function AdminUsers() {
   async function handleUserAction(action: string, user: User) {
     switch (action) {
       case 'view':
-        setSelectedUserId(user.id);
+        setSelectedUser(user);
         break;
       
       case 'message':
@@ -332,7 +343,122 @@ export default function AdminUsers() {
     }
   }
 
+  // Get selected users
+  const selectedUserIds = Object.keys(rowSelection).filter(k => rowSelection[k]);
+  const selectedUsers = users.filter((_, index) => rowSelection[index.toString()]);
+
+  // Handle bulk actions
+  function handleBulkAction(action: BulkAction, roleValue?: string) {
+    setBulkAction(action);
+    setBulkRoleValue(roleValue);
+  }
+
+  async function executeBulkAction() {
+    if (!bulkAction || selectedUsers.length === 0) return;
+    
+    setBulkLoading(true);
+    try {
+      for (const user of selectedUsers) {
+        switch (bulkAction) {
+          case 'block':
+            if (user.platform === 'web') {
+              // Web users don't have is_blocked, skip or handle differently
+            } else {
+              await supabase
+                .from('users')
+                .update({ is_blocked: true, blocked_at: new Date().toISOString() })
+                .eq('id', user.id);
+            }
+            break;
+          
+          case 'unblock':
+            if (user.platform !== 'web') {
+              await supabase
+                .from('users')
+                .update({ is_blocked: false, blocked_at: null })
+                .eq('id', user.id);
+            }
+            break;
+          
+          case 'delete':
+            // Use the delete logic
+            try {
+              await supabase.functions.invoke('admin-bot-messaging', {
+                body: { action: 'delete-user', userId: user.id },
+              });
+              
+              if (user.platform === 'web') {
+                await supabase.from('profiles').delete().eq('id', user.id);
+                await supabase.from('user_roles').delete().eq('user_id', user.id);
+              } else if (user.authUserId) {
+                await supabase.from('profiles').delete().eq('id', user.authUserId);
+                await supabase.from('user_roles').delete().eq('user_id', user.authUserId);
+              }
+            } catch {
+              // Continue with other users even if one fails
+            }
+            break;
+          
+          case 'assign_role':
+            if (bulkRoleValue) {
+              const targetUserId = user.platform === 'web' ? user.id : (user.authUserId || user.id);
+              // Remove existing role of the same type and add new one
+              await supabase
+                .from('user_roles')
+                .upsert({ user_id: targetUserId, role: bulkRoleValue }, { onConflict: 'user_id,role' });
+            }
+            break;
+        }
+      }
+
+      // Log bulk action to audit_log
+      await supabase.from('audit_log').insert({
+        action: `bulk_${bulkAction}`,
+        entity_type: 'users',
+        new_values: { 
+          affected_users: selectedUsers.map(u => u.id),
+          role: bulkRoleValue 
+        },
+      });
+
+      toast({ 
+        title: "Bulk Action Complete", 
+        description: `${bulkAction.replace('_', ' ')} applied to ${selectedUsers.length} users` 
+      });
+      
+      setRowSelection({});
+      fetchUsers();
+    } catch (error) {
+      console.error("Bulk action error:", error);
+      toast({ title: "Error", description: "Some actions failed", variant: "destructive" });
+    } finally {
+      setBulkLoading(false);
+      setBulkAction(null);
+      setBulkRoleValue(undefined);
+    }
+  }
+
   const columns = [
+    // Selection column
+    columnHelper.display({
+      id: "select",
+      header: ({ table }) => (
+        <input
+          type="checkbox"
+          checked={table.getIsAllRowsSelected()}
+          onChange={table.getToggleAllRowsSelectedHandler()}
+          className="w-4 h-4 rounded border-border"
+        />
+      ),
+      cell: ({ row }) => (
+        <input
+          type="checkbox"
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+          className="w-4 h-4 rounded border-border"
+        />
+      ),
+    }),
     columnHelper.accessor("name", {
       header: ({ column }) => (
         <button className="flex items-center gap-1 hover:text-foreground" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -362,7 +488,8 @@ export default function AdminUsers() {
         return (
           <span className={cn("px-2 py-1 rounded-full text-xs font-medium border",
             role === "admin" ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
-            role === "support" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+            role === "moderator" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+            role === "support" ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" :
             "bg-accent text-muted-foreground border-border"
           )}>{role}</span>
         );
@@ -399,9 +526,11 @@ export default function AdminUsers() {
   const table = useReactTable({
     data: users,
     columns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, rowSelection },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -418,10 +547,11 @@ export default function AdminUsers() {
 
   return (
     <>
-    {selectedUserId && (
+    {selectedUser && (
       <UserProfileModal 
-        userId={selectedUserId} 
-        onClose={() => setSelectedUserId(null)} 
+        userId={selectedUser.id}
+        platform={selectedUser.platform}
+        onClose={() => setSelectedUser(null)} 
       />
     )}
     {messageUser && (
@@ -440,6 +570,24 @@ export default function AdminUsers() {
         onSuccess={fetchUsers}
       />
     )}
+    {bulkAction && (
+      <BulkConfirmModal
+        action={bulkAction}
+        roleValue={bulkRoleValue}
+        users={selectedUsers.map(u => ({ id: u.id, name: u.name, email: u.email }))}
+        onConfirm={executeBulkAction}
+        onCancel={() => {
+          setBulkAction(null);
+          setBulkRoleValue(undefined);
+        }}
+        loading={bulkLoading}
+      />
+    )}
+    <BulkActionBar
+      selectedCount={selectedUsers.length}
+      onAction={handleBulkAction}
+      onClear={() => setRowSelection({})}
+    />
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -491,13 +639,19 @@ export default function AdminUsers() {
             <tbody className="divide-y divide-border">
               {table.getRowModel().rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
                     No users found
                   </td>
                 </tr>
               ) : (
                 table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-accent/50 transition-colors">
+                  <tr 
+                    key={row.id} 
+                    className={cn(
+                      "hover:bg-accent/50 transition-colors",
+                      row.getIsSelected() && "bg-primary/10"
+                    )}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-6 py-4 text-sm">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -511,7 +665,13 @@ export default function AdminUsers() {
         </div>
 
         <div className="p-4 border-t border-border flex items-center justify-between text-sm text-muted-foreground">
-          <span>Showing {table.getRowModel().rows.length} of {users.length} users</span>
+          <span>
+            {selectedUsers.length > 0 
+              ? `${selectedUsers.length} selected · ` 
+              : ''
+            }
+            Showing {table.getRowModel().rows.length} of {users.length} users
+          </span>
           <div className="flex items-center gap-2">
             <button 
               className="px-3 py-1 border border-border rounded hover:bg-accent disabled:opacity-50" 
