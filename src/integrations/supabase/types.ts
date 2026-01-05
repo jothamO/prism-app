@@ -2321,6 +2321,7 @@ export type Database = {
         Row: {
           acted_on_at: string | null
           action: string
+          auth_user_id: string | null
           created_at: string
           deadline: string | null
           description: string
@@ -2340,6 +2341,7 @@ export type Database = {
         Insert: {
           acted_on_at?: string | null
           action: string
+          auth_user_id?: string | null
           created_at?: string
           deadline?: string | null
           description: string
@@ -2359,6 +2361,7 @@ export type Database = {
         Update: {
           acted_on_at?: string | null
           action?: string
+          auth_user_id?: string | null
           created_at?: string
           deadline?: string | null
           description?: string

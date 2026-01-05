@@ -88,10 +88,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify user exists
+    // Verify user exists and has auth_user_id
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, full_name, email')
+      .select('id, full_name, email, auth_user_id')
       .eq('id', userId)
       .single();
 
@@ -103,6 +103,12 @@ serve(async (req) => {
     }
 
     console.log('[test-flow] Starting test for user:', user.full_name || user.email);
+    
+    if (!user.auth_user_id) {
+      console.warn('[test-flow] WARNING: User has no auth_user_id - insights may not be visible in frontend');
+    } else {
+      console.log('[test-flow] User auth_user_id:', user.auth_user_id);
+    }
 
     const transactions = customTransactions || SAMPLE_TRANSACTIONS;
     const results: any[] = [];
