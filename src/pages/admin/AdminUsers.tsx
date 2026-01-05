@@ -610,7 +610,7 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="bg-card border border-border rounded-xl">
         <div className="p-4 border-b border-border">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
