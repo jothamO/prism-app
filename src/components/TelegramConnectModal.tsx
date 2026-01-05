@@ -41,6 +41,10 @@ export default function TelegramConnectModal({
                 
                 if (error) {
                     console.error('[TelegramConnectModal] Error fetching existing token:', error);
+                    toast({
+                        title: "Couldn't check existing token",
+                        description: "You can still generate a new token below.",
+                    });
                     return;
                 }
 
@@ -50,6 +54,11 @@ export default function TelegramConnectModal({
                 }
             } catch (err) {
                 console.error('[TelegramConnectModal] Error:', err);
+                toast({
+                    title: "Connection error",
+                    description: "Could not check for existing tokens. Please try again.",
+                    variant: "destructive"
+                });
             } finally {
                 setFetchingExisting(false);
             }
@@ -94,9 +103,12 @@ export default function TelegramConnectModal({
                 setToken(data.token);
                 setExpiresAt(new Date(data.expiresAt));
             } else if (data.rateLimited) {
+                const hoursLeft = Math.ceil(data.retryAfter / 3600);
                 toast({
-                    title: "Rate limit reached",
-                    description: `You can generate a new token in ${Math.ceil(data.retryAfter / 60)} minutes`,
+                    title: "Daily limit reached (3/3 used)",
+                    description: hoursLeft > 1 
+                        ? `You've used all 3 tokens today. Try again in ${hoursLeft} hours.`
+                        : "You've used all 3 tokens today. Try again after midnight.",
                     variant: "destructive"
                 });
             } else {
