@@ -40,7 +40,10 @@ export default function BankConnectModal({
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('mono-connect-init', {
-        body: { authUserId: user.id },
+        body: { 
+          authUserId: user.id,
+          redirectUrl: window.location.origin,
+        },
       });
 
       if (error) throw error;

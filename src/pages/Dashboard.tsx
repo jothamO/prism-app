@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Activity,
   DollarSign,
@@ -20,17 +20,42 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useToast } from '@/hooks/use-toast';
 import TelegramConnectModal from '@/components/TelegramConnectModal';
 import BankConnectModal from '@/components/BankConnectModal';
 import VerifyIdentityModal from '@/components/VerifyIdentityModal';
 
 export default function Dashboard() {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { toast } = useToast();
   const { profile, business, loading, refetch } = useUserProfile();
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
+
+  // Handle bank connected callback
+  useEffect(() => {
+    const bankConnected = searchParams.get('bankConnected');
+    if (bankConnected === 'true') {
+      toast({
+        title: 'Bank Connected!',
+        description: 'Your bank account has been linked successfully. Transactions will sync automatically.',
+      });
+      refetch();
+      // Clear the query param
+      navigate('/dashboard', { replace: true });
+    } else if (bankConnected === 'false') {
+      toast({
+        title: 'Connection Cancelled',
+        description: 'Bank connection was cancelled. You can try again anytime.',
+        variant: 'destructive',
+      });
+      navigate('/dashboard', { replace: true });
+    }
+  }, [searchParams, navigate, toast, refetch]);
 
   // Show Telegram modal if redirected from registration
   useEffect(() => {
