@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.register-business]
 verify_jwt = false
+
+[functions.admin-delete-user]
+verify_jwt = false
