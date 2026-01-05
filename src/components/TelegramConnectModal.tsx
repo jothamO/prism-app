@@ -24,10 +24,39 @@ export default function TelegramConnectModal({
 }: TelegramConnectModalProps) {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
+    const [fetchingExisting, setFetchingExisting] = useState(false);
     const [token, setToken] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [expiresAt, setExpiresAt] = useState<Date | null>(null);
     const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
+
+    // Fetch existing token when modal opens
+    useEffect(() => {
+        if (!open) return;
+        
+        const fetchExistingToken = async () => {
+            setFetchingExisting(true);
+            try {
+                const { data, error } = await supabase.functions.invoke('get-telegram-token');
+                
+                if (error) {
+                    console.error('[TelegramConnectModal] Error fetching existing token:', error);
+                    return;
+                }
+
+                if (data.success && data.token) {
+                    setToken(data.token);
+                    setExpiresAt(new Date(data.expiresAt));
+                }
+            } catch (err) {
+                console.error('[TelegramConnectModal] Error:', err);
+            } finally {
+                setFetchingExisting(false);
+            }
+        };
+
+        fetchExistingToken();
+    }, [open]);
 
     // Countdown timer effect
     useEffect(() => {
@@ -41,6 +70,7 @@ export default function TelegramConnectModal({
             if (diff <= 0) {
                 setTimeRemaining('Expired');
                 setToken(null);
+                setExpiresAt(null);
                 return;
             }
             const mins = Math.floor(diff / 60000);
@@ -114,7 +144,12 @@ export default function TelegramConnectModal({
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
-                    {!token ? (
+                    {fetchingExisting ? (
+                        <div className="text-center py-8">
+                            <Loader2 className="h-8 w-8 mx-auto animate-spin text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground mt-2">Checking for existing token...</p>
+                        </div>
+                    ) : !token ? (
                         <div className="text-center space-y-4">
                             <div className="bg-muted/50 rounded-lg p-6">
                                 <Send className="h-12 w-12 mx-auto text-[#0088cc] mb-3" />
@@ -169,26 +204,16 @@ export default function TelegramConnectModal({
                             </div>
 
                             {/* Actions */}
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={generateToken}
-                                    disabled={loading}
-                                    className="flex-1"
-                                >
-                                    New Token
-                                </Button>
-                                <Button
-                                    onClick={handleOpenTelegram}
-                                    className="flex-1 bg-[#0088cc] hover:bg-[#0077b5]"
-                                >
-                                    Open Telegram
-                                    <ExternalLink className="ml-2 h-4 w-4" />
-                                </Button>
-                            </div>
+                            <Button
+                                onClick={handleOpenTelegram}
+                                className="w-full bg-[#0088cc] hover:bg-[#0077b5]"
+                            >
+                                Open Telegram
+                                <ExternalLink className="ml-2 h-4 w-4" />
+                            </Button>
 
                             <p className="text-xs text-center text-muted-foreground">
-                                Token expires in 15 minutes. Max 3 tokens per day.
+                                Token expires in {timeRemaining}. You can generate a new one after it expires.
                             </p>
                         </div>
                     )}
