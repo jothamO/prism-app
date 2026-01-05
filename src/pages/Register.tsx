@@ -11,15 +11,33 @@ import BankSetupStep from '@/components/registration/BankSetupStep';
 import RegistrationSuccess from '@/components/registration/RegistrationSuccess';
 
 export interface RegistrationData {
+  // Required fields
   fullName: string;
   email: string;
   phone: string;
   password: string;
-  workStatus: string;
-  incomeType: string;
-  bankSetup: string;
   consent: boolean;
-  platform: 'telegram' | 'whatsapp';
+  platform: 'telegram' | 'whatsapp' | 'web';
+
+  // V2 Profile fields
+  accountType: 'personal' | 'business';
+  occupation: string;
+  location: string;
+  tellUsAboutYourself: string;
+
+  // Income source flags
+  hasBusinessIncome: boolean;
+  hasSalaryIncome: boolean;
+  hasFreelanceIncome: boolean;
+  hasPensionIncome: boolean;
+  hasRentalIncome: boolean;
+  hasInvestmentIncome: boolean;
+  informalBusiness: boolean;
+
+  // Legacy fields (backwards compatibility)
+  workStatus?: string;
+  incomeType?: string;
+  bankSetup?: string;
 }
 
 const STEPS = ['Personal Info', 'Work & Income', 'Bank Setup'];
@@ -39,11 +57,28 @@ export default function Register() {
     email: location.state?.email || '',
     phone: '',
     password: location.state?.password || '',
+    consent: false,
+    platform: 'web',
+    
+    // V2 Profile fields
+    accountType: 'personal',
+    occupation: '',
+    location: '',
+    tellUsAboutYourself: '',
+    
+    // Income source flags
+    hasBusinessIncome: false,
+    hasSalaryIncome: false,
+    hasFreelanceIncome: false,
+    hasPensionIncome: false,
+    hasRentalIncome: false,
+    hasInvestmentIncome: false,
+    informalBusiness: false,
+    
+    // Legacy fields
     workStatus: '',
     incomeType: '',
-    bankSetup: '',
-    consent: false,
-    platform: 'telegram'
+    bankSetup: ''
   });
 
   // Redirect to auth if no email/password provided
@@ -89,11 +124,13 @@ export default function Register() {
       if (error) throw error;
 
       if (data.success) {
-        setTelegramLink(data.telegramLink);
+        setTelegramLink(data.telegramLink || '');
         setRegistrationComplete(true);
         toast({
           title: "Registration successful!",
-          description: "Click the button to connect your Telegram"
+          description: formData.platform === 'web' 
+            ? "You can now access your dashboard"
+            : "Click the button to connect your Telegram"
         });
       } else {
         throw new Error(data.error || 'Registration failed');
@@ -115,6 +152,7 @@ export default function Register() {
       <RegistrationSuccess 
         telegramLink={telegramLink} 
         fullName={formData.fullName}
+        platform={formData.platform}
       />
     );
   }
