@@ -7,6 +7,7 @@ import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
+import BusinessSignup from "./pages/BusinessSignup";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -40,8 +41,9 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/register/business" element={<BusinessSignup />} />
             <Route path="/admin/login" element={<AdminLogin />} />
-            
+
             {/* Protected Dashboard */}
             <Route
               path="/dashboard"
@@ -51,7 +53,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            
+
             {/* Protected Admin Routes - Require Admin Role */}
             <Route
               path="/admin"
@@ -83,7 +85,7 @@ function App() {
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
-            
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <Toaster />

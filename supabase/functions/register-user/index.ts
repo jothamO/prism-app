@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { extractProfileWithAI } from '../_shared/profile-extractor.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,13 +16,11 @@ interface RegistrationRequest {
   consent: boolean;
   platform: 'telegram' | 'whatsapp' | 'web';
 
-  // Legacy fields (for backwards compatibility)
+  // V2 profile fields
+  accountType?: 'personal' | 'business';
   workStatus?: string;
   incomeType?: string;
   bankSetup?: string;
-
-  // New profile fields (V2)
-  accountType?: 'personal' | 'business';
   occupation?: string;
   location?: string;
   taxCategory?: string;
@@ -35,17 +34,18 @@ interface RegistrationRequest {
   hasRentalIncome?: boolean;
   hasInvestmentIncome?: boolean;
   informalBusiness?: boolean;
-
-  // AI extraction confidence (0.0 - 1.0)
   profileConfidence?: number;
 
-  // Optional KYC fields
+  // KYC fields
   nin?: string;
+  ninVerified?: boolean;
+  ninVerifiedName?: string;
   bvn?: string;
+  bvnVerified?: boolean;
+  bvnVerifiedName?: string;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -53,14 +53,14 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
     const body: RegistrationRequest = await req.json();
-    
-    console.log('[register-user] Processing registration for:', body.email, 'accountType:', body.accountType);
+
+    console.log('[register-user] Processing registration for:', body.email, 'platform:', body.platform);
 
     // Validate required fields
     if (!body.fullName || !body.email || !body.phone || !body.password) {
@@ -77,7 +77,7 @@ serve(async (req) => {
       );
     }
 
-    // Check if email already exists in users table
+    // Check if email already exists
     const { data: existingUser } = await supabase
       .from('users')
       .select('id')
@@ -91,14 +91,46 @@ serve(async (req) => {
       );
     }
 
+    // Extract profile using Claude Haiku AI (if text provided)
+    let profile = {
+      entityType: body.workStatus || 'individual',
+      taxCategory: body.taxCategory || 'salary_earner',
+      occupation: body.occupation,
+      location: body.location,
+      hasBusinessIncome: body.hasBusinessIncome || false,
+      hasSalaryIncome: body.hasSalaryIncome || false,
+      hasFreelanceIncome: body.hasFreelanceIncome || false,
+      hasPensionIncome: body.hasPensionIncome || false,
+      hasRentalIncome: body.hasRentalIncome || false,
+      hasInvestmentIncome: body.hasInvestmentIncome || false,
+      informalBusiness: body.informalBusiness || false,
+      confidence: body.profileConfidence || 0.5,
+    };
+
+    if (body.tellUsAboutYourself) {
+      console.log('[register-user] Extracting profile with Claude Haiku...');
+      try {
+        const aiProfile = await extractProfileWithAI(
+          body.tellUsAboutYourself,
+          body.fullName,
+          body.workStatus
+        );
+        profile = { ...profile, ...aiProfile };
+        console.log('[register-user] AI extracted profile:', profile);
+      } catch (aiError) {
+        console.warn('[register-user] AI extraction failed, using defaults:', aiError);
+      }
+    }
+
     // Create Supabase Auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: body.email,
       password: body.password,
-      email_confirm: true, // Auto-confirm email
+      email_confirm: true,
       user_metadata: {
         full_name: body.fullName,
-        phone: body.phone
+        phone: body.phone,
+        account_type: body.accountType || 'personal',
       }
     });
 
@@ -113,42 +145,46 @@ serve(async (req) => {
     const authUserId = authData.user.id;
     console.log('[register-user] Auth user created:', authUserId);
 
-    // Build user insert payload with new V2 fields
+    // Calculate KYC level
+    let kycLevel = 0;
+    if (body.ninVerified) kycLevel++;
+    if (body.bvnVerified) kycLevel++;
+
+    // Build user payload
     const userPayload: Record<string, unknown> = {
       full_name: body.fullName,
       email: body.email,
       phone: body.phone,
-      consent_given: body.consent,
       auth_user_id: authUserId,
+      consent_given: body.consent,
       onboarding_completed: false,
-
-      // Legacy fields
-      work_status: body.workStatus,
+      // Profile
+      account_type: body.accountType || 'personal',
+      work_status: body.workStatus || profile.entityType,
       income_type: body.incomeType,
       bank_setup: body.bankSetup,
-
-      // V2 profile fields
-      account_type: body.accountType || 'personal',
-      occupation: body.occupation,
-      location: body.location,
-      tax_category: body.taxCategory,
       tell_us_about_yourself: body.tellUsAboutYourself,
-
-      // Income flags
-      has_business_income: body.hasBusinessIncome || false,
-      has_salary_income: body.hasSalaryIncome || false,
-      has_freelance_income: body.hasFreelanceIncome || false,
-      has_pension_income: body.hasPensionIncome || false,
-      has_rental_income: body.hasRentalIncome || false,
-      has_investment_income: body.hasInvestmentIncome || false,
-      informal_business: body.informalBusiness || false,
-
-      // AI confidence
-      profile_confidence: body.profileConfidence,
-
-      // Optional KYC
+      // AI-extracted fields
+      tax_category: profile.taxCategory,
+      entity_type: profile.entityType,
+      occupation: profile.occupation,
+      location: profile.location,
+      has_business_income: profile.hasBusinessIncome,
+      has_salary_income: profile.hasSalaryIncome,
+      has_freelance_income: profile.hasFreelanceIncome,
+      has_pension_income: profile.hasPensionIncome,
+      has_rental_income: profile.hasRentalIncome,
+      has_investment_income: profile.hasInvestmentIncome,
+      informal_business: profile.informalBusiness,
+      profile_confidence: profile.confidence,
+      // KYC
       nin: body.nin,
+      nin_verified: body.ninVerified || false,
+      nin_verified_name: body.ninVerifiedName,
       bvn: body.bvn,
+      bvn_verified: body.bvnVerified || false,
+      bvn_verified_name: body.bvnVerifiedName,
+      kyc_level: kycLevel,
     };
 
     // Remove undefined values
@@ -167,7 +203,6 @@ serve(async (req) => {
 
     if (userError) {
       console.error('[register-user] User insert error:', userError);
-      // Rollback: delete auth user
       await supabase.auth.admin.deleteUser(authUserId);
       return new Response(
         JSON.stringify({ success: false, error: 'Failed to create user profile' }),
@@ -176,29 +211,29 @@ serve(async (req) => {
     }
 
     const userId = userData.id;
-    console.log('[register-user] User created:', userId, 'accountType:', body.accountType);
+    console.log('[register-user] User created:', userId);
 
-    // Generate secure token for bot linking
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    // For telegram platform, generate token immediately
+    let telegramLink = null;
+    if (body.platform === 'telegram') {
+      const token = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Store token in telegram_auth_tokens
-    const { error: tokenError } = await supabase
-      .from('telegram_auth_tokens')
-      .insert({
-        user_id: userId,
-        token: token,
-        expires_at: expiresAt.toISOString()
-      });
+      const { error: tokenError } = await supabase
+        .from('telegram_auth_tokens')
+        .insert({
+          user_id: userId,
+          token: token,
+          expires_at: expiresAt.toISOString()
+        });
 
-    if (tokenError) {
-      console.error('[register-user] Token insert error:', tokenError);
-      // Continue anyway - user can request new token later
+      if (!tokenError) {
+        const botUsername = 'PrismTaxBot';
+        telegramLink = `https://t.me/${botUsername}?start=${token}`;
+      } else {
+        console.error('[register-user] Token insert error:', tokenError);
+      }
     }
-
-    // Generate Telegram deep link
-    const botUsername = 'PrismTaxBot';
-    const telegramLink = `https://t.me/${botUsername}?start=${token}`;
 
     console.log('[register-user] Registration complete');
 
@@ -206,8 +241,14 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         userId: userId,
-        telegramLink: telegramLink,
-        expiresIn: 900 // 15 minutes in seconds
+        telegramLink,
+        profile: {
+          taxCategory: profile.taxCategory,
+          entityType: profile.entityType,
+          occupation: profile.occupation,
+          kycLevel,
+          aiConfidence: profile.confidence,
+        }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
