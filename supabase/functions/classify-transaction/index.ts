@@ -1,6 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { callClaude, CLAUDE_MODELS } from '../_shared/claude-client.ts';
+import { callClaudeJSON, CLAUDE_MODELS } from '../_shared/claude-client.ts';
+
+// Expected structure from AI classification
+interface ClassificationParsed {
+    classification: string;
+    confidence: number;
+    reason?: string;
+    category?: string;
+    needsConfirmation?: boolean;
+}
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -110,14 +119,13 @@ async function classifyWithSonnet(
 
     try {
         console.log('[classify-transaction] Tier 1: Calling Claude Sonnet...');
-  const response = await callClaude(
-    'You are an expert Nigerian tax accountant. Classify bank transactions accurately for tax purposes. Return only valid JSON.',
-    prompt,
-    { model: CLAUDE_MODELS.SONNET, maxTokens: 400 }
-  );
+        const parsed = await callClaudeJSON<ClassificationParsed>(
+            'You are an expert Nigerian tax accountant. Classify bank transactions accurately for tax purposes.',
+            prompt,
+            { model: CLAUDE_MODELS.SONNET, maxTokens: 400 }
+        );
 
-        const parsed = JSON.parse(response);
-        if (parsed.classification && parsed.confidence >= 0.70) {
+        if (parsed && parsed.classification && parsed.confidence >= 0.70) {
             return {
                 classification: parsed.classification,
                 confidence: parsed.confidence,
@@ -127,7 +135,7 @@ async function classifyWithSonnet(
                 tier: 'ai_primary',
             };
         }
-        console.log('[classify-transaction] Sonnet confidence too low:', parsed.confidence);
+        console.log('[classify-transaction] Sonnet confidence too low:', parsed?.confidence);
         return null;
     } catch (error) {
         console.error('[classify-transaction] Sonnet failed:', error);
@@ -150,14 +158,13 @@ async function classifyWithHaiku(
 
     try {
         console.log('[classify-transaction] Tier 2: Calling Claude Haiku...');
-  const response = await callClaude(
-    'You are a Nigerian tax classification expert. Return only valid JSON.',
-    prompt,
-    { model: CLAUDE_MODELS.HAIKU, maxTokens: 300 }
-  );
+        const parsed = await callClaudeJSON<ClassificationParsed>(
+            'You are a Nigerian tax classification expert.',
+            prompt,
+            { model: CLAUDE_MODELS.HAIKU, maxTokens: 300 }
+        );
 
-        const parsed = JSON.parse(response);
-        if (parsed.classification && parsed.confidence >= 0.60) {
+        if (parsed && parsed.classification && parsed.confidence >= 0.60) {
             return {
                 classification: parsed.classification,
                 confidence: parsed.confidence,
@@ -167,7 +174,7 @@ async function classifyWithHaiku(
                 tier: 'ai_fallback',
             };
         }
-        console.log('[classify-transaction] Haiku confidence too low:', parsed.confidence);
+        console.log('[classify-transaction] Haiku confidence too low:', parsed?.confidence);
         return null;
     } catch (error) {
         console.error('[classify-transaction] Haiku failed:', error);
