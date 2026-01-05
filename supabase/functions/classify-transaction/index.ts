@@ -48,7 +48,6 @@ const STAMP_DUTY_PATTERNS = [/stamp\s?duty/i, /stmp\s?dty/i, /sd\s?charge/i, /st
 function detectNigerianFlags(description: string, amount?: number): NigerianFlags {
     const desc = description || '';
 
-    // Detect mobile money provider
     let mobileMoneyProvider: string | undefined;
     for (const [provider, patterns] of Object.entries(MOBILE_MONEY_PROVIDERS)) {
         if (patterns.some(p => p.test(desc))) {
@@ -57,9 +56,8 @@ function detectNigerianFlags(description: string, amount?: number): NigerianFlag
         }
     }
 
-    // EMTL threshold check (₦10,000+)
-    const isEmtlDetected = EMTL_PATTERNS.some(p => p.test(desc)) ||
-        (amount !== undefined && amount === 50 && /levy|charge/i.test(desc));
+    const isEmtl = EMTL_PATTERNS.some(p => p.test(desc)) ||
+        (amount && amount === 50 && /levy|charge/i.test(desc));
 
     return {
         isUssdTransaction: USSD_PATTERNS.some(p => p.test(desc)),
@@ -69,7 +67,7 @@ function detectNigerianFlags(description: string, amount?: number): NigerianFlag
         isForeignCurrency: /\$|usd|dollar|gbp|eur|euro/i.test(desc),
         foreignCurrency: /usd|\$/i.test(desc) ? 'USD' : /gbp|£/i.test(desc) ? 'GBP' : /eur|€/i.test(desc) ? 'EUR' : undefined,
         isNigerianBankCharge: BANK_CHARGE_PATTERNS.some(p => p.test(desc)),
-        isEmtl: isEmtlDetected,
+        isEmtl,
         isStampDuty: STAMP_DUTY_PATTERNS.some(p => p.test(desc)) || (amount === 50 && /stamp/i.test(desc)),
     };
 }
@@ -77,7 +75,7 @@ function detectNigerianFlags(description: string, amount?: number): NigerianFlag
 function getTaxImplications(flags: NigerianFlags, isCredit: boolean): TaxImplications {
     return {
         vatApplicable: isCredit && !flags.isEmtl && !flags.isStampDuty && !flags.isNigerianBankCharge,
-        whtApplicable: false, // TODO: Add WHT detection
+        whtApplicable: false,
         emtlCharged: flags.isEmtl,
         stampDutyCharged: flags.isStampDuty,
         deductible: flags.isNigerianBankCharge || flags.isEmtl || flags.isStampDuty,
@@ -85,7 +83,7 @@ function getTaxImplications(flags: NigerianFlags, isCredit: boolean): TaxImplica
 }
 
 // ============================================
-// RULE-BASED CLASSIFICATION (TIER 1)
+// CLASSIFICATION RESULT
 // ============================================
 
 interface ClassificationResult {
@@ -94,7 +92,92 @@ interface ClassificationResult {
     reason: string;
     category?: string;
     needsConfirmation: boolean;
+    tier: 'ai_primary' | 'ai_fallback' | 'rule_based' | 'human_review';
 }
+
+// ============================================
+// TIER 1: AI PRIMARY (Claude Sonnet)
+// ============================================
+
+async function classifyWithSonnet(
+    narration: string,
+    amount: number,
+    isCredit: boolean,
+    date: string,
+    flags: NigerianFlags
+): Promise<ClassificationResult | null> {
+    const prompt = buildClassificationPrompt(narration, amount, isCredit, date, flags);
+
+    try {
+        console.log('[classify-transaction] Tier 1: Calling Claude Sonnet...');
+        const response = await callClaude(prompt, {
+            model: CLAUDE_MODELS.SONNET,
+            maxTokens: 400,
+            systemPrompt: 'You are an expert Nigerian tax accountant. Classify bank transactions accurately for tax purposes. Return only valid JSON.',
+        });
+
+        const parsed = JSON.parse(response);
+        if (parsed.classification && parsed.confidence >= 0.70) {
+            return {
+                classification: parsed.classification,
+                confidence: parsed.confidence,
+                reason: parsed.reason || 'AI classification (Sonnet)',
+                category: parsed.category,
+                needsConfirmation: parsed.needsConfirmation ?? (parsed.confidence < 0.85),
+                tier: 'ai_primary',
+            };
+        }
+        console.log('[classify-transaction] Sonnet confidence too low:', parsed.confidence);
+        return null;
+    } catch (error) {
+        console.error('[classify-transaction] Sonnet failed:', error);
+        return null;
+    }
+}
+
+// ============================================
+// TIER 2: AI FALLBACK (Claude Haiku)
+// ============================================
+
+async function classifyWithHaiku(
+    narration: string,
+    amount: number,
+    isCredit: boolean,
+    date: string,
+    flags: NigerianFlags
+): Promise<ClassificationResult | null> {
+    const prompt = buildClassificationPrompt(narration, amount, isCredit, date, flags);
+
+    try {
+        console.log('[classify-transaction] Tier 2: Calling Claude Haiku...');
+        const response = await callClaude(prompt, {
+            model: CLAUDE_MODELS.HAIKU,
+            maxTokens: 300,
+            systemPrompt: 'You are a Nigerian tax classification expert. Return only valid JSON.',
+        });
+
+        const parsed = JSON.parse(response);
+        if (parsed.classification && parsed.confidence >= 0.60) {
+            return {
+                classification: parsed.classification,
+                confidence: parsed.confidence,
+                reason: parsed.reason || 'AI classification (Haiku)',
+                category: parsed.category,
+                needsConfirmation: parsed.needsConfirmation ?? true,
+                tier: 'ai_fallback',
+            };
+        }
+        console.log('[classify-transaction] Haiku confidence too low:', parsed.confidence);
+        return null;
+    } catch (error) {
+        console.error('[classify-transaction] Haiku failed:', error);
+        return null;
+    }
+}
+
+// ============================================
+// TIER 3: RULE-BASED CLASSIFICATION
+// ============================================
 
 function ruleBasedClassification(
     narration: string,
@@ -104,105 +187,53 @@ function ruleBasedClassification(
 ): ClassificationResult | null {
     const desc = narration.toLowerCase();
 
-    // EMTL/Stamp Duty - always expense
     if (flags.isEmtl) {
-        return {
-            classification: 'expense',
-            confidence: 0.98,
-            reason: 'EMTL levy detected',
-            category: 'bank_charges',
-            needsConfirmation: false,
-        };
+        return { classification: 'expense', confidence: 0.98, reason: 'EMTL levy detected (rule-based)', category: 'bank_charges', needsConfirmation: false, tier: 'rule_based' };
     }
     if (flags.isStampDuty) {
-        return {
-            classification: 'expense',
-            confidence: 0.98,
-            reason: 'Stamp duty detected',
-            category: 'government_levy',
-            needsConfirmation: false,
-        };
+        return { classification: 'expense', confidence: 0.98, reason: 'Stamp duty detected (rule-based)', category: 'government_levy', needsConfirmation: false, tier: 'rule_based' };
     }
-
-    // Bank charges
     if (flags.isNigerianBankCharge) {
-        return {
-            classification: 'expense',
-            confidence: 0.95,
-            reason: 'Nigerian bank charge detected',
-            category: 'bank_charges',
-            needsConfirmation: false,
-        };
+        return { classification: 'expense', confidence: 0.95, reason: 'Nigerian bank charge (rule-based)', category: 'bank_charges', needsConfirmation: false, tier: 'rule_based' };
     }
-
-    // POS transactions
     if (flags.isPosTransaction) {
-        return {
-            classification: isCredit ? 'income' : 'expense',
-            confidence: 0.88,
-            reason: isCredit ? 'POS terminal credit - customer payment' : 'POS terminal charge',
-            category: isCredit ? 'sales_revenue' : 'operating_expense',
-            needsConfirmation: amount > 500000,
-        };
+        return { classification: isCredit ? 'income' : 'expense', confidence: 0.88, reason: isCredit ? 'POS credit (rule-based)' : 'POS charge (rule-based)', category: isCredit ? 'sales_revenue' : 'operating_expense', needsConfirmation: amount > 500000, tier: 'rule_based' };
     }
-
-    // Mobile money
     if (flags.isMobileMoney && isCredit) {
-        return {
-            classification: 'income',
-            confidence: 0.75,
-            reason: `Mobile money payment via ${flags.mobileMoneyProvider}`,
-            category: 'sales_revenue',
-            needsConfirmation: true,
-        };
+        return { classification: 'income', confidence: 0.75, reason: `Mobile money via ${flags.mobileMoneyProvider} (rule-based)`, category: 'sales_revenue', needsConfirmation: true, tier: 'rule_based' };
     }
 
-    // Non-revenue keywords
     const nonRevenueKeywords = ['loan', 'disbursement', 'salary', 'atm', 'withdrawal', 'netflix', 'dstv', 'airtime', 'transfer from self'];
     for (const keyword of nonRevenueKeywords) {
         if (desc.includes(keyword)) {
-            return {
-                classification: 'non_revenue',
-                confidence: 0.90,
-                reason: `Contains keyword: ${keyword}`,
-                category: keyword === 'salary' ? 'salary_income' : 'personal',
-                needsConfirmation: amount > 500000,
-            };
+            return { classification: 'non_revenue', confidence: 0.90, reason: `Contains "${keyword}" (rule-based)`, category: keyword === 'salary' ? 'salary_income' : 'personal', needsConfirmation: amount > 500000, tier: 'rule_based' };
         }
     }
 
-    // Sale keywords
     const saleKeywords = ['pos payment', 'pos terminal', 'invoice payment', 'customer payment'];
     for (const keyword of saleKeywords) {
         if (desc.includes(keyword)) {
-            return {
-                classification: 'income',
-                confidence: 0.95,
-                reason: `Contains keyword: ${keyword}`,
-                category: 'sales_revenue',
-                needsConfirmation: amount > 1000000,
-            };
+            return { classification: 'income', confidence: 0.95, reason: `Contains "${keyword}" (rule-based)`, category: 'sales_revenue', needsConfirmation: amount > 1000000, tier: 'rule_based' };
         }
     }
 
-    // Confidence too low for rule-based
     return null;
 }
 
 // ============================================
-// AI CLASSIFICATION (TIER 2)
+// TIER 4: HUMAN REVIEW
 // ============================================
 
-async function classifyWithAI(
-    narration: string,
-    amount: number,
-    isCredit: boolean,
-    date: string,
-    flags: NigerianFlags
-): Promise<ClassificationResult> {
-    const systemPrompt = 'You are a Nigerian tax classification expert. Return only valid JSON.';
-    
-    const userMessage = `Classify this Nigerian bank transaction for tax purposes.
+function humanReviewFallback(): ClassificationResult {
+    return { classification: 'needs_review', confidence: 0, reason: 'All tiers failed - requires human review', needsConfirmation: true, tier: 'human_review' };
+}
+
+// ============================================
+// SHARED PROMPT BUILDER
+// ============================================
+
+function buildClassificationPrompt(narration: string, amount: number, isCredit: boolean, date: string, flags: NigerianFlags): string {
+    return `Classify this Nigerian bank transaction for tax purposes.
 
 Transaction:
 - Amount: ₦${amount.toLocaleString()}
@@ -216,6 +247,7 @@ Nigerian Context:
 - Mobile Money: ${flags.isMobileMoney ? `Yes (${flags.mobileMoneyProvider})` : 'No'}
 - Bank Charge: ${flags.isNigerianBankCharge ? 'Yes' : 'No'}
 - EMTL: ${flags.isEmtl ? 'Yes' : 'No'}
+- Foreign Currency: ${flags.isForeignCurrency ? `Yes (${flags.foreignCurrency})` : 'No'}
 
 Classify as ONE of:
 - "income" (customer payment, sales revenue - VAT applies)
@@ -224,39 +256,16 @@ Classify as ONE of:
 - "personal" (personal spending - not deductible)
 - "loan" (loan disbursement/repayment)
 - "investment" (capital investment)
+- "salary" (salary/wage payment)
 
 Return ONLY valid JSON:
 {
-  "classification": "income|expense|transfer|personal|loan|investment",
+  "classification": "income|expense|transfer|personal|loan|investment|salary",
   "confidence": 0.XX,
   "reason": "brief explanation",
-  "category": "specific category like 'sales_revenue', 'office_supplies', etc.",
+  "category": "specific category like 'sales_revenue', 'office_supplies', 'bank_charges', etc.",
   "needsConfirmation": true/false
 }`;
-
-    try {
-        const response = await callClaude(systemPrompt, userMessage, {
-            model: CLAUDE_MODELS.SONNET,
-            maxTokens: 300,
-        });
-
-        const parsed = JSON.parse(response);
-        return {
-            classification: parsed.classification || 'needs_review',
-            confidence: parsed.confidence || 0.5,
-            reason: parsed.reason || 'AI classification',
-            category: parsed.category,
-            needsConfirmation: parsed.needsConfirmation ?? true,
-        };
-    } catch (error) {
-        console.error('[classify-transaction] AI classification failed:', error);
-        return {
-            classification: 'needs_review',
-            confidence: 0,
-            reason: 'AI classification failed',
-            needsConfirmation: true,
-        };
-    }
 }
 
 // ============================================
@@ -294,20 +303,38 @@ serve(async (req) => {
         const isCredit = type === 'credit';
         const txnDate = date || new Date().toISOString();
 
-        // Step 1: Detect Nigerian-specific flags
         const nigerianFlags = detectNigerianFlags(narration, amount);
         const taxImplications = getTaxImplications(nigerianFlags, isCredit);
 
-        // Step 2: Try rule-based classification first
-        let result = ruleBasedClassification(narration, amount, isCredit, nigerianFlags);
+        let result: ClassificationResult | null = null;
 
-        // Step 3: If rule-based confidence is low, use AI
-        if (!result || result.confidence < 0.75) {
-            console.log('[classify-transaction] Rule-based insufficient, calling AI...');
-            result = await classifyWithAI(narration, amount, isCredit, txnDate, nigerianFlags);
+        // ============================================
+        // 4-TIER CLASSIFICATION PIPELINE
+        // Order: AI Primary (Sonnet) → AI Fallback (Haiku) → Rule-based → Human Review
+        // ============================================
+
+        // TIER 1: AI Primary (Claude Sonnet - claude-sonnet-4-5-20250929)
+        result = await classifyWithSonnet(narration, amount, isCredit, txnDate, nigerianFlags);
+
+        // TIER 2: AI Fallback (Claude Haiku)
+        if (!result) {
+            result = await classifyWithHaiku(narration, amount, isCredit, txnDate, nigerianFlags);
         }
 
-        // Step 4: Optionally save to database
+        // TIER 3: Rule-based classification
+        if (!result) {
+            console.log('[classify-transaction] Tier 3: Trying rule-based...');
+            result = ruleBasedClassification(narration, amount, isCredit, nigerianFlags);
+        }
+
+        // TIER 4: Human review fallback
+        if (!result) {
+            console.log('[classify-transaction] Tier 4: Human review required');
+            result = humanReviewFallback();
+        }
+
+        console.log('[classify-transaction] Result:', result.classification, 'via', result.tier);
+
         if (saveResult && transactionId) {
             const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
             const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -319,6 +346,7 @@ serve(async (req) => {
                     classification: result.classification,
                     classification_confidence: result.confidence,
                     classification_reason: result.reason,
+                    classification_tier: result.tier,
                     category: result.category,
                     needs_confirmation: result.needsConfirmation,
                     nigerian_flags: nigerianFlags,
@@ -327,7 +355,7 @@ serve(async (req) => {
                 })
                 .eq('id', transactionId);
 
-            console.log('[classify-transaction] Classification saved for:', transactionId);
+            console.log('[classify-transaction] Saved for:', transactionId);
         }
 
         return new Response(
@@ -338,6 +366,7 @@ serve(async (req) => {
                 reason: result.reason,
                 category: result.category,
                 needsConfirmation: result.needsConfirmation,
+                tier: result.tier,
                 nigerianFlags,
                 taxImplications,
             }),

@@ -169,7 +169,7 @@ const AdminSimulator = () => {
   const [entityType, setEntityType] = useState<EntityType>("business");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // NLU State
   const [nluIntent, setNluIntent] = useState<NLUIntent | null>(null);
   const [nluSource, setNluSource] = useState<'ai' | 'fallback' | null>(null);
@@ -177,7 +177,7 @@ const AdminSimulator = () => {
   const [artificialCheck, setArtificialCheck] = useState<ArtificialTransactionCheck | null>(null);
   const [conversationContext, setConversationContext] = useState<Array<{ role: string; content: string }>>([]);
   const [nluEnabled, setNluEnabled] = useState(true);
-  
+
   // Gateway state - default to Gateway mode when URL is configured
   const isGatewayConfigured = GATEWAY_URL !== 'NOT_CONFIGURED';
   const [useGateway, setUseGateway] = useState(isGatewayConfigured);
@@ -212,7 +212,7 @@ const AdminSimulator = () => {
     artificialTransactionCheck?: ArtificialTransactionCheck;
   } | null> => {
     if (!nluEnabled) return null;
-    
+
     setIsClassifying(true);
     try {
       const result = await callPublicEdgeFunction<{
@@ -230,11 +230,11 @@ const AdminSimulator = () => {
         entities: result.intent.entities,
         reasoning: result.intent.reasoning
       };
-      
+
       setNluIntent(intent);
       setNluSource(result.source);
       setArtificialCheck(result.artificialTransactionCheck || null);
-      
+
       return {
         intent,
         source: result.source,
@@ -249,7 +249,7 @@ const AdminSimulator = () => {
   };
 
   const addBotMessage = (
-    text: string, 
+    text: string,
     buttons?: Array<{ id: string; title: string }>,
     listConfig?: ListConfig,
     intent?: { name: string; confidence: number }
@@ -270,14 +270,14 @@ const AdminSimulator = () => {
         },
       ]);
       setIsTyping(false);
-      
+
       // Update conversation context
       setConversationContext(prev => [...prev.slice(-4), { role: 'assistant', content: text }]);
     }, 500 + Math.random() * 300);
   };
 
   const addBotMessageImmediate = (
-    text: string, 
+    text: string,
     buttons?: Array<{ id: string; title: string }>,
     listConfig?: ListConfig
   ) => {
@@ -355,7 +355,7 @@ const AdminSimulator = () => {
 
   // Call Income Tax Calculator API
   const callIncomeTaxCalculator = async (
-    grossIncome: number, 
+    grossIncome: number,
     period: 'annual' | 'monthly',
     incomeType: 'employment' | 'pension' | 'business' | 'mixed' = 'employment',
     pensionAmount: number = 0,
@@ -380,11 +380,11 @@ const AdminSimulator = () => {
         isPensionExempt?: boolean;
         actReference: string;
         error?: string;
-      }>('income-tax-calculator', { 
-        grossIncome, 
-        period, 
-        incomeType, 
-        pensionAmount, 
+      }>('income-tax-calculator', {
+        grossIncome,
+        period,
+        incomeType,
+        pensionAmount,
         includeDeductions: true,
         deductions: {
           businessExpenses,
@@ -410,7 +410,7 @@ const AdminSimulator = () => {
         scenario: 'standard-retail',
         period: new Date().toISOString().substring(0, 7)
       });
-      
+
       if (result.user && result.business) {
         setUserData({
           id: result.user.id,
@@ -514,7 +514,7 @@ const AdminSimulator = () => {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMessage]);
-    
+
     // Update conversation context
     setConversationContext(prev => [...prev.slice(-4), { role: 'user', content: inputMessage }]);
 
@@ -531,19 +531,19 @@ const AdminSimulator = () => {
           platform: 'simulator',
           message: messageToSend,
           idempotencyKey: `simulator_${simulatorUserId}_${Date.now()}`,
-          metadata: { 
-            testMode, 
+          metadata: {
+            testMode,
             entityType,
             needsOnboarding: userState === 'new',
             isNewUser: userState === 'new'
           }
         });
-        
+
         setIsTyping(false);
-        
+
         // Parse buttons from gateway response
         const buttons = response.buttons?.flat().map(b => ({ id: b.callback_data, title: b.text }));
-        
+
         // Extract NLU metadata from Gateway response
         const nluMetadata = response.metadata?.nlu as {
           intent?: string;
@@ -553,7 +553,7 @@ const AdminSimulator = () => {
           reasoning?: string;
           artificialCheck?: { isSuspicious: boolean; warning?: string; actReference?: string };
         } | undefined;
-        
+
         if (nluMetadata) {
           setNluIntent({
             name: nluMetadata.intent || 'general_query',
@@ -564,7 +564,7 @@ const AdminSimulator = () => {
           setNluSource(nluMetadata.source || 'fallback');
           setArtificialCheck(nluMetadata.artificialCheck || null);
         }
-        
+
         addBotMessageImmediate(response.message, buttons);
         setConversationContext(prev => [...prev.slice(-4), { role: 'assistant', content: response.message }]);
         return;
@@ -588,13 +588,13 @@ const AdminSimulator = () => {
     if (userState === "new") {
       if (lowerMessage === "help" || lowerMessage === "hi" || lowerMessage === "hello") {
         const HELP_MESSAGE = entityType === 'individual' ? INDIVIDUAL_HELP_MESSAGE : BUSINESS_HELP_MESSAGE;
-        
+
         if (testMode) {
           setIsTyping(true);
           addBotMessageImmediate("🔄 Setting up test environment...");
           const result = await seedTestUser();
           setIsTyping(false);
-          
+
           if (result) {
             addBotMessage(
               `✅ Test environment ready!\n\n` +
@@ -719,17 +719,17 @@ const AdminSimulator = () => {
       // Try NLU-based routing first
       if (nluResult?.intent) {
         const { name: intentName, entities } = nluResult.intent;
-        
+
         // Route based on intent
         switch (intentName) {
           case 'get_tax_relief_info':
             sendTaxReliefOptions();
             return;
-            
+
           case 'get_transaction_summary':
             sendTransactionSummaryOptions();
             return;
-            
+
           case 'get_tax_calculation':
             // Check if entities provide enough info for direct calculation
             if (entities.amount && typeof entities.amount === 'number') {
@@ -746,7 +746,7 @@ const AdminSimulator = () => {
             // Otherwise show options
             sendTaxCalculationOptions();
             return;
-            
+
           case 'upload_receipt':
             addBotMessage(
               "📤 Invoice Upload\n\n" +
@@ -760,7 +760,7 @@ const AdminSimulator = () => {
             );
             setUserState("awaiting_invoice");
             return;
-            
+
           case 'categorize_expense':
             if (nluResult.artificialTransactionCheck?.isSuspicious) {
               addBotMessage(
@@ -787,7 +787,7 @@ const AdminSimulator = () => {
               );
             }
             return;
-            
+
           case 'verify_identity':
             addBotMessage(
               "Which ID would you like to verify?",
@@ -816,7 +816,7 @@ const AdminSimulator = () => {
               { name: intentName, confidence: nluResult.intent.confidence }
             );
             return;
-            
+
           case 'connect_bank':
             addBotMessage(
               "🏦 Connect your bank account for automated transaction tracking.",
@@ -841,7 +841,7 @@ const AdminSimulator = () => {
               { name: intentName, confidence: nluResult.intent.confidence }
             );
             return;
-            
+
           case 'set_reminder':
             addBotMessage(
               "📅 What would you like to be reminded about?",
@@ -854,7 +854,7 @@ const AdminSimulator = () => {
               { name: intentName, confidence: nluResult.intent.confidence }
             );
             return;
-            
+
           case 'general_query':
             const helpMsg = entityType === 'individual' ? INDIVIDUAL_HELP_MESSAGE : BUSINESS_HELP_MESSAGE;
             addBotMessage(helpMsg);
@@ -870,23 +870,23 @@ const AdminSimulator = () => {
       }
 
       // === INDIVIDUAL-SPECIFIC COMMANDS ===
-      
+
       // Salary command: "salary 450000" or "monthly pay 350000"
       const salaryMatch = lowerMessage.match(/^(?:salary|monthly pay)\s+[₦n]?(\d[\d,]*)/i);
       if (salaryMatch) {
         const amount = parseInt(salaryMatch[1].replace(/,/g, ""));
         const isMonthly = amount < 1000000; // Assume monthly if < 1M
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Calculating PAYE...");
-        
+
         const result = await callIncomeTaxCalculator(isMonthly ? amount * 12 : amount, 'annual', 'employment');
         setIsTyping(false);
-        
+
         if (result && !result.error) {
           // Check for minimum wage exemption
           const isExempt = result.isMinimumWageExempt;
-          
+
           if (isExempt) {
             addBotMessage(
               `💰 Salary Tax Calculation\n` +
@@ -905,11 +905,11 @@ const AdminSimulator = () => {
           } else {
             const breakdown = result.taxBreakdown
               .filter((band: { taxInBand: number }) => band.taxInBand > 0)
-              .map((band: { band: string; rate: number; taxInBand: number }) => 
+              .map((band: { band: string; rate: number; taxInBand: number }) =>
                 `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
               )
               .join('\n');
-            
+
             addBotMessage(
               `💰 Salary Tax Calculation (PAYE)\n` +
               `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -937,7 +937,7 @@ const AdminSimulator = () => {
         const whtRate = 0.10;
         const whtAmount = amount * whtRate;
         const netRent = amount - whtAmount;
-        
+
         addBotMessage(
           `🏠 Rental Income Tax\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -960,13 +960,13 @@ const AdminSimulator = () => {
       if (sideHustleMatch) {
         const amount = parseInt(sideHustleMatch[1].replace(/,/g, ""));
         const annualAmount = amount * 12;
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Calculating side income tax...");
-        
+
         const result = await callIncomeTaxCalculator(annualAmount, 'annual', 'business');
         setIsTyping(false);
-        
+
         if (result && !result.error) {
           addBotMessage(
             `💼 Side Hustle Income Tax\n` +
@@ -1074,7 +1074,7 @@ const AdminSimulator = () => {
           'rent': { type: 'rent', label: 'Rent Paid', amount: 200000 },
           'insurance': { type: 'insurance', label: 'Life Insurance', amount: 0 }
         };
-        
+
         const relief = reliefMap[reliefType];
         if (relief) {
           setUserData(prev => ({
@@ -1109,13 +1109,13 @@ const AdminSimulator = () => {
       const pensionMatch = lowerMessage.match(/^(?:pension(?:er)?)\s+(?:tax\s+)?[₦n]?(\d[\d,]*)/i);
       if (pensionMatch) {
         const amount = parseInt(pensionMatch[1].replace(/,/g, ""));
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Calculating pension tax...");
-        
+
         const result = await callIncomeTaxCalculator(amount, 'annual', 'pension');
         setIsTyping(false);
-        
+
         if (result && !result.error) {
           addBotMessage(
             `🏛️ Pension Tax Calculation\n` +
@@ -1144,23 +1144,23 @@ const AdminSimulator = () => {
       if (freelanceMatch) {
         const grossIncome = parseInt(freelanceMatch[1].replace(/,/g, ""));
         const businessExpenses = freelanceMatch[2] ? parseInt(freelanceMatch[2].replace(/,/g, "")) : 0;
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Calculating freelancer tax...");
-        
+
         const result = await callIncomeTaxCalculator(grossIncome, 'annual', 'business', 0, businessExpenses, 0);
         setIsTyping(false);
-        
+
         if (result && !result.error) {
           const breakdown = result.taxBreakdown
             .filter((band: { taxInBand: number }) => band.taxInBand > 0)
-            .map((band: { band: string; rate: number; taxInBand: number }) => 
+            .map((band: { band: string; rate: number; taxInBand: number }) =>
               `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
             )
             .join('\n');
-          
+
           const tips = result.freelancerTips?.map((tip: string) => `• ${tip}`).join('\n') || '';
-          
+
           addBotMessage(
             `💼 Freelancer Tax Calculation\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1189,21 +1189,21 @@ const AdminSimulator = () => {
       if (mixedMatch) {
         const totalAmount = parseInt(mixedMatch[1].replace(/,/g, ""));
         const pensionAmount = parseInt(mixedMatch[2].replace(/,/g, ""));
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Calculating mixed income tax...");
-        
+
         const result = await callIncomeTaxCalculator(totalAmount, 'annual', 'mixed', pensionAmount);
         setIsTyping(false);
-        
+
         if (result && !result.error) {
           const breakdown = result.taxBreakdown
             .filter((band: { taxInBand: number }) => band.taxInBand > 0)
-            .map((band: { band: string; rate: number; taxInBand: number }) => 
+            .map((band: { band: string; rate: number; taxInBand: number }) =>
               `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
             )
             .join('\n');
-          
+
           addBotMessage(
             `📊 Mixed Income Tax Calculation\n` +
             `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1239,14 +1239,14 @@ const AdminSimulator = () => {
           addBotMessage("Please register first by typing *hi* or *help*.");
           return;
         }
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Fetching summary...");
-        
+
         const period = new Date().toISOString().substring(0, 7);
         const result = await callReconciliation(userData.id, period);
         setIsTyping(false);
-        
+
         if (result && !result.error) {
           addBotMessage(
             `📊 VAT Summary for ${result.period}\n` +
@@ -1255,8 +1255,8 @@ const AdminSimulator = () => {
             `📥 Input VAT (${result.inputVATExpensesCount} expenses): ${formatCurrency(result.inputVAT)}\n\n` +
             `💰 Net VAT: ${formatCurrency(result.netVAT)}\n` +
             `Status: ${result.status.toUpperCase()}\n\n` +
-            (result.netVAT > 0 ? 
-              `To pay, use Remita with RRR or type *paid* after payment.` : 
+            (result.netVAT > 0 ?
+              `To pay, use Remita with RRR or type *paid* after payment.` :
               `You have a credit to carry forward.`)
           );
         } else {
@@ -1307,17 +1307,17 @@ const AdminSimulator = () => {
       }
 
       // PROJECT FUND COMMANDS
-      
+
       // New project command: "new project Uncle Building 5000000 from Uncle Chukwu"
       const newProjectMatch = lowerMessage.match(/^new\s+project\s+(.+?)\s+(\d[\d,]*)\s+from\s+(.+)$/i);
       if (newProjectMatch) {
         const projectName = newProjectMatch[1];
         const budget = parseInt(newProjectMatch[2].replace(/,/g, ""));
         const sourcePerson = newProjectMatch[3];
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Creating project fund...");
-        
+
         try {
           const result = await callEdgeFunction<{
             success: boolean;
@@ -1330,9 +1330,9 @@ const AdminSimulator = () => {
             source_person: sourcePerson,
             source_relationship: 'family',
           });
-          
+
           setIsTyping(false);
-          
+
           if (result && result.success && result.project) {
             setActiveProject({
               id: result.project.id,
@@ -1342,7 +1342,7 @@ const AdminSimulator = () => {
               source_person: sourcePerson,
               source_relationship: 'family'
             });
-            
+
             addBotMessage(
               `✅ Project Created!\n` +
               `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1377,13 +1377,13 @@ const AdminSimulator = () => {
           );
           return;
         }
-        
+
         const amount = parseInt(projectExpenseMatch[1].replace(/,/g, ""));
         const description = projectExpenseMatch[2];
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Recording expense...");
-        
+
         try {
           const result = await callEdgeFunction<{
             success: boolean;
@@ -1397,18 +1397,18 @@ const AdminSimulator = () => {
             amount: amount,
             description: description,
           });
-          
+
           setIsTyping(false);
-          
+
           if (result && result.success) {
             const newSpent = result.project?.spent || (activeProject.spent + amount);
             const balance = activeProject.budget - newSpent;
             const isOverBudget = balance < 0;
-            
+
             setActiveProject(prev => prev ? { ...prev, spent: newSpent } : null);
-            
+
             let warningMessage = '';
-            
+
             const lowerDesc = description.toLowerCase();
             if (lowerDesc.includes('labor') || lowerDesc.includes('cash') || lowerDesc.includes('worker')) {
               if (amount >= 500000) {
@@ -1417,14 +1417,14 @@ const AdminSimulator = () => {
                   `Ensure you retain receipts and payment records.`;
               }
             }
-            
+
             const vagueTerms = ['misc', 'sundry', 'various', 'other', 'general'];
             if (vagueTerms.some(term => lowerDesc.includes(term))) {
               warningMessage += `\n\n⚠️ DOCUMENTATION WARNING\n` +
                 `Vague description may be flagged for review.\n` +
                 `Section 32 requires specific documentation.`;
             }
-            
+
             addBotMessage(
               `${isOverBudget ? '⚠️' : '✅'} Expense Recorded\n` +
               `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1458,10 +1458,10 @@ const AdminSimulator = () => {
           );
           return;
         }
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Fetching project status...");
-        
+
         try {
           const result = await callEdgeFunction<{
             success: boolean;
@@ -1479,14 +1479,14 @@ const AdminSimulator = () => {
             action: 'summary',
             project_id: activeProject.id,
           });
-          
+
           setIsTyping(false);
-          
+
           if (result && result.success) {
             const s = result.summary;
             const balance = s.budget - s.spent;
             const isOverBudget = balance < 0;
-            
+
             addBotMessage(
               `📁 Project Balance\n` +
               `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1503,7 +1503,7 @@ const AdminSimulator = () => {
               `└─ Verified: ${s.verifiedReceiptCount}\n\n` +
               `💡 Tip: Send receipt photos to verify expenses.`
             );
-            
+
             setActiveProject(prev => prev ? { ...prev, spent: s.spent } : null);
           } else {
             addBotMessage("❌ Failed to fetch project status.");
@@ -1525,10 +1525,10 @@ const AdminSimulator = () => {
           );
           return;
         }
-        
+
         setIsTyping(true);
         addBotMessageImmediate("🔄 Completing project and calculating tax...");
-        
+
         try {
           const result = await callEdgeFunction<{
             success: boolean;
@@ -1546,13 +1546,13 @@ const AdminSimulator = () => {
             action: 'complete',
             project_id: activeProject.id,
           });
-          
+
           setIsTyping(false);
-          
+
           if (result && result.success) {
             const c = result.completion;
             const hasExcess = c.excess > 0;
-            
+
             let taxBreakdown = '';
             if (hasExcess && c.taxCalculation.bands.length > 0) {
               taxBreakdown = c.taxCalculation.bands
@@ -1560,7 +1560,7 @@ const AdminSimulator = () => {
                 .map(b => `├─ ${b.band} @ ${(b.rate * 100).toFixed(0)}%: ${formatCurrency(b.tax)}`)
                 .join('\n');
             }
-            
+
             addBotMessage(
               `🎉 Project Completed!\n` +
               `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1569,16 +1569,16 @@ const AdminSimulator = () => {
               `├─ Budget Received: ${formatCurrency(c.budget)}\n` +
               `├─ Total Spent: ${formatCurrency(c.spent)}\n` +
               `└─ ${hasExcess ? `Excess (Taxable): ${formatCurrency(c.excess)}` : 'Fully Utilized ✓'}\n\n` +
-              (hasExcess ? 
+              (hasExcess ?
                 `💰 Tax on Excess:\n${taxBreakdown}\n` +
                 `━━━━━━━━━━━━━━━━━━━━━\n` +
                 `Total Tax Due: ${formatCurrency(c.taxCalculation.totalTax)}\n\n` +
                 `⚠️ The excess amount is treated as personal income\n` +
                 `and subject to progressive income tax.\n\n`
-              : `✅ No tax liability - funds fully utilized for project purposes.\n\n`) +
+                : `✅ No tax liability - funds fully utilized for project purposes.\n\n`) +
               `Reference: NTA 2025 Section 5 (Agency Funds)`
             );
-            
+
             setActiveProject(null);
           } else {
             addBotMessage("❌ Failed to complete project: " + (result?.error || 'Unknown error'));
@@ -1605,15 +1605,15 @@ const AdminSimulator = () => {
   const handleVATCalculation = async (amount: number, description: string) => {
     setIsTyping(true);
     addBotMessageImmediate("🔄 Calculating VAT...");
-    
+
     const result = await callVATCalculator(amount, description);
     setIsTyping(false);
-    
+
     if (result && !result.error) {
-      const classificationEmoji = 
+      const classificationEmoji =
         result.classification === 'standard' ? '📊' :
-        result.classification === 'zero-rated' ? '🆓' : '🚫';
-      
+          result.classification === 'zero-rated' ? '🆓' : '🚫';
+
       addBotMessage(
         `${classificationEmoji} VAT Calculation Result:\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1635,10 +1635,10 @@ const AdminSimulator = () => {
   const handleIncomeTaxCalculation = async (amount: number, isMonthly: boolean = false) => {
     setIsTyping(true);
     addBotMessageImmediate("🔄 Calculating income tax...");
-    
+
     const result = await callIncomeTaxCalculator(amount, isMonthly ? 'monthly' : 'annual');
     setIsTyping(false);
-    
+
     if (result && !result.error) {
       if (result.isMinimumWageExempt) {
         addBotMessage(
@@ -1662,11 +1662,11 @@ const AdminSimulator = () => {
       } else {
         const breakdown = result.taxBreakdown
           .filter((band: { taxInBand: number }) => band.taxInBand > 0)
-          .map((band: { band: string; rate: number; taxInBand: number }) => 
+          .map((band: { band: string; rate: number; taxInBand: number }) =>
             `├─ ${band.band} @ ${(band.rate * 100).toFixed(0)}%: ${formatCurrency(band.taxInBand)}`
           )
           .join('\n');
-        
+
         addBotMessage(
           `💰 Income Tax Calculation\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1698,7 +1698,7 @@ const AdminSimulator = () => {
       const base64Full = event.target?.result as string;
       // Extract just the base64 data (remove data URL prefix)
       const base64 = base64Full.split(',')[1];
-      
+
       setMessages((prev) => [
         ...prev,
         {
@@ -1741,7 +1741,7 @@ const AdminSimulator = () => {
             confidence: result.confidence?.overall || 0.85
           });
 
-          const itemsList = invoiceData.items?.map((item: { description: string; qty: number; unitPrice: number }) => 
+          const itemsList = invoiceData.items?.map((item: { description: string; qty: number; unitPrice: number }) =>
             `• ${item.description} x${item.qty} @ ${formatCurrency(item.unitPrice)}`
           ).join('\n');
 
@@ -1821,12 +1821,12 @@ const AdminSimulator = () => {
         addBotMessage("ℹ️ No sales transactions identified to confirm.");
         return;
       }
-      
+
       const salesTxns = processedBankStatement.categories.sales.transactions;
-      const salesList = salesTxns.map((txn, i) => 
+      const salesList = salesTxns.map((txn, i) =>
         `${i + 1}. ${txn.date} - ${formatCurrency(txn.credit || 0)}\n   └ ${txn.description.substring(0, 45)}${txn.description.length > 45 ? '...' : ''}`
       ).join('\n');
-      
+
       addBotMessage(
         `📋 *Confirm Sales Transactions*\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -1842,12 +1842,12 @@ const AdminSimulator = () => {
       );
       return;
     }
-    
+
     if (buttonId === 'confirm_all_sales') {
       if (processedBankStatement) {
         const count = processedBankStatement.categories.sales.transactions.length;
         const vatAmount = processedBankStatement.totals.outputVAT;
-        
+
         addBotMessage(
           `✅ *${count} Sales Confirmed*\n\n` +
           `Total Revenue: ${formatCurrency(processedBankStatement.categories.sales.total)}\n` +
@@ -1866,7 +1866,7 @@ const AdminSimulator = () => {
       }
       return;
     }
-    
+
     if (buttonId === 'skip_sales_confirm') {
       addBotMessage(
         "⏭️ Sales confirmation skipped.\n\n" +
@@ -1879,37 +1879,37 @@ const AdminSimulator = () => {
       );
       return;
     }
-    
+
     if (buttonId === 'bank_review') {
       if (!processedBankStatement || processedBankStatement.reviewItems.length === 0) {
         addBotMessage("✅ No transactions flagged for review. All items have been categorized.");
         return;
       }
-      
+
       let detailedReview = `🔍 *Flagged Transactions Review*\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-      
+
       processedBankStatement.reviewItems.forEach((txn, i) => {
         const amount = txn.credit || txn.debit || 0;
         const riskLevel = amount > 1000000 ? '🔴 HIGH' : amount > 500000 ? '🟡 MEDIUM' : '🟢 LOW';
-        
+
         detailedReview += `*${i + 1}. ${txn.date}*\n`;
         detailedReview += `├─ Amount: ${formatCurrency(amount)}\n`;
         detailedReview += `├─ Description: ${txn.description.substring(0, 50)}${txn.description.length > 50 ? '...' : ''}\n`;
         detailedReview += `├─ AI Category: ${txn.category || 'Potential Sale'}\n`;
         detailedReview += `├─ Risk Level: ${riskLevel}\n`;
-        
+
         if (amount > 500000) {
           detailedReview += `├─ ⚠️ Section 191: Large transfer - verify not artificial\n`;
         }
-        
+
         detailedReview += `└─ Suggested: ${txn.credit ? 'Confirm as Sale or Reclassify' : 'Categorize Expense'}\n\n`;
       });
-      
+
       detailedReview += `━━━━━━━━━━━━━━━━━━━━━\n` +
         `*Total Items:* ${processedBankStatement.reviewItems.length}\n` +
         `*Combined Value:* ${formatCurrency(processedBankStatement.reviewItems.reduce((sum, t) => sum + (t.credit || t.debit || 0), 0))}`;
-      
+
       addBotMessage(
         detailedReview,
         [
@@ -1920,7 +1920,7 @@ const AdminSimulator = () => {
       );
       return;
     }
-    
+
     if (buttonId === 'review_approve_all') {
       const count = processedBankStatement?.reviewItems.length || 0;
       addBotMessage(
@@ -1932,7 +1932,7 @@ const AdminSimulator = () => {
       );
       return;
     }
-    
+
     if (buttonId === 'review_flag_accountant') {
       const count = processedBankStatement?.reviewItems.length || 0;
       addBotMessage(
@@ -1946,21 +1946,21 @@ const AdminSimulator = () => {
       );
       return;
     }
-    
+
     if (buttonId === 'review_dismiss') {
       addBotMessage("🗑️ Review dismissed. Transactions will be re-analyzed on next import.");
       return;
     }
-    
+
     if (buttonId === 'bank_export') {
       if (!processedBankStatement) {
         addBotMessage("❌ No bank statement data to export. Please upload a statement first.");
         return;
       }
-      
+
       setIsTyping(true);
       addBotMessageImmediate("📄 Generating PDF report...");
-      
+
       try {
         const response = await callEdgeFunction<{ html: string }>('generate-pdf-report', {
           reportType: 'bank-statement-analysis',
@@ -1979,12 +1979,12 @@ const AdminSimulator = () => {
             reviewItemsCount: processedBankStatement.reviewItems.length
           }
         });
-        
+
         // Open HTML report in new tab
         const blob = new Blob([response.html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
-        
+
         setIsTyping(false);
         addBotMessage(
           `✅ *Bank Statement Analysis Report Generated*\n\n` +
@@ -2004,13 +2004,13 @@ const AdminSimulator = () => {
       }
       return;
     }
-    
+
     if (buttonId === 'export_again') {
       // Re-trigger export
       handleButtonClick('bank_export');
       return;
     }
-    
+
     // Legacy bank connection buttons
     if (buttonId.startsWith('bank_')) {
       const bankId = buttonId.replace('bank_', '');
@@ -2021,10 +2021,10 @@ const AdminSimulator = () => {
         first: 'First Bank of Nigeria'
       };
       const bankName = bankNames[bankId] || 'Selected Bank';
-      
+
       // Simulate Mono connection flow
       addBotMessage(`🔗 *Connecting to ${bankName}...*\n\n⏳ Initializing secure connection...`);
-      
+
       setTimeout(() => {
         addBotMessage(
           `✅ *${bankName} Connected Successfully!*\n\n` +
@@ -2068,7 +2068,7 @@ const AdminSimulator = () => {
           mockResult: "✅ *CAC Verified*\n\nRC Number: RC-1234567\nCompany: ACME TRADING LIMITED\nType: Private Limited Company\nStatus: Active\nIncorporation: 10-Jan-2020\n\nDirectors:\n• CHUKWU EMEKA JOHN (MD)\n• ADEBAYO FUNKE GRACE\n\nSource: CAC Database"
         }
       };
-      
+
       const info = idPrompts[idType];
       if (info) {
         addBotMessage(info.prompt);
@@ -2098,7 +2098,7 @@ const AdminSimulator = () => {
           date: "You choose"
         }
       };
-      
+
       const config = reminderConfigs[reminderType];
       if (config) {
         if (reminderType === 'custom') {
@@ -2141,7 +2141,7 @@ const AdminSimulator = () => {
       addBotMessage(categoryMessages[category] || `✅ Expense categorized as: *${category.toUpperCase()}*`);
       return;
     }
-    
+
     // Document action buttons from DocumentTestUploader
     if (buttonId === 'doc_categorize') {
       addBotMessage(
@@ -2198,7 +2198,7 @@ const AdminSimulator = () => {
       );
       return;
     }
-    
+
     // Employment status selection (individual registration)
     if (buttonId.startsWith('emp_')) {
       const statusMap: Record<string, 'employed' | 'self_employed' | 'retired'> = {
@@ -2211,7 +2211,7 @@ const AdminSimulator = () => {
         setUserData(prev => ({ ...prev, employmentStatus: status }));
         const statusLabels = { employed: 'Employed', self_employed: 'Self-Employed', retired: 'Retired' };
         const HELP_MESSAGE = INDIVIDUAL_HELP_MESSAGE;
-        
+
         addBotMessage(
           `🎉 Registration complete!\n\n` +
           `Name: *${userData.fullName}*\n` +
@@ -2223,10 +2223,10 @@ const AdminSimulator = () => {
       }
       return;
     }
-    
+
     // Individual relief selections from interactive list
-    if (buttonId.startsWith('relief_pension_8') || buttonId === 'relief_nhf' || buttonId === 'relief_nhis' || 
-        buttonId === 'relief_rent' || buttonId === 'relief_life_insurance' || buttonId === 'relief_mortgage') {
+    if (buttonId.startsWith('relief_pension_8') || buttonId === 'relief_nhf' || buttonId === 'relief_nhis' ||
+      buttonId === 'relief_rent' || buttonId === 'relief_life_insurance' || buttonId === 'relief_mortgage') {
       const reliefMap: Record<string, { type: string; label: string; amount: number }> = {
         'relief_pension_8': { type: 'pension', label: 'Pension (8%)', amount: 0 },
         'relief_nhf': { type: 'nhf', label: 'NHF (2.5%)', amount: 0 },
@@ -2235,7 +2235,7 @@ const AdminSimulator = () => {
         'relief_life_insurance': { type: 'insurance', label: 'Life Insurance', amount: 0 },
         'relief_mortgage': { type: 'mortgage', label: 'Mortgage Interest', amount: 0 }
       };
-      
+
       const relief = reliefMap[buttonId];
       if (relief) {
         setUserData(prev => ({
@@ -2284,7 +2284,7 @@ const AdminSimulator = () => {
       } else {
         addBotMessage("❌ Failed to save invoice. Please try again.");
       }
-      
+
       setPendingInvoice(null);
       setUserState("registered");
     } else if (buttonId === "edit") {
@@ -2312,7 +2312,7 @@ const AdminSimulator = () => {
 
     for (const txn of transactions) {
       const desc = txn.description.toLowerCase();
-      
+
       if (txn.credit && txn.credit > 0) {
         // Credit categorization
         if (desc.includes('neft') || desc.includes('transfer from') || desc.includes('payment')) {
@@ -2361,19 +2361,19 @@ const AdminSimulator = () => {
       type: "text"
     };
     setMessages(prev => [...prev, userMsg]);
-    
+
     // Handle bank statements specially - process transactions
     if (data.documentType === 'bank_statement' && data.transactions && data.transactions.length > 0) {
       setIsTyping(true);
       addBotMessageImmediate("🔍 Analyzing transactions...");
-      
+
       const { categories, reviewItems } = await processBankTransactions(data.transactions);
-      
+
       const totalCredits = data.transactions.reduce((sum, t) => sum + (t.credit || 0), 0);
       const totalDebits = data.transactions.reduce((sum, t) => sum + (t.debit || 0), 0);
       const potentialVAT = categories.sales.total * 0.075;
       const claimableVAT = categories.expenses.total * 0.075;
-      
+
       // Store processed data in session state for button handlers
       const bankStatementData: ProcessedBankStatement = {
         bank: data.bank || 'Unknown Bank',
@@ -2404,17 +2404,17 @@ const AdminSimulator = () => {
         }
       };
       setProcessedBankStatement(bankStatementData);
-      
+
       setIsTyping(false);
-      
+
       let response = `📊 *Bank Statement Analysis*\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `🏦 ${data.bank || 'Bank Statement'}\n` +
         `Account: ${data.accountName || 'N/A'} (${data.accountNumber || 'N/A'})\n` +
         `Period: ${data.period || 'N/A'}\n\n` +
-        
+
         `💰 *Income Summary:*\n`;
-      
+
       if (categories.sales.total > 0) {
         response += `├─ Potential Sales: ${formatCurrency(categories.sales.total)} (${categories.sales.transactions.length} txns)\n`;
       }
@@ -2425,9 +2425,9 @@ const AdminSimulator = () => {
         const otherCredits = categories.other.transactions.filter(t => t.credit).reduce((sum, t) => sum + (t.credit || 0), 0);
         response += `└─ Other Credits: ${formatCurrency(otherCredits)}\n`;
       }
-      
+
       response += `\n📤 *Expense Summary:*\n`;
-      
+
       if (categories.expenses.total > 0) {
         response += `├─ Supplies/Purchases: ${formatCurrency(categories.expenses.total)} (VAT claimable)\n`;
       }
@@ -2441,10 +2441,10 @@ const AdminSimulator = () => {
         const otherDebits = categories.other.transactions.filter(t => t.debit).reduce((sum, t) => sum + (t.debit || 0), 0);
         response += `└─ Other: ${formatCurrency(otherDebits)}\n`;
       }
-      
+
       response += `\n━━━━━━━━━━━━━━━━━━━━━\n` +
         `📈 Net Position: ${formatCurrency(totalCredits - totalDebits)}\n`;
-      
+
       if (potentialVAT > 0 || claimableVAT > 0) {
         response += `\n💹 *VAT Implications:*\n`;
         if (potentialVAT > 0) {
@@ -2455,13 +2455,13 @@ const AdminSimulator = () => {
         }
         response += `└─ Net VAT: ${formatCurrency(potentialVAT - claimableVAT)}\n`;
       }
-      
+
       if (reviewItems.length > 0) {
         response += `\n⚠️ *Review Required:*\n`;
         response += `├─ ${reviewItems.length} potential sales need VAT invoicing\n`;
         response += `└─ Large transfers may require classification\n`;
       }
-      
+
       addBotMessage(
         response,
         [
@@ -2472,7 +2472,7 @@ const AdminSimulator = () => {
       );
       return;
     }
-    
+
     // For other document types, show simple response
     setTimeout(() => {
       addBotMessage(
@@ -2559,7 +2559,7 @@ const AdminSimulator = () => {
               placeholder="+234..."
             />
           </div>
-          
+
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -2623,19 +2623,19 @@ const AdminSimulator = () => {
                       {gatewayStatus === 'error' && <XCircle className="w-3 h-3 text-destructive" />}
                       {gatewayStatus === 'unknown' && <Loader2 className="w-3 h-3 animate-spin" />}
                       <span className={
-                        gatewayStatus === 'connected' ? 'text-green-600' : 
-                        gatewayStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'
+                        gatewayStatus === 'connected' ? 'text-green-600' :
+                          gatewayStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'
                       }>
-                        {gatewayStatus === 'connected' ? 'Connected' : 
-                         gatewayStatus === 'error' ? 'Disconnected' : 'Checking...'}
+                        {gatewayStatus === 'connected' ? 'Connected' :
+                          gatewayStatus === 'error' ? 'Disconnected' : 'Checking...'}
                       </span>
                     </div>
-                    
+
                     {/* Gateway URL (full) */}
                     <p className="text-muted-foreground font-mono text-[10px] break-all">
                       {GATEWAY_URL}
                     </p>
-                    
+
                     {/* Fallback Actions */}
                     <div className="flex items-center gap-2 pt-1">
                       <button
@@ -2658,7 +2658,7 @@ const AdminSimulator = () => {
                         Test in Tab
                       </button>
                     </div>
-                    
+
                     {/* Error Help Text */}
                     {gatewayStatus === 'error' && (
                       <p className="text-[10px] text-amber-600 bg-amber-500/10 p-2 rounded mt-1">
@@ -2725,16 +2725,18 @@ const AdminSimulator = () => {
             </Button>
           </div>
 
-          {/* NLU Debug Panel */}
-          <NLUDebugPanel
-            intent={nluIntent}
-            source={nluSource}
-            isLoading={isClassifying}
-            artificialCheck={artificialCheck}
-            onTestIntent={(testMessage) => {
-              setInputMessage(testMessage);
-            }}
-          />
+          {/* NLU Debug Panel (for non-Gateway mode only - Gateway mode has its own in right panel) */}
+          {!useGateway && (
+            <NLUDebugPanel
+              intent={nluIntent}
+              source={nluSource}
+              isLoading={isClassifying}
+              artificialCheck={artificialCheck}
+              onTestIntent={(testMessage) => {
+                setInputMessage(testMessage);
+              }}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -2759,7 +2761,7 @@ const AdminSimulator = () => {
             )}
           </div>
         </CardHeader>
-        
+
         <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
@@ -2767,18 +2769,17 @@ const AdminSimulator = () => {
               <p>Start a conversation by typing "hi" or "help"</p>
             </div>
           )}
-          
+
           {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  message.sender === "user"
+                className={`max-w-[80%] rounded-lg p-3 ${message.sender === "user"
                     ? "bg-green-500 text-white"
                     : "bg-muted"
-                }`}
+                  }`}
               >
                 <div className="flex items-start gap-2">
                   {message.sender === "bot" && (
@@ -2786,11 +2787,11 @@ const AdminSimulator = () => {
                   )}
                   <div className="flex-1">
                     <p className="whitespace-pre-wrap text-sm">
-                      {message.text.split('*').map((part, i) => 
+                      {message.text.split('*').map((part, i) =>
                         i % 2 === 1 ? <strong key={i}>{part}</strong> : part
                       )}
                     </p>
-                    
+
                     {/* WhatsApp Reply Buttons */}
                     {message.buttons && message.buttons.length <= 3 && !message.listConfig && (
                       <WhatsAppButtonsPreview
@@ -2831,7 +2832,7 @@ const AdminSimulator = () => {
               </div>
             </div>
           ))}
-          
+
           {isTyping && (
             <div className="flex justify-start">
               <div className="bg-muted rounded-lg p-3 flex items-center gap-2">
@@ -2840,7 +2841,7 @@ const AdminSimulator = () => {
               </div>
             </div>
           )}
-          
+
           <div ref={messagesEndRef} />
         </CardContent>
 
