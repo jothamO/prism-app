@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   createColumnHelper,
   flexRender,
@@ -57,17 +58,47 @@ function UserActionMenu({
   onAction: (action: string, user: User) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        menuRef.current && 
+        !menuRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Close menu on scroll or resize
+  useEffect(() => {
+    if (!open) return;
+    const handleClose = () => setOpen(false);
+    window.addEventListener("scroll", handleClose, true);
+    window.addEventListener("resize", handleClose);
+    return () => {
+      window.removeEventListener("scroll", handleClose, true);
+      window.removeEventListener("resize", handleClose);
+    };
+  }, [open]);
+
+  const handleToggle = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 4,
+        left: rect.right - 180, // menu width ~180px
+      });
+    }
+    setOpen(!open);
+  };
 
   const actions = [
     { label: "View Profile", icon: Eye, action: "view" },
@@ -82,15 +113,20 @@ function UserActionMenu({
   ];
 
   return (
-    <div className="relative" ref={menuRef}>
+    <>
       <button 
-        onClick={() => setOpen(!open)}
+        ref={buttonRef}
+        onClick={handleToggle}
         className="p-2 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-colors"
       >
         <MoreHorizontal className="w-4 h-4" />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 min-w-max bg-card border border-border rounded-lg shadow-lg z-50">
+      {open && createPortal(
+        <div 
+          ref={menuRef}
+          className="fixed min-w-[180px] bg-card border border-border rounded-lg shadow-lg z-[9999]"
+          style={{ top: menuPosition.top, left: menuPosition.left }}
+        >
           {actions.map((item) => (
             <button
               key={item.action}
@@ -107,9 +143,10 @@ function UserActionMenu({
               {item.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
