@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -27,6 +27,31 @@ export default function TelegramConnectModal({
     const [token, setToken] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+    const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
+
+    // Countdown timer effect
+    useEffect(() => {
+        if (!expiresAt) {
+            setTimeRemaining(null);
+            return;
+        }
+
+        const updateTimer = () => {
+            const diff = expiresAt.getTime() - Date.now();
+            if (diff <= 0) {
+                setTimeRemaining('Expired');
+                setToken(null);
+                return;
+            }
+            const mins = Math.floor(diff / 60000);
+            const secs = Math.floor((diff % 60000) / 1000);
+            setTimeRemaining(`${mins}:${secs.toString().padStart(2, '0')}`);
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [expiresAt]);
 
     const generateToken = async () => {
         setLoading(true);
@@ -74,14 +99,6 @@ export default function TelegramConnectModal({
         }
     };
 
-    const getTimeRemaining = () => {
-        if (!expiresAt) return null;
-        const diff = expiresAt.getTime() - Date.now();
-        if (diff <= 0) return 'Expired';
-        const mins = Math.floor(diff / 60000);
-        const secs = Math.floor((diff % 60000) / 1000);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -123,8 +140,8 @@ export default function TelegramConnectModal({
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs text-muted-foreground font-medium">Your Token</span>
                                     <div className="flex items-center gap-1 text-xs text-amber-600">
-                                        <Clock className="h-3 w-3" />
-                                        {getTimeRemaining()}
+                                    <Clock className="h-3 w-3" />
+                                        {timeRemaining}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
