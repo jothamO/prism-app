@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CreditCard, Building, Layers, Send, MessageCircle, Loader2 } from 'lucide-react';
+import { CreditCard, Building, Layers, Send, MessageCircle, Monitor, Loader2 } from 'lucide-react';
 import type { RegistrationData } from '@/pages/Register';
 
 interface BankSetupStepProps {
@@ -33,6 +33,13 @@ const BANK_SETUP_OPTIONS = [
 ];
 
 const PLATFORM_OPTIONS = [
+  { 
+    value: 'web' as const, 
+    label: 'Web Dashboard', 
+    icon: Monitor,
+    available: true,
+    description: 'Access via browser'
+  },
   { 
     value: 'telegram' as const, 
     label: 'Telegram', 
@@ -119,9 +126,9 @@ export default function BankSetupStep({
 
       <div className="space-y-3">
         <label className="text-sm font-medium text-foreground">
-          Choose your notification platform
+          How would you like to access PRISM?
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {PLATFORM_OPTIONS.map((option) => {
             const Icon = option.icon;
             const isSelected = formData.platform === option.value;
@@ -132,7 +139,7 @@ export default function BankSetupStep({
                 type="button"
                 disabled={!option.available}
                 onClick={() => option.available && updateFormData({ platform: option.value })}
-                className={`flex flex-col items-center gap-2 p-4 rounded-lg border text-center transition-colors ${
+                className={`flex flex-col items-center gap-2 p-3 rounded-lg border text-center transition-colors ${
                   !option.available
                     ? 'border-border bg-muted/50 opacity-50 cursor-not-allowed'
                     : isSelected 
@@ -140,12 +147,12 @@ export default function BankSetupStep({
                       : 'border-border hover:border-primary/50 hover:bg-muted/50'
                 }`}
               >
-                <Icon className={`h-6 w-6 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                <Icon className={`h-5 w-5 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                 <div>
-                  <div className={`font-medium text-sm ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                  <div className={`font-medium text-xs ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                     {option.label}
                   </div>
-                  <div className="text-xs text-muted-foreground">{option.description}</div>
+                  <div className="text-[10px] text-muted-foreground">{option.description}</div>
                 </div>
               </button>
             );
