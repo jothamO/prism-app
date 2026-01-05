@@ -56,8 +56,8 @@ function detectNigerianFlags(description: string, amount?: number): NigerianFlag
         }
     }
 
-    const isEmtl = EMTL_PATTERNS.some(p => p.test(desc)) ||
-        (amount && amount === 50 && /levy|charge/i.test(desc));
+  const isEmtl: boolean = EMTL_PATTERNS.some(p => p.test(desc)) ||
+    Boolean(amount && amount === 50 && /levy|charge/i.test(desc));
 
     return {
         isUssdTransaction: USSD_PATTERNS.some(p => p.test(desc)),
@@ -110,11 +110,11 @@ async function classifyWithSonnet(
 
     try {
         console.log('[classify-transaction] Tier 1: Calling Claude Sonnet...');
-        const response = await callClaude(prompt, {
-            model: CLAUDE_MODELS.SONNET,
-            maxTokens: 400,
-            systemPrompt: 'You are an expert Nigerian tax accountant. Classify bank transactions accurately for tax purposes. Return only valid JSON.',
-        });
+  const response = await callClaude(
+    'You are an expert Nigerian tax accountant. Classify bank transactions accurately for tax purposes. Return only valid JSON.',
+    prompt,
+    { model: CLAUDE_MODELS.SONNET, maxTokens: 400 }
+  );
 
         const parsed = JSON.parse(response);
         if (parsed.classification && parsed.confidence >= 0.70) {
@@ -150,11 +150,11 @@ async function classifyWithHaiku(
 
     try {
         console.log('[classify-transaction] Tier 2: Calling Claude Haiku...');
-        const response = await callClaude(prompt, {
-            model: CLAUDE_MODELS.HAIKU,
-            maxTokens: 300,
-            systemPrompt: 'You are a Nigerian tax classification expert. Return only valid JSON.',
-        });
+  const response = await callClaude(
+    'You are a Nigerian tax classification expert. Return only valid JSON.',
+    prompt,
+    { model: CLAUDE_MODELS.HAIKU, maxTokens: 300 }
+  );
 
         const parsed = JSON.parse(response);
         if (parsed.classification && parsed.confidence >= 0.60) {
