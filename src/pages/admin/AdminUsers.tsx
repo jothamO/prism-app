@@ -90,7 +90,7 @@ function UserActionMenu({
         <MoreHorizontal className="w-4 h-4" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg z-50">
+        <div className="absolute right-0 top-full mt-1 min-w-max bg-card border border-border rounded-lg shadow-lg z-50">
           {actions.map((item) => (
             <button
               key={item.action}
