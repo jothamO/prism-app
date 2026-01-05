@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
+import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
 import BusinessSignup from "./pages/BusinessSignup";
@@ -42,6 +43,7 @@ function App() {
             <Route path="/auth" element={<Auth />} />
             <Route path="/register" element={<Register />} />
             <Route path="/register/business" element={<BusinessSignup />} />
+            <Route path="/bank-connected" element={<BankConnected />} />
             <Route path="/admin/login" element={<AdminLogin />} />
 
             {/* Protected Dashboard */}

@@ -27,9 +27,14 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    const { userId, telegramId, authUserId } = await req.json();
+    const { userId, telegramId, authUserId, redirectUrl } = await req.json();
 
-    console.log('[mono-connect-init] Creating session for user:', userId || authUserId);
+    // Use provided redirect URL or fall back to referer/default
+    const baseRedirectUrl = redirectUrl || 
+      req.headers.get('origin') || 
+      'https://prism.tax';
+
+    console.log('[mono-connect-init] Creating session for user:', userId || authUserId, 'redirect:', baseRedirectUrl);
 
     // Fetch user to get email - try userId first, then authUserId
     let user = null;
@@ -90,7 +95,7 @@ serve(async (req) => {
           ref: effectiveUserId
         },
         scope: 'auth',
-        redirect_url: `https://prism.tax/bank-connected?userId=${effectiveUserId}`
+        redirect_url: `${baseRedirectUrl}/bank-connected?userId=${effectiveUserId}`
       })
     });
 
