@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Building2, Loader2, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Building2, Loader2, CheckCircle2, AlertCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import ProgressBar from '@/components/registration/ProgressBar';
 
@@ -57,6 +57,36 @@ const INDUSTRY_OPTIONS = [
     { value: 'other', label: 'Other' },
 ];
 
+// Validation helpers
+const isValidCACFormat = (cac: string): boolean => {
+    return /^(RC|BN)\d{6,7}$/i.test(cac.replace(/\s/g, ''));
+};
+
+const isValidTINFormat = (tin: string): boolean => {
+    return /^[\d-]{8,15}$/.test(tin.replace(/\s/g, ''));
+};
+
+const isValidEmail = (email: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
+const isValidPhone = (phone: string): boolean => {
+    const cleaned = phone.replace(/\s/g, '');
+    return /^(\+234|0)[789]\d{9}$/.test(cleaned);
+};
+
+const getPasswordStrength = (password: string) => {
+    const checks = {
+        minLength: password.length >= 8,
+        hasUppercase: /[A-Z]/.test(password),
+        hasLowercase: /[a-z]/.test(password),
+        hasNumber: /\d/.test(password),
+        hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
+    const score = Object.values(checks).filter(Boolean).length;
+    return { checks, score, isStrong: score === 5 };
+};
+
 export default function BusinessSignup() {
     const navigate = useNavigate();
     const { toast } = useToast();
@@ -65,6 +95,21 @@ export default function BusinessSignup() {
     const [loading, setLoading] = useState(false);
     const [cacState, setCacState] = useState<VerificationState>({ status: 'idle' });
     const [tinState, setTinState] = useState<VerificationState>({ status: 'idle' });
+    const [showPassword, setShowPassword] = useState(false);
+    
+    const [formErrors, setFormErrors] = useState<{
+        cacNumber?: string;
+        tin?: string;
+        adminEmail?: string;
+        adminPhone?: string;
+        password?: string;
+    }>({});
+    
+    const [passwordStrength, setPasswordStrength] = useState<{
+        checks: Record<string, boolean>;
+        score: number;
+        isStrong: boolean;
+    } | null>(null);
 
     const [formData, setFormData] = useState<BusinessFormData>({
         businessName: '',
@@ -277,13 +322,30 @@ export default function BusinessSignup() {
                                     <Label htmlFor="cacNumber">CAC Registration Number (RC/BN) *</Label>
                                     <Input
                                         id="cacNumber"
-                                        placeholder="RC 1234567"
+                                        placeholder="RC1234567"
                                         value={formData.cacNumber}
                                         onChange={(e) => {
-                                            updateFormData({ cacNumber: e.target.value, cacVerified: false });
-                                            verifyCAC(e.target.value);
+                                            const value = e.target.value;
+                                            updateFormData({ cacNumber: value, cacVerified: false });
+                                            setCacState({ status: 'idle' });
+                                            
+                                            if (value && !isValidCACFormat(value)) {
+                                                setFormErrors(prev => ({ 
+                                                    ...prev, 
+                                                    cacNumber: 'Format: RC or BN followed by 6-7 digits (e.g., RC1234567)' 
+                                                }));
+                                            } else {
+                                                setFormErrors(prev => ({ ...prev, cacNumber: undefined }));
+                                                if (value && isValidCACFormat(value)) {
+                                                    verifyCAC(value);
+                                                }
+                                            }
                                         }}
+                                        className={formErrors.cacNumber ? 'border-destructive' : ''}
                                     />
+                                    {formErrors.cacNumber && (
+                                        <p className="text-sm text-destructive">{formErrors.cacNumber}</p>
+                                    )}
                                     {renderVerification(cacState, 'CAC')}
                                 </div>
 
@@ -308,14 +370,40 @@ export default function BusinessSignup() {
                                         placeholder="12345678-0001"
                                         value={formData.tin}
                                         onChange={(e) => {
-                                            updateFormData({ tin: e.target.value, tinVerified: false });
-                                            verifyTIN(e.target.value);
+                                            const value = e.target.value;
+                                            updateFormData({ tin: value, tinVerified: false });
+                                            setTinState({ status: 'idle' });
+                                            
+                                            if (value && !isValidTINFormat(value)) {
+                                                setFormErrors(prev => ({ 
+                                                    ...prev, 
+                                                    tin: 'Format: 8-15 digits with optional hyphens (e.g., 12345678-0001)' 
+                                                }));
+                                            } else {
+                                                setFormErrors(prev => ({ ...prev, tin: undefined }));
+                                                if (value && isValidTINFormat(value)) {
+                                                    verifyTIN(value);
+                                                }
+                                            }
                                         }}
+                                        className={formErrors.tin ? 'border-destructive' : ''}
                                     />
+                                    {formErrors.tin && (
+                                        <p className="text-sm text-destructive">{formErrors.tin}</p>
+                                    )}
                                     {renderVerification(tinState, 'TIN')}
                                 </div>
 
-                                <Button type="submit" className="w-full" disabled={!formData.businessName}>
+                                <Button 
+                                    type="submit" 
+                                    className="w-full" 
+                                    disabled={
+                                        !formData.businessName || 
+                                        !formData.cacNumber ||
+                                        !!formErrors.cacNumber ||
+                                        (!!formData.tin && !!formErrors.tin)
+                                    }
+                                >
                                     Continue
                                 </Button>
                             </form>
@@ -363,28 +451,112 @@ export default function BusinessSignup() {
                                         type="email"
                                         placeholder="you@company.com"
                                         value={formData.adminEmail}
-                                        onChange={(e) => updateFormData({ adminEmail: e.target.value })}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            updateFormData({ adminEmail: value });
+                                            if (value && !isValidEmail(value)) {
+                                                setFormErrors(prev => ({ ...prev, adminEmail: 'Please enter a valid email address' }));
+                                            } else {
+                                                setFormErrors(prev => ({ ...prev, adminEmail: undefined }));
+                                            }
+                                        }}
+                                        className={formErrors.adminEmail ? 'border-destructive' : ''}
                                     />
+                                    {formErrors.adminEmail && (
+                                        <p className="text-sm text-destructive">{formErrors.adminEmail}</p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">
                                     <Label htmlFor="adminPhone">Phone *</Label>
                                     <Input
                                         id="adminPhone"
-                                        placeholder="+234 800 000 0000"
+                                        placeholder="08012345678"
                                         value={formData.adminPhone}
-                                        onChange={(e) => updateFormData({ adminPhone: e.target.value })}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            updateFormData({ adminPhone: value });
+                                            if (value && !isValidPhone(value)) {
+                                                setFormErrors(prev => ({ ...prev, adminPhone: 'Enter a valid Nigerian number (e.g., 08012345678)' }));
+                                            } else {
+                                                setFormErrors(prev => ({ ...prev, adminPhone: undefined }));
+                                            }
+                                        }}
+                                        className={formErrors.adminPhone ? 'border-destructive' : ''}
                                     />
+                                    {formErrors.adminPhone && (
+                                        <p className="text-sm text-destructive">{formErrors.adminPhone}</p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground">Format: 08012345678 or +234801234567</p>
                                 </div>
 
                                 <div className="space-y-2">
                                     <Label htmlFor="password">Password *</Label>
-                                    <Input
-                                        id="password"
-                                        type="password"
-                                        value={formData.password}
-                                        onChange={(e) => updateFormData({ password: e.target.value })}
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            id="password"
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={formData.password}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+                                                updateFormData({ password: value });
+                                                const strength = getPasswordStrength(value);
+                                                setPasswordStrength(strength);
+                                                if (value && !strength.isStrong) {
+                                                    setFormErrors(prev => ({ ...prev, password: 'Password does not meet all requirements' }));
+                                                } else {
+                                                    setFormErrors(prev => ({ ...prev, password: undefined }));
+                                                }
+                                            }}
+                                            className={`pr-10 ${formErrors.password ? 'border-destructive' : ''}`}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        >
+                                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
+                                    
+                                    {/* Password Strength Visual Feedback */}
+                                    {formData.password && passwordStrength && (
+                                        <div className="space-y-2 mt-2">
+                                            <div className="flex gap-1">
+                                                {[1, 2, 3, 4, 5].map((level) => (
+                                                    <div
+                                                        key={level}
+                                                        className={`h-1 flex-1 rounded ${
+                                                            level <= passwordStrength.score
+                                                                ? passwordStrength.score <= 2
+                                                                    ? 'bg-destructive'
+                                                                    : passwordStrength.score <= 4
+                                                                    ? 'bg-yellow-500'
+                                                                    : 'bg-emerald-500'
+                                                                : 'bg-muted'
+                                                        }`}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-1 text-xs">
+                                                <span className={passwordStrength.checks.minLength ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                                    {passwordStrength.checks.minLength ? '✓' : '○'} 8+ characters
+                                                </span>
+                                                <span className={passwordStrength.checks.hasUppercase ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                                    {passwordStrength.checks.hasUppercase ? '✓' : '○'} Uppercase
+                                                </span>
+                                                <span className={passwordStrength.checks.hasLowercase ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                                    {passwordStrength.checks.hasLowercase ? '✓' : '○'} Lowercase
+                                                </span>
+                                                <span className={passwordStrength.checks.hasNumber ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                                    {passwordStrength.checks.hasNumber ? '✓' : '○'} Number
+                                                </span>
+                                                <span className={passwordStrength.checks.hasSpecial ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                                    {passwordStrength.checks.hasSpecial ? '✓' : '○'} Special char
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-3">
@@ -394,7 +566,14 @@ export default function BusinessSignup() {
                                     <Button
                                         type="submit"
                                         className="flex-1"
-                                        disabled={!formData.adminName || !formData.adminEmail || !formData.password}
+                                        disabled={
+                                            !formData.adminName || 
+                                            !formData.adminEmail || 
+                                            !formData.password ||
+                                            !!formErrors.adminEmail ||
+                                            !!formErrors.adminPhone ||
+                                            (passwordStrength !== null && !passwordStrength.isStrong)
+                                        }
                                     >
                                         Continue
                                     </Button>
