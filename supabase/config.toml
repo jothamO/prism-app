@@ -80,3 +80,12 @@ verify_jwt = false
 
 [functions.admin-delete-user]
 verify_jwt = false
+
+[functions.generate-telegram-token]
+verify_jwt = false
+
+[functions.get-lovable-key]
+verify_jwt = false
+
+[functions.get-service-key]
+verify_jwt = false
