@@ -58,8 +58,8 @@ function detectNigerianFlags(description: string, amount?: number): NigerianFlag
     }
 
     // EMTL threshold check (₦10,000+)
-    const isEmtl = EMTL_PATTERNS.some(p => p.test(desc)) ||
-        (amount && amount === 50 && /levy|charge/i.test(desc));
+    const isEmtlDetected = EMTL_PATTERNS.some(p => p.test(desc)) ||
+        (amount !== undefined && amount === 50 && /levy|charge/i.test(desc));
 
     return {
         isUssdTransaction: USSD_PATTERNS.some(p => p.test(desc)),
@@ -69,7 +69,7 @@ function detectNigerianFlags(description: string, amount?: number): NigerianFlag
         isForeignCurrency: /\$|usd|dollar|gbp|eur|euro/i.test(desc),
         foreignCurrency: /usd|\$/i.test(desc) ? 'USD' : /gbp|£/i.test(desc) ? 'GBP' : /eur|€/i.test(desc) ? 'EUR' : undefined,
         isNigerianBankCharge: BANK_CHARGE_PATTERNS.some(p => p.test(desc)),
-        isEmtl,
+        isEmtl: isEmtlDetected,
         isStampDuty: STAMP_DUTY_PATTERNS.some(p => p.test(desc)) || (amount === 50 && /stamp/i.test(desc)),
     };
 }
@@ -200,7 +200,9 @@ async function classifyWithAI(
     date: string,
     flags: NigerianFlags
 ): Promise<ClassificationResult> {
-    const prompt = `Classify this Nigerian bank transaction for tax purposes.
+    const systemPrompt = 'You are a Nigerian tax classification expert. Return only valid JSON.';
+    
+    const userMessage = `Classify this Nigerian bank transaction for tax purposes.
 
 Transaction:
 - Amount: ₦${amount.toLocaleString()}
@@ -233,10 +235,9 @@ Return ONLY valid JSON:
 }`;
 
     try {
-        const response = await callClaude(prompt, {
-            model: CLAUDE_MODELS.HAIKU,
+        const response = await callClaude(systemPrompt, userMessage, {
+            model: CLAUDE_MODELS.SONNET,
             maxTokens: 300,
-            systemPrompt: 'You are a Nigerian tax classification expert. Return only valid JSON.',
         });
 
         const parsed = JSON.parse(response);

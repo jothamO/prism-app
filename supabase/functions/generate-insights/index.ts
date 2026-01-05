@@ -44,23 +44,21 @@ const TAX_DEADLINES = [
 // ============================================
 
 async function findUnclaimedDeductions(
-    supabase: ReturnType<typeof createClient>,
+    supabase: any,
     userId: string,
     month: string
 ): Promise<Insight | null> {
-    // Get transactions classified as deductible but not yet claimed
-    const { data: transactions } = await supabase
-        .from('transactions')
-        .select('id, amount, category, classification')
+    // Get expenses that might qualify for deductions but aren't categorized
+    const { data: expenses } = await supabase
+        .from('expenses')
+        .select('id, amount, category, description')
         .eq('user_id', userId)
-        .gte('date', `${month}-01`)
-        .lt('date', getNextMonth(month))
-        .eq('classification', 'expense')
-        .is('deduction_claimed', null);
+        .eq('period', month)
+        .is('category', null);
 
-    if (!transactions || transactions.length === 0) return null;
+    if (!expenses || expenses.length === 0) return null;
 
-    const totalUnclaimed = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const totalUnclaimed = expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
     const estimatedSaving = totalUnclaimed * 0.30; // 30% CIT rate
 
     if (estimatedSaving < 5000) return null; // Threshold for showing insight
@@ -69,14 +67,14 @@ async function findUnclaimedDeductions(
         type: 'tax_saving',
         priority: estimatedSaving > 50000 ? 'high' : 'medium',
         title: 'Unclaimed Tax Deductions Found',
-        description: `You have ${transactions.length} expense transactions totaling ₦${formatCurrency(totalUnclaimed)} that haven't been claimed as deductions.`,
+        description: `You have ${expenses.length} expense transactions totaling ₦${formatCurrency(totalUnclaimed)} that haven't been claimed as deductions.`,
         action: 'Review and mark these transactions as claimed deductions to reduce your tax liability.',
         potentialSaving: estimatedSaving,
     };
 }
 
 async function checkSmallCompanyThreshold(
-    supabase: ReturnType<typeof createClient>,
+    supabase: any,
     businessId: string
 ): Promise<Insight | null> {
     const { data: business } = await supabase
@@ -87,12 +85,11 @@ async function checkSmallCompanyThreshold(
 
     if (!business) return null;
 
-    const turnover = business.annual_turnover || 0;
-    const assets = business.total_fixed_assets || 0;
+    const turnover = (business as any).annual_turnover || 0;
+    const assets = (business as any).total_fixed_assets || 0;
 
     // Check if approaching threshold (within 80%)
     const turnoverPct = turnover / THRESHOLDS.SMALL_COMPANY_TURNOVER;
-    const assetsPct = assets / THRESHOLDS.SMALL_COMPANY_ASSETS;
 
     if (turnoverPct >= 0.80 && turnoverPct < 1.0) {
         const remaining = THRESHOLDS.SMALL_COMPANY_TURNOVER - turnover;
@@ -100,7 +97,7 @@ async function checkSmallCompanyThreshold(
             type: 'threshold_warning',
             priority: turnoverPct >= 0.95 ? 'high' : 'medium',
             title: 'Approaching Small Company Limit',
-            description: `${business.name} is at ${(turnoverPct * 100).toFixed(0)}% of the ₦50M turnover threshold. Only ₦${formatCurrency(remaining)} remaining before losing 0% tax rate.`,
+            description: `${(business as any).name} is at ${(turnoverPct * 100).toFixed(0)}% of the ₦50M turnover threshold. Only ₦${formatCurrency(remaining)} remaining before losing 0% tax rate.`,
             action: 'Consider deferring non-essential revenue to maintain Small Company status.',
             potentialSaving: turnover * 0.30, // Would pay 30% if exceeded
         };
@@ -110,34 +107,22 @@ async function checkSmallCompanyThreshold(
 }
 
 async function checkVATRefundEligibility(
-    supabase: ReturnType<typeof createClient>,
+    supabase: any,
     userId: string,
     month: string
 ): Promise<Insight | null> {
-    // Get VAT summary for the month
-    const { data: transactions } = await supabase
-        .from('transactions')
-        .select('amount, classification, tax_implications')
+    // Get VAT reconciliation for the month
+    const { data: reconciliation } = await supabase
+        .from('vat_reconciliations')
+        .select('input_vat, output_vat')
         .eq('user_id', userId)
-        .gte('date', `${month}-01`)
-        .lt('date', getNextMonth(month));
+        .eq('period', month)
+        .single();
 
-    if (!transactions || transactions.length === 0) return null;
+    if (!reconciliation) return null;
 
-    let outputVAT = 0; // VAT collected from sales
-    let inputVAT = 0;  // VAT paid on purchases
-
-    for (const txn of transactions) {
-        const vatApplicable = txn.tax_implications?.vatApplicable ?? false;
-        const amount = txn.amount || 0;
-
-        if (txn.classification === 'income' && vatApplicable) {
-            outputVAT += amount * 0.075; // 7.5% VAT
-        } else if (txn.classification === 'expense' && vatApplicable) {
-            inputVAT += amount * 0.075;
-        }
-    }
-
+    const outputVAT = (reconciliation as any).output_vat || 0;
+    const inputVAT = (reconciliation as any).input_vat || 0;
     const netVAT = outputVAT - inputVAT;
 
     if (netVAT < 0) {
@@ -181,7 +166,7 @@ function getUpcomingDeadlines(): Insight[] {
 }
 
 async function checkComplianceStatus(
-    supabase: ReturnType<typeof createClient>,
+    supabase: any,
     userId: string
 ): Promise<Insight | null> {
     const { data: user } = await supabase
@@ -193,7 +178,10 @@ async function checkComplianceStatus(
     if (!user) return null;
 
     // Check if KYC incomplete
-    if (!user.nin_verified && !user.bvn_verified) {
+    const ninVerified = (user as any).nin_verified;
+    const bvnVerified = (user as any).bvn_verified;
+    
+    if (!ninVerified && !bvnVerified) {
         return {
             type: 'compliance',
             priority: 'medium',
