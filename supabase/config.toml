@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.get-service-key]
 verify_jwt = false
+
+[functions.get-telegram-token]
+verify_jwt = false
