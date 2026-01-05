@@ -21,12 +21,16 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import TelegramConnectModal from '@/components/TelegramConnectModal';
+import BankConnectModal from '@/components/BankConnectModal';
+import VerifyIdentityModal from '@/components/VerifyIdentityModal';
 
 export default function Dashboard() {
   const location = useLocation();
   const { signOut } = useAuth();
   const { profile, business, loading, refetch } = useUserProfile();
   const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
 
   // Show Telegram modal if redirected from registration
   useEffect(() => {
@@ -37,6 +41,16 @@ export default function Dashboard() {
 
   const handleTelegramConnected = () => {
     setShowTelegramModal(false);
+    refetch();
+  };
+
+  const handleBankConnected = () => {
+    setShowBankModal(false);
+    refetch();
+  };
+
+  const handleIdentityVerified = () => {
+    setShowVerifyModal(false);
     refetch();
   };
 
@@ -114,7 +128,7 @@ export default function Dashboard() {
             {/* Bank */}
             {!profile?.bankConnected && (
               <button
-                onClick={() => {/* TODO: Bank connect flow */ }}
+                onClick={() => setShowBankModal(true)}
                 className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all text-left"
               >
                 <div className="p-2 rounded-lg bg-emerald-500/10">
@@ -131,7 +145,7 @@ export default function Dashboard() {
             {/* KYC */}
             {(profile?.kycLevel || 0) < 1 && (
               <button
-                onClick={() => {/* TODO: KYC flow */ }}
+                onClick={() => setShowVerifyModal(true)}
                 className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all text-left"
               >
                 <div className="p-2 rounded-lg bg-amber-500/10">
@@ -317,6 +331,20 @@ export default function Dashboard() {
         open={showTelegramModal}
         onOpenChange={setShowTelegramModal}
         onConnected={handleTelegramConnected}
+      />
+
+      {/* Bank Connect Modal */}
+      <BankConnectModal
+        open={showBankModal}
+        onOpenChange={setShowBankModal}
+        onConnected={handleBankConnected}
+      />
+
+      {/* Verify Identity Modal */}
+      <VerifyIdentityModal
+        open={showVerifyModal}
+        onOpenChange={setShowVerifyModal}
+        onVerified={handleIdentityVerified}
       />
     </div>
   );
