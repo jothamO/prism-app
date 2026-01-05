@@ -10,6 +10,18 @@ interface PersonalInfoStepProps {
   onNext: () => void;
 }
 
+const getPasswordStrength = (password: string) => {
+  const checks = {
+    minLength: password.length >= 8,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumber: /\d/.test(password),
+    hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+  };
+  const score = Object.values(checks).filter(Boolean).length;
+  return { checks, score, isStrong: score === 5 };
+};
+
 export default function PersonalInfoStep({ 
   formData, 
   updateFormData, 
@@ -17,6 +29,11 @@ export default function PersonalInfoStep({
 }: PersonalInfoStepProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [passwordStrength, setPasswordStrength] = useState<{
+    checks: Record<string, boolean>;
+    score: number;
+    isStrong: boolean;
+  } | null>(null);
 
   const validatePhone = (phone: string) => {
     // Nigerian phone format: 0XXXXXXXXXX or +234XXXXXXXXXX
@@ -44,8 +61,13 @@ export default function PersonalInfoStep({
       newErrors.phone = 'Please enter a valid Nigerian phone number';
     }
 
-    if (!formData.password || formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else {
+      const strength = getPasswordStrength(formData.password);
+      if (!strength.isStrong) {
+        newErrors.password = 'Password must meet all strength requirements';
+      }
     }
 
     setErrors(newErrors);
@@ -107,7 +129,7 @@ export default function PersonalInfoStep({
           <p className="text-xs text-destructive">{errors.phone}</p>
         )}
         <p className="text-xs text-muted-foreground">
-          Format: 0801234567 or +234801234567
+          Format: 08012345678 or +234801234567
         </p>
       </div>
 
@@ -119,7 +141,11 @@ export default function PersonalInfoStep({
             type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             value={formData.password}
-            onChange={(e) => updateFormData({ password: e.target.value })}
+            onChange={(e) => {
+              const value = e.target.value;
+              updateFormData({ password: value });
+              setPasswordStrength(getPasswordStrength(value));
+            }}
             className={`pl-10 pr-10 ${errors.password ? 'border-destructive' : ''}`}
           />
           <button
@@ -133,9 +159,45 @@ export default function PersonalInfoStep({
         {errors.password && (
           <p className="text-xs text-destructive">{errors.password}</p>
         )}
-        <p className="text-xs text-muted-foreground">
-          Must be at least 8 characters
-        </p>
+        
+        {/* Password Strength Visual Feedback */}
+        {formData.password && passwordStrength && (
+          <div className="space-y-2 mt-2">
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((level) => (
+                <div
+                  key={level}
+                  className={`h-1 flex-1 rounded ${
+                    level <= passwordStrength.score
+                      ? passwordStrength.score <= 2
+                        ? 'bg-destructive'
+                        : passwordStrength.score <= 4
+                        ? 'bg-yellow-500'
+                        : 'bg-emerald-500'
+                      : 'bg-muted'
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              <span className={passwordStrength.checks.minLength ? 'text-emerald-600' : 'text-muted-foreground'}>
+                {passwordStrength.checks.minLength ? '✓' : '○'} 8+ characters
+              </span>
+              <span className={passwordStrength.checks.hasUppercase ? 'text-emerald-600' : 'text-muted-foreground'}>
+                {passwordStrength.checks.hasUppercase ? '✓' : '○'} Uppercase
+              </span>
+              <span className={passwordStrength.checks.hasLowercase ? 'text-emerald-600' : 'text-muted-foreground'}>
+                {passwordStrength.checks.hasLowercase ? '✓' : '○'} Lowercase
+              </span>
+              <span className={passwordStrength.checks.hasNumber ? 'text-emerald-600' : 'text-muted-foreground'}>
+                {passwordStrength.checks.hasNumber ? '✓' : '○'} Number
+              </span>
+              <span className={passwordStrength.checks.hasSpecial ? 'text-emerald-600' : 'text-muted-foreground'}>
+                {passwordStrength.checks.hasSpecial ? '✓' : '○'} Special char
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <Button type="submit" className="w-full">
