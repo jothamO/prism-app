@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { UserProfileModal } from "@/components/admin/UserProfileModal";
+import { SendMessageModal } from "@/components/admin/SendMessageModal";
+import { AddUserModal } from "@/components/admin/AddUserModal";
 
 type User = {
   id: string;
@@ -35,6 +37,9 @@ type User = {
   status: "active" | "suspended" | "pending";
   lastActive: string;
   platform: string;
+  telegramId?: string | null;
+  whatsappNumber?: string | null;
+  authUserId?: string | null;
 };
 
 const columnHelper = createColumnHelper<User>();
@@ -110,6 +115,8 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [messageUser, setMessageUser] = useState<User | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -186,7 +193,10 @@ export default function AdminUsers() {
           role: roleMap.get(u.auth_user_id || u.id) || 'user',
           status: u.is_blocked ? 'suspended' as const : (u.onboarding_completed ? 'active' as const : 'pending' as const),
           lastActive: u.updated_at ? formatRelativeTime(u.updated_at) : 'Never',
-          platform: u.platform || 'unknown'
+          platform: u.platform || 'unknown',
+          telegramId: u.telegram_id,
+          whatsappNumber: u.whatsapp_number,
+          authUserId: u.auth_user_id,
         }));
 
       // Combine both user types
@@ -221,8 +231,7 @@ export default function AdminUsers() {
         break;
       
       case 'message':
-        toast({ title: "Send Message", description: `Opening message dialog for ${user.name}` });
-        // TODO: Open message dialog
+        setMessageUser(user);
         break;
       
       case 'toggle-block':
@@ -282,18 +291,41 @@ export default function AdminUsers() {
         break;
       
       case 'delete':
-        if (confirm(`Are you sure you want to delete ${user.name}? This cannot be undone.`)) {
+        if (confirm(`Are you sure you want to delete ${user.name}? This will permanently remove all their data and cannot be undone.`)) {
           try {
-            await supabase
-              .from('users')
-              .delete()
-              .eq('id', user.id);
+            // Use edge function for full cascade delete (handles both bot users and web profiles)
+            const { data, error } = await supabase.functions.invoke('admin-bot-messaging', {
+              body: {
+                action: 'delete-user',
+                userId: user.id,
+              },
+            });
+
+            if (error) throw error;
             
-            toast({ title: "User Deleted", description: `${user.name} has been deleted` });
+            if (!data?.success) {
+              throw new Error(data?.error || 'Delete failed');
+            }
+
+            // Also delete from profiles table if this is a web user or has auth_user_id
+            if (user.platform === 'web') {
+              await supabase.from('profiles').delete().eq('id', user.id);
+              // Delete from user_roles as well
+              await supabase.from('user_roles').delete().eq('user_id', user.id);
+            } else if (user.authUserId) {
+              await supabase.from('profiles').delete().eq('id', user.authUserId);
+              await supabase.from('user_roles').delete().eq('user_id', user.authUserId);
+            }
+            
+            toast({ title: "User Deleted", description: `${user.name} and all related data have been deleted` });
             fetchUsers();
           } catch (error) {
             console.error("Error deleting user:", error);
-            toast({ title: "Error", description: "Failed to delete user", variant: "destructive" });
+            toast({ 
+              title: "Error", 
+              description: error instanceof Error ? error.message : "Failed to delete user", 
+              variant: "destructive" 
+            });
           }
         }
         break;
@@ -392,6 +424,22 @@ export default function AdminUsers() {
         onClose={() => setSelectedUserId(null)} 
       />
     )}
+    {messageUser && (
+      <SendMessageModal
+        userId={messageUser.id}
+        userName={messageUser.name}
+        userPlatform={messageUser.platform}
+        telegramId={messageUser.telegramId}
+        whatsappNumber={messageUser.whatsappNumber}
+        onClose={() => setMessageUser(null)}
+      />
+    )}
+    {showAddModal && (
+      <AddUserModal
+        onClose={() => setShowAddModal(false)}
+        onSuccess={fetchUsers}
+      />
+    )}
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -405,7 +453,10 @@ export default function AdminUsers() {
           >
             <RefreshCw className="w-5 h-5 text-muted-foreground" />
           </button>
-          <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
             <UserPlus className="w-4 h-4" /> Add User
           </button>
         </div>
