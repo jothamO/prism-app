@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.generate-insights]
 verify_jwt = false
+
+[functions.test-transaction-flow]
+verify_jwt = false
