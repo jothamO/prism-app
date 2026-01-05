@@ -347,22 +347,39 @@ serve(async (req) => {
             const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
             const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-            await supabase
-                .from('transactions')
+            const { error: updateError } = await supabase
+                .from('bank_transactions')
                 .update({
                     classification: result.classification,
-                    classification_confidence: result.confidence,
-                    classification_reason: result.reason,
-                    classification_tier: result.tier,
+                    confidence: result.confidence,
                     category: result.category,
-                    needs_confirmation: result.needsConfirmation,
-                    nigerian_flags: nigerianFlags,
-                    tax_implications: taxImplications,
-                    classified_at: new Date().toISOString(),
+                    classification_source: result.tier,
+                    is_ussd_transaction: nigerianFlags.isUssdTransaction,
+                    is_mobile_money: nigerianFlags.isMobileMoney,
+                    mobile_money_provider: nigerianFlags.mobileMoneyProvider,
+                    is_pos_transaction: nigerianFlags.isPosTransaction,
+                    is_foreign_currency: nigerianFlags.isForeignCurrency,
+                    foreign_currency: nigerianFlags.foreignCurrency,
+                    is_nigerian_bank_charge: nigerianFlags.isNigerianBankCharge,
+                    is_emtl: nigerianFlags.isEmtl,
+                    is_stamp_duty: nigerianFlags.isStampDuty,
+                    vat_applicable: taxImplications.vatApplicable,
+                    is_tax_relevant: taxImplications.deductible,
+                    metadata: {
+                        classification_reason: result.reason,
+                        needs_confirmation: result.needsConfirmation,
+                        nigerian_flags: nigerianFlags,
+                        tax_implications: taxImplications,
+                        classified_at: new Date().toISOString()
+                    }
                 })
                 .eq('id', transactionId);
 
-            console.log('[classify-transaction] Saved for:', transactionId);
+            if (updateError) {
+                console.error('[classify-transaction] Save error:', updateError);
+            } else {
+                console.log('[classify-transaction] Saved for:', transactionId);
+            }
         }
 
         return new Response(

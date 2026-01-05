@@ -1,0 +1,276 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Sample Nigerian transactions for testing
+const SAMPLE_TRANSACTIONS = [
+  {
+    description: "USSD/AIRTIME/MTN/2348012345678",
+    amount: 500,
+    type: "debit",
+    expectedClassification: "personal_expense",
+    expectedFlags: { isUSSD: true }
+  },
+  {
+    description: "POS/BUKKA HUT RESTAURANT/LAGOS",
+    amount: 15000,
+    type: "debit",
+    expectedClassification: "meals_entertainment",
+    expectedFlags: { isPOS: true }
+  },
+  {
+    description: "SALARY FOR DECEMBER 2025/ACME CORP",
+    amount: 450000,
+    type: "credit",
+    expectedClassification: "salary_income",
+    expectedFlags: {}
+  },
+  {
+    description: "TRF FRM JOHN DOE/FREELANCE WEB DEV",
+    amount: 75000,
+    type: "credit",
+    expectedClassification: "freelance_income",
+    expectedFlags: {}
+  },
+  {
+    description: "EMTL CHARGE/ELECTRONIC MONEY TRANSFER",
+    amount: 50,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isEMTL: true }
+  },
+  {
+    description: "VAT ON SMS ALERT/BANK CHARGE",
+    amount: 52.50,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isBankCharge: true }
+  },
+  {
+    description: "OPAY/TRANSFER TO 0812345678",
+    amount: 25000,
+    type: "debit",
+    expectedClassification: "transfer",
+    expectedFlags: { isMobileMoney: true }
+  },
+  {
+    description: "STAMP DUTY CHARGE",
+    amount: 50,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isStampDuty: true }
+  }
+];
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const startTime = Date.now();
+  const timing: Record<string, number> = {};
+
+  try {
+    const { userId, customTransactions } = await req.json();
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "userId is required" }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify user exists
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, full_name, email')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "User not found", details: userError }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[test-flow] Starting test for user:', user.full_name || user.email);
+
+    const transactions = customTransactions || SAMPLE_TRANSACTIONS;
+    const results: any[] = [];
+    const insertStart = Date.now();
+
+    // Step 1: Insert transactions
+    for (const txn of transactions) {
+      const txnDate = new Date().toISOString().split('T')[0];
+      const reference = `TEST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      const { data: insertedTxn, error: insertError } = await supabase
+        .from('bank_transactions')
+        .insert({
+          user_id: userId,
+          description: txn.description,
+          debit: txn.type === 'debit' ? txn.amount : null,
+          credit: txn.type === 'credit' ? txn.amount : null,
+          transaction_date: txnDate,
+          reference: reference,
+          metadata: {
+            source: 'test-transaction-flow',
+            expected: {
+              classification: txn.expectedClassification,
+              flags: txn.expectedFlags
+            }
+          }
+        })
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error('[test-flow] Insert error:', insertError);
+        results.push({
+          description: txn.description,
+          error: 'Insert failed',
+          details: insertError.message
+        });
+        continue;
+      }
+
+      results.push({
+        id: insertedTxn.id,
+        description: txn.description,
+        amount: txn.amount,
+        type: txn.type,
+        expected: {
+          classification: txn.expectedClassification,
+          flags: txn.expectedFlags
+        },
+        actual: null,
+        classificationTime: null
+      });
+    }
+
+    timing.insertMs = Date.now() - insertStart;
+    console.log(`[test-flow] Inserted ${results.filter(r => r.id).length} transactions in ${timing.insertMs}ms`);
+
+    // Step 2: Classify each transaction
+    const classifyStart = Date.now();
+    
+    for (const result of results) {
+      if (!result.id) continue;
+
+      const classifyStartSingle = Date.now();
+      
+      try {
+        const classifyResponse = await supabase.functions.invoke('classify-transaction', {
+          body: {
+            transactionId: result.id,
+            narration: result.description,
+            amount: result.amount,
+            type: result.type,
+            date: new Date().toISOString().split('T')[0],
+            userId: userId,
+            saveResult: true
+          }
+        });
+
+        result.classificationTime = Date.now() - classifyStartSingle;
+
+        if (classifyResponse.error) {
+          console.error('[test-flow] Classification error:', classifyResponse.error);
+          result.actual = { error: classifyResponse.error.message || 'Classification failed' };
+        } else {
+          result.actual = {
+            classification: classifyResponse.data?.classification,
+            confidence: classifyResponse.data?.confidence,
+            nigerianFlags: classifyResponse.data?.nigerianFlags,
+            taxImplications: classifyResponse.data?.taxImplications,
+            reasoning: classifyResponse.data?.reasoning
+          };
+
+          // Check if classification matches expected
+          result.matchesExpected = result.actual.classification === result.expected.classification;
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        result.actual = { error: errorMessage };
+        result.classificationTime = Date.now() - classifyStartSingle;
+      }
+    }
+
+    timing.classificationMs = Date.now() - classifyStart;
+    console.log(`[test-flow] Classified transactions in ${timing.classificationMs}ms`);
+
+    // Step 3: Generate insights
+    const insightsStart = Date.now();
+    let insights = null;
+
+    try {
+      const insightsResponse = await supabase.functions.invoke('generate-insights', {
+        body: { userId }
+      });
+
+      if (insightsResponse.error) {
+        console.error('[test-flow] Insights error:', insightsResponse.error);
+        insights = { error: insightsResponse.error.message || 'Insights generation failed' };
+      } else {
+        insights = insightsResponse.data;
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      insights = { error: errorMessage };
+    }
+
+    timing.insightsMs = Date.now() - insightsStart;
+    timing.totalMs = Date.now() - startTime;
+
+    // Calculate summary stats
+    const successfulClassifications = results.filter(r => r.actual && !r.actual.error);
+    const matchingClassifications = results.filter(r => r.matchesExpected);
+    
+    const summary = {
+      totalTransactions: transactions.length,
+      inserted: results.filter(r => r.id).length,
+      classified: successfulClassifications.length,
+      matchingExpected: matchingClassifications.length,
+      accuracy: successfulClassifications.length > 0 
+        ? (matchingClassifications.length / successfulClassifications.length * 100).toFixed(1) + '%'
+        : 'N/A',
+      avgClassificationTime: successfulClassifications.length > 0
+        ? Math.round(successfulClassifications.reduce((sum, r) => sum + (r.classificationTime || 0), 0) / successfulClassifications.length)
+        : 0
+    };
+
+    console.log('[test-flow] Summary:', summary);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        user: { id: user.id, name: user.full_name || user.email },
+        summary,
+        transactions: results,
+        insights,
+        timing
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[test-flow] Error:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: errorMessage,
+        timing: { totalMs: Date.now() - startTime }
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
