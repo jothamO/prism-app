@@ -41,7 +41,7 @@ interface TaxImplications {
     deductible: boolean;
 }
 
-const USSD_PATTERNS = [/\*737\*/, /\*919\*/, /\*901\*/, /\*945\*/, /\*966\*/, /\*770\*/];
+const USSD_PATTERNS = [/ussd/i, /\*737\*/, /\*919\*/, /\*901\*/, /\*945\*/, /\*966\*/, /\*770\*/];
 const MOBILE_MONEY_PROVIDERS: Record<string, RegExp[]> = {
     'OPay': [/opay/i, /opera/i],
     'PalmPay': [/palmpay/i],
@@ -50,7 +50,7 @@ const MOBILE_MONEY_PROVIDERS: Record<string, RegExp[]> = {
     'MTN MoMo': [/mtn\s?momo/i, /mobile\s?money/i, /momo/i],
 };
 const POS_PATTERNS = [/pos/i, /p\.o\.s/i, /payment\s?terminal/i, /card\s?payment/i, /terminal\s?id/i, /merchant\s?id/i, /ptsp/i];
-const BANK_CHARGE_PATTERNS = [/sms\s?alert/i, /vat\s?on\s?cot/i, /commission\s?on\s?turnover/i, /account\s?maintenance/i, /atm\s?charge/i, /transfer\s?fee/i];
+const BANK_CHARGE_PATTERNS = [/sms[\s\-_]?alert/i, /vat[\s\-_]?on/i, /commission\s?on\s?turnover/i, /account\s?maintenance/i, /atm\s?charge/i, /transfer\s?fee/i, /bank[\s\-_]?charge/i, /cot\s?charge/i, /maintenance\s?fee/i];
 const EMTL_PATTERNS = [/emtl/i, /e\.m\.t\.l/i, /electronic\s?money\s?transfer\s?levy/i, /e-?levy/i, /transfer\s?levy/i];
 const STAMP_DUTY_PATTERNS = [/stamp\s?duty/i, /stmp\s?dty/i, /sd\s?charge/i, /stamping/i];
 
