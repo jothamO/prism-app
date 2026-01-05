@@ -701,7 +701,7 @@ export type Database = {
           onboarding_completed_at: string | null
           owner_user_id: string | null
           receives_capital_support: boolean | null
-          registration_number: string
+          registration_number: string | null
           registration_type: string | null
           revenue_range: string | null
           tax_category: string | null
@@ -712,7 +712,7 @@ export type Database = {
           tin_verified: boolean | null
           total_fixed_assets: number | null
           updated_at: string
-          user_id: string
+          user_id: string | null
           vat_enabled: boolean | null
           vat_registered: boolean | null
         }
@@ -745,7 +745,7 @@ export type Database = {
           onboarding_completed_at?: string | null
           owner_user_id?: string | null
           receives_capital_support?: boolean | null
-          registration_number: string
+          registration_number?: string | null
           registration_type?: string | null
           revenue_range?: string | null
           tax_category?: string | null
@@ -756,7 +756,7 @@ export type Database = {
           tin_verified?: boolean | null
           total_fixed_assets?: number | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           vat_enabled?: boolean | null
           vat_registered?: boolean | null
         }
@@ -789,7 +789,7 @@ export type Database = {
           onboarding_completed_at?: string | null
           owner_user_id?: string | null
           receives_capital_support?: boolean | null
-          registration_number?: string
+          registration_number?: string | null
           registration_type?: string | null
           revenue_range?: string | null
           tax_category?: string | null
@@ -800,7 +800,7 @@ export type Database = {
           tin_verified?: boolean | null
           total_fixed_assets?: number | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           vat_enabled?: boolean | null
           vat_registered?: boolean | null
         }
