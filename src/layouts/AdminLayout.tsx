@@ -130,6 +130,7 @@ export default function AdminLayout() {
         { name: "Simulator", path: "/admin/simulator", icon: Smartphone },
         { name: "NLU Testing", path: "/admin/nlu-testing", icon: Brain },
         { name: "VAT Testing", path: "/admin/vat-testing", icon: FlaskConical },
+        { name: "Classification", path: "/admin/classification-testing", icon: FlaskConical },
       ]
     },
     {

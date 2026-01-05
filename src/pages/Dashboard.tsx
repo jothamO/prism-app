@@ -13,13 +13,18 @@ import {
   User,
   Briefcase,
   ShieldCheck,
-  LogOut
+  LogOut,
+  RefreshCw,
+  Lightbulb,
+  Plus,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useConnectedAccounts } from '@/hooks/useConnectedAccounts';
+import { useUserInsights } from '@/hooks/useUserInsights';
 import { useToast } from '@/hooks/use-toast';
 import TelegramConnectModal from '@/components/TelegramConnectModal';
 import BankConnectModal from '@/components/BankConnectModal';
@@ -32,6 +37,8 @@ export default function Dashboard() {
   const { signOut } = useAuth();
   const { toast } = useToast();
   const { profile, business, loading, refetch } = useUserProfile();
+  const { accounts, loading: accountsLoading, syncAccount, syncing, refetch: refetchAccounts } = useConnectedAccounts();
+  const { highPriorityCount, totalPotentialSavings } = useUserInsights();
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [showBankModal, setShowBankModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -72,6 +79,36 @@ export default function Dashboard() {
   const handleBankConnected = () => {
     setShowBankModal(false);
     refetch();
+    refetchAccounts();
+  };
+
+  const formatRelativeTime = (dateString: string | null) => {
+    if (!dateString) return 'Never synced';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
+  const maskAccountNumber = (num: string | null) => {
+    if (!num || num.length < 4) return '****';
+    return '****' + num.slice(-4);
+  };
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   };
 
   const handleIdentityVerified = () => {
@@ -317,6 +354,106 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Connected Banks Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-lg">Connected Banks</CardTitle>
+            <CardDescription>Your linked bank accounts</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setShowBankModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Account
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {accountsLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading accounts...</div>
+          ) : accounts.length === 0 ? (
+            <div className="text-center py-8">
+              <CreditCard className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+              <p className="text-muted-foreground mb-4">No bank accounts connected</p>
+              <Button onClick={() => setShowBankModal(true)}>Connect Your Bank</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="flex items-center justify-between p-4 rounded-lg border border-border"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-lg bg-emerald-500/10">
+                      <Building2 className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {account.bankName || 'Bank Account'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {account.accountName} • {maskAccountNumber(account.accountNumber)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <Badge 
+                        variant={account.status === 'active' ? 'default' : 'secondary'}
+                        className={account.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : ''}
+                      >
+                        {account.status || 'Unknown'}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatRelativeTime(account.lastSyncedAt)}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => syncAccount(account.id)}
+                      disabled={syncing === account.id}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${syncing === account.id ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Insights Preview Card */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Lightbulb className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Financial Insights</CardTitle>
+              <CardDescription>
+                {highPriorityCount > 0 
+                  ? `${highPriorityCount} high priority insight${highPriorityCount > 1 ? 's' : ''} need attention`
+                  : 'Personalized tax optimization tips'
+                }
+              </CardDescription>
+            </div>
+          </div>
+          <Button onClick={() => navigate('/insights')}>
+            View Insights
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+        </CardHeader>
+        {totalPotentialSavings > 0 && (
+          <CardContent className="pt-0">
+            <p className="text-sm text-emerald-600 font-medium">
+              💰 Potential savings: {formatCurrency(totalPotentialSavings)}
+            </p>
+          </CardContent>
+        )}
+      </Card>
 
       {/* Main content area */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
