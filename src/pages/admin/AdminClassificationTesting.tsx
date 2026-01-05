@@ -25,22 +25,24 @@ interface ClassificationResult {
   classification: string;
   category: string | null;
   confidence: number;
-  source: string;
-  isRevenue: boolean;
-  isExpense: boolean;
-  isTaxRelevant: boolean;
-  vatApplicable: boolean;
-  vatAmount: number | null;
+  reason: string;
+  tier: string;
+  needsConfirmation: boolean;
   nigerianFlags: {
-    isPOS: boolean;
-    isUSSD: boolean;
+    isPosTransaction: boolean;
+    isUssdTransaction: boolean;
     isMobileMoney: boolean;
-    isBankCharge: boolean;
+    isNigerianBankCharge: boolean;
     isForeignCurrency: boolean;
-    isTransfer: boolean;
-    isCapitalInjection: boolean;
-    isEMTL: boolean;
+    isEmtl: boolean;
     isStampDuty: boolean;
+  };
+  taxImplications: {
+    vatApplicable: boolean;
+    whtApplicable: boolean;
+    emtlCharged: boolean;
+    stampDutyCharged: boolean;
+    deductible: boolean;
   };
 }
 
@@ -92,10 +94,10 @@ export default function AdminClassificationTesting() {
 
       const { data, error } = await supabase.functions.invoke('classify-transaction', {
         body: {
-          description: narration,
+          narration,
           amount: parseFloat(amount),
-          isCredit,
-          transactionDate: testDate,
+          type: isCredit ? 'credit' : 'debit',
+          date: testDate,
         },
       });
 
@@ -135,10 +137,10 @@ export default function AdminClassificationTesting() {
         try {
           const { data, error } = await supabase.functions.invoke('classify-transaction', {
             body: {
-              description: txNarration,
+              narration: txNarration,
               amount: txAmount,
-              isCredit: txIsCredit,
-              transactionDate: testDate,
+              type: txIsCredit ? 'credit' : 'debit',
+              date: testDate,
             },
           });
 
@@ -170,16 +172,16 @@ export default function AdminClassificationTesting() {
   const exportResults = () => {
     if (bulkResults.length === 0) return;
 
-    const headers = ['Narration', 'Amount', 'Classification', 'Category', 'Confidence', 'Source', 'Tax Relevant', 'VAT'];
+    const headers = ['Narration', 'Amount', 'Classification', 'Category', 'Confidence', 'Tier', 'Tax Relevant', 'VAT'];
     const rows = bulkResults.map(r => [
       r.narration,
       r.amount,
       r.result?.classification || 'ERROR',
       r.result?.category || '',
       r.result?.confidence?.toFixed(2) || '',
-      r.result?.source || '',
-      r.result?.isTaxRelevant ? 'Yes' : 'No',
-      r.result?.vatApplicable ? 'Yes' : 'No',
+      r.result?.tier || '',
+      r.result?.taxImplications?.deductible ? 'Yes' : 'No',
+      r.result?.taxImplications?.vatApplicable ? 'Yes' : 'No',
     ]);
 
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -291,28 +293,34 @@ export default function AdminClassificationTesting() {
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Source</span>
-                  <Badge variant="outline">{result.source}</Badge>
+                  <Badge variant="outline">{result.tier}</Badge>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Reason</span>
+                  <span className="text-sm text-right max-w-[200px]">{result.reason}</span>
                 </div>
 
                 <div className="border-t border-border pt-3 mt-3">
                   <p className="text-sm font-medium mb-2">Tax Implications</p>
                   <div className="flex flex-wrap gap-2">
-                    {result.isRevenue && <Badge variant="secondary">Revenue</Badge>}
-                    {result.isExpense && <Badge variant="secondary">Expense</Badge>}
-                    {result.isTaxRelevant && <Badge className="bg-amber-500/10 text-amber-600">Tax Relevant</Badge>}
-                    {result.vatApplicable && <Badge className="bg-emerald-500/10 text-emerald-600">VAT Applicable</Badge>}
+                    {result.taxImplications?.vatApplicable && <Badge className="bg-emerald-500/10 text-emerald-600">VAT Applicable</Badge>}
+                    {result.taxImplications?.deductible && <Badge className="bg-amber-500/10 text-amber-600">Deductible</Badge>}
+                    {result.taxImplications?.emtlCharged && <Badge variant="secondary">EMTL</Badge>}
+                    {result.taxImplications?.stampDutyCharged && <Badge variant="secondary">Stamp Duty</Badge>}
+                    {result.needsConfirmation && <Badge variant="outline" className="border-destructive/50 text-destructive">Needs Confirmation</Badge>}
                   </div>
                 </div>
 
                 <div className="border-t border-border pt-3 mt-3">
                   <p className="text-sm font-medium mb-2">Nigerian Flags</p>
                   <div className="flex flex-wrap gap-2">
-                    {result.nigerianFlags?.isPOS && (
+                    {result.nigerianFlags?.isPosTransaction && (
                       <Badge variant="outline" className="gap-1">
                         <CreditCard className="h-3 w-3" /> POS
                       </Badge>
                     )}
-                    {result.nigerianFlags?.isUSSD && (
+                    {result.nigerianFlags?.isUssdTransaction && (
                       <Badge variant="outline" className="gap-1">
                         <Smartphone className="h-3 w-3" /> USSD
                       </Badge>
@@ -322,7 +330,7 @@ export default function AdminClassificationTesting() {
                         <Smartphone className="h-3 w-3" /> Mobile Money
                       </Badge>
                     )}
-                    {result.nigerianFlags?.isBankCharge && (
+                    {result.nigerianFlags?.isNigerianBankCharge && (
                       <Badge variant="outline" className="gap-1">
                         <Building2 className="h-3 w-3" /> Bank Charge
                       </Badge>
@@ -332,15 +340,7 @@ export default function AdminClassificationTesting() {
                         <Globe className="h-3 w-3" /> Foreign Currency
                       </Badge>
                     )}
-                    {result.nigerianFlags?.isTransfer && (
-                      <Badge variant="outline" className="gap-1">
-                        <Banknote className="h-3 w-3" /> Transfer
-                      </Badge>
-                    )}
-                    {result.nigerianFlags?.isCapitalInjection && (
-                      <Badge variant="outline">Capital Injection</Badge>
-                    )}
-                    {result.nigerianFlags?.isEMTL && (
+                    {result.nigerianFlags?.isEmtl && (
                       <Badge variant="outline">EMTL</Badge>
                     )}
                     {result.nigerianFlags?.isStampDuty && (
@@ -441,7 +441,7 @@ USSD AIRTIME MTN, 2000, debit"
                         {row.result ? `${(row.result.confidence * 100).toFixed(0)}%` : '-'}
                       </td>
                       <td className="py-2 px-3">
-                        {row.result?.source && <Badge variant="secondary">{row.result.source}</Badge>}
+                        {row.result?.tier && <Badge variant="secondary">{row.result.tier}</Badge>}
                       </td>
                       <td className="py-2 px-3 text-center">
                         {row.error ? (
