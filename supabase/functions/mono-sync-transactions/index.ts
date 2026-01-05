@@ -106,8 +106,8 @@ serve(async (req) => {
       }
 
       const isCredit = txn.type === 'credit';
-      
-      const { error: insertError } = await supabase
+
+      const { data: insertedTxn, error: insertError } = await supabase
         .from('bank_transactions')
         .insert({
           user_id: resolvedUserId,
@@ -123,12 +123,37 @@ serve(async (req) => {
             category: txn.category,
             raw: txn
           }
-        });
+        })
+        .select('id')
+        .single();
 
       if (insertError) {
         console.error('[mono-sync] Insert error:', insertError);
       } else {
         insertedCount++;
+
+        // Auto-classify the transaction
+        try {
+          const classifyResponse = await supabase.functions.invoke('classify-transaction', {
+            body: {
+              transactionId: insertedTxn.id,
+              narration: txn.narration || txn.description || '',
+              amount: txn.amount / 100,
+              type: isCredit ? 'credit' : 'debit',
+              date: txn.date,
+              userId: resolvedUserId,
+              saveResult: true
+            }
+          });
+
+          if (classifyResponse.error) {
+            console.warn('[mono-sync] Classification failed for:', insertedTxn.id, classifyResponse.error);
+          } else {
+            console.log('[mono-sync] Classified:', insertedTxn.id, classifyResponse.data?.classification);
+          }
+        } catch (classifyError) {
+          console.warn('[mono-sync] Classification error:', classifyError);
+        }
       }
     }
 
