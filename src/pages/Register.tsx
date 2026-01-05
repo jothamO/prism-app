@@ -121,20 +121,42 @@ export default function Register() {
         body: formData
       });
 
-      if (error) throw error;
-
-      if (data.success) {
-        setTelegramLink(data.telegramLink || '');
-        setRegistrationComplete(true);
+      // Handle edge function errors (including 400 responses)
+      if (error) {
+        // Try to extract error message from the response
+        const errorMessage = error.message || 'Registration failed';
         toast({
-          title: "Registration successful!",
-          description: formData.platform === 'web' 
-            ? "You can now access your dashboard"
-            : "Click the button to connect your Telegram"
+          title: "Registration failed",
+          description: errorMessage.includes('already been registered') 
+            ? "This email is already registered. Please log in instead."
+            : errorMessage,
+          variant: "destructive"
         });
-      } else {
-        throw new Error(data.error || 'Registration failed');
+        return;
       }
+
+      // Handle success: false responses
+      if (!data?.success) {
+        const errorMessage = data?.error || 'Registration failed';
+        toast({
+          title: "Registration failed",
+          description: errorMessage.includes('already registered') 
+            ? "This email is already registered. Please log in instead."
+            : errorMessage,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Success
+      setTelegramLink(data.telegramLink || '');
+      setRegistrationComplete(true);
+      toast({
+        title: "Registration successful!",
+        description: formData.platform === 'web' 
+          ? "You can now access your dashboard"
+          : "Click the button to connect your Telegram"
+      });
     } catch (error: any) {
       console.error('Registration error:', error);
       toast({
