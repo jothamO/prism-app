@@ -50,10 +50,11 @@ export function useUserInsights(): UseUserInsightsReturn {
       setLoading(true);
       setError(null);
 
+      // Query by auth_user_id for frontend compatibility (auth.users.id = profiles.id)
       const { data, error: fetchError } = await supabase
         .from('user_insights')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('auth_user_id', user.id)
         .order('priority', { ascending: true })
         .order('created_at', { ascending: false });
 

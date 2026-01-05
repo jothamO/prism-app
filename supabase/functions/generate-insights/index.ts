@@ -246,6 +246,16 @@ serve(async (req) => {
         const targetMonth = month || getCurrentMonth();
         console.log('[generate-insights] Processing for user:', userId, 'month:', targetMonth);
 
+        // Lookup auth_user_id for frontend compatibility
+        const { data: userRecord } = await supabase
+            .from('users')
+            .select('auth_user_id')
+            .eq('id', userId)
+            .single();
+
+        const authUserId = userRecord?.auth_user_id || null;
+        console.log('[generate-insights] User auth_user_id:', authUserId);
+
         const insights: Insight[] = [];
 
         // Check for unclaimed deductions
@@ -281,6 +291,7 @@ serve(async (req) => {
         if (saveInsights && insights.length > 0) {
             const insightsToSave = insights.map(insight => ({
                 user_id: userId,
+                auth_user_id: authUserId, // Add auth_user_id for frontend lookup
                 type: insight.type,
                 priority: insight.priority,
                 title: insight.title,
@@ -294,7 +305,7 @@ serve(async (req) => {
             }));
 
             await supabase.from('user_insights').insert(insightsToSave);
-            console.log('[generate-insights] Saved', insightsToSave.length, 'insights');
+            console.log('[generate-insights] Saved', insightsToSave.length, 'insights with auth_user_id:', authUserId);
         }
 
         console.log('[generate-insights] Generated', insights.length, 'insights, total potential savings:', totalSavings);
