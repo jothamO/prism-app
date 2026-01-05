@@ -677,13 +677,19 @@ export type Database = {
           annual_turnover: number | null
           business_stage: string | null
           business_type: string | null
+          cac_data: Json | null
+          cac_number: string | null
           cac_registration_number: string | null
+          cac_verified: boolean | null
           capital_source: string | null
           classification: string | null
           classification_year: number | null
+          company_size: string | null
           created_at: string
+          handles_project_funds: boolean | null
           id: string
           industry: string | null
+          industry_code: string | null
           informal_business: boolean | null
           is_default: boolean | null
           is_primary: boolean | null
@@ -693,11 +699,17 @@ export type Database = {
           next_filing_date: string | null
           onboarding_completed: boolean | null
           onboarding_completed_at: string | null
+          owner_user_id: string | null
           receives_capital_support: boolean | null
           registration_number: string
           registration_type: string | null
+          revenue_range: string | null
+          tax_category: string | null
           tax_rate: number | null
+          tell_us_about_business: string | null
           tin: string | null
+          tin_data: Json | null
+          tin_verified: boolean | null
           total_fixed_assets: number | null
           updated_at: string
           user_id: string
@@ -709,13 +721,19 @@ export type Database = {
           annual_turnover?: number | null
           business_stage?: string | null
           business_type?: string | null
+          cac_data?: Json | null
+          cac_number?: string | null
           cac_registration_number?: string | null
+          cac_verified?: boolean | null
           capital_source?: string | null
           classification?: string | null
           classification_year?: number | null
+          company_size?: string | null
           created_at?: string
+          handles_project_funds?: boolean | null
           id?: string
           industry?: string | null
+          industry_code?: string | null
           informal_business?: boolean | null
           is_default?: boolean | null
           is_primary?: boolean | null
@@ -725,11 +743,17 @@ export type Database = {
           next_filing_date?: string | null
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
+          owner_user_id?: string | null
           receives_capital_support?: boolean | null
           registration_number: string
           registration_type?: string | null
+          revenue_range?: string | null
+          tax_category?: string | null
           tax_rate?: number | null
+          tell_us_about_business?: string | null
           tin?: string | null
+          tin_data?: Json | null
+          tin_verified?: boolean | null
           total_fixed_assets?: number | null
           updated_at?: string
           user_id: string
@@ -741,13 +765,19 @@ export type Database = {
           annual_turnover?: number | null
           business_stage?: string | null
           business_type?: string | null
+          cac_data?: Json | null
+          cac_number?: string | null
           cac_registration_number?: string | null
+          cac_verified?: boolean | null
           capital_source?: string | null
           classification?: string | null
           classification_year?: number | null
+          company_size?: string | null
           created_at?: string
+          handles_project_funds?: boolean | null
           id?: string
           industry?: string | null
+          industry_code?: string | null
           informal_business?: boolean | null
           is_default?: boolean | null
           is_primary?: boolean | null
@@ -757,11 +787,17 @@ export type Database = {
           next_filing_date?: string | null
           onboarding_completed?: boolean | null
           onboarding_completed_at?: string | null
+          owner_user_id?: string | null
           receives_capital_support?: boolean | null
           registration_number?: string
           registration_type?: string | null
+          revenue_range?: string | null
+          tax_category?: string | null
           tax_rate?: number | null
+          tell_us_about_business?: string | null
           tin?: string | null
+          tin_data?: Json | null
+          tin_verified?: boolean | null
           total_fixed_assets?: number | null
           updated_at?: string
           user_id?: string
@@ -2404,6 +2440,7 @@ export type Database = {
       }
       users: {
         Row: {
+          account_type: string | null
           age: number | null
           auth_user_id: string | null
           auto_categorize: boolean | null
@@ -2413,6 +2450,9 @@ export type Database = {
           business_name: string | null
           business_sector: string | null
           business_type: string | null
+          bvn: string | null
+          bvn_verified: boolean | null
+          bvn_verified_name: string | null
           cac_number: string | null
           company_name: string | null
           consent_given: boolean | null
@@ -2422,26 +2462,41 @@ export type Database = {
           first_name: string | null
           full_name: string | null
           has_active_vat: boolean | null
+          has_business_income: boolean | null
+          has_freelance_income: boolean | null
+          has_investment_income: boolean | null
+          has_pension_income: boolean | null
+          has_rental_income: boolean | null
+          has_salary_income: boolean | null
           id: string
           income_type: string | null
+          informal_business: boolean | null
           insight_frequency: string | null
           is_active: boolean | null
           is_blocked: boolean | null
+          kyc_level: number | null
           last_name: string | null
+          location: string | null
           nin: string | null
+          nin_verified: boolean | null
+          nin_verified_name: string | null
           notification_preferences: Json | null
+          occupation: string | null
           onboarding_completed: boolean | null
           onboarding_step: number | null
           phone: string | null
           platform: string | null
           primary_tax_category: string | null
+          profile_confidence: number | null
           subscription_expires_at: string | null
           subscription_status: string | null
           subscription_tier: string | null
+          tax_category: string | null
           tax_profile_summary: Json | null
           tax_regime: string | null
           telegram_id: string | null
           telegram_username: string | null
+          tell_us_about_yourself: string | null
           tin: string | null
           updated_at: string | null
           verification_data: Json | null
@@ -2453,6 +2508,7 @@ export type Database = {
           work_status: string | null
         }
         Insert: {
+          account_type?: string | null
           age?: number | null
           auth_user_id?: string | null
           auto_categorize?: boolean | null
@@ -2462,6 +2518,9 @@ export type Database = {
           business_name?: string | null
           business_sector?: string | null
           business_type?: string | null
+          bvn?: string | null
+          bvn_verified?: boolean | null
+          bvn_verified_name?: string | null
           cac_number?: string | null
           company_name?: string | null
           consent_given?: boolean | null
@@ -2471,26 +2530,41 @@ export type Database = {
           first_name?: string | null
           full_name?: string | null
           has_active_vat?: boolean | null
+          has_business_income?: boolean | null
+          has_freelance_income?: boolean | null
+          has_investment_income?: boolean | null
+          has_pension_income?: boolean | null
+          has_rental_income?: boolean | null
+          has_salary_income?: boolean | null
           id?: string
           income_type?: string | null
+          informal_business?: boolean | null
           insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
+          kyc_level?: number | null
           last_name?: string | null
+          location?: string | null
           nin?: string | null
+          nin_verified?: boolean | null
+          nin_verified_name?: string | null
           notification_preferences?: Json | null
+          occupation?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           phone?: string | null
           platform?: string | null
           primary_tax_category?: string | null
+          profile_confidence?: number | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
+          tax_category?: string | null
           tax_profile_summary?: Json | null
           tax_regime?: string | null
           telegram_id?: string | null
           telegram_username?: string | null
+          tell_us_about_yourself?: string | null
           tin?: string | null
           updated_at?: string | null
           verification_data?: Json | null
@@ -2502,6 +2576,7 @@ export type Database = {
           work_status?: string | null
         }
         Update: {
+          account_type?: string | null
           age?: number | null
           auth_user_id?: string | null
           auto_categorize?: boolean | null
@@ -2511,6 +2586,9 @@ export type Database = {
           business_name?: string | null
           business_sector?: string | null
           business_type?: string | null
+          bvn?: string | null
+          bvn_verified?: boolean | null
+          bvn_verified_name?: string | null
           cac_number?: string | null
           company_name?: string | null
           consent_given?: boolean | null
@@ -2520,26 +2598,41 @@ export type Database = {
           first_name?: string | null
           full_name?: string | null
           has_active_vat?: boolean | null
+          has_business_income?: boolean | null
+          has_freelance_income?: boolean | null
+          has_investment_income?: boolean | null
+          has_pension_income?: boolean | null
+          has_rental_income?: boolean | null
+          has_salary_income?: boolean | null
           id?: string
           income_type?: string | null
+          informal_business?: boolean | null
           insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
+          kyc_level?: number | null
           last_name?: string | null
+          location?: string | null
           nin?: string | null
+          nin_verified?: boolean | null
+          nin_verified_name?: string | null
           notification_preferences?: Json | null
+          occupation?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
           phone?: string | null
           platform?: string | null
           primary_tax_category?: string | null
+          profile_confidence?: number | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           subscription_tier?: string | null
+          tax_category?: string | null
           tax_profile_summary?: Json | null
           tax_regime?: string | null
           telegram_id?: string | null
           telegram_username?: string | null
+          tell_us_about_yourself?: string | null
           tin?: string | null
           updated_at?: string | null
           verification_data?: Json | null
