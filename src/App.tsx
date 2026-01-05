@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
+import Insights from "./pages/Insights";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -31,6 +32,7 @@ import AdminNLUTesting from "./pages/admin/AdminNLUTesting";
 import AdminMLHealth from "./pages/admin/AdminMLHealth";
 import AdminPatterns from "./pages/admin/AdminPatterns";
 import AdminDocuments from "./pages/admin/AdminDocuments";
+import AdminClassificationTesting from "./pages/admin/AdminClassificationTesting";
 
 function App() {
   return (
@@ -46,12 +48,20 @@ function App() {
             <Route path="/bank-connected" element={<BankConnected />} />
             <Route path="/admin/login" element={<AdminLogin />} />
 
-            {/* Protected Dashboard */}
+            {/* Protected User Routes */}
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/insights"
+              element={
+                <ProtectedRoute>
+                  <Insights />
                 </ProtectedRoute>
               }
             />
@@ -82,8 +92,8 @@ function App() {
               <Route path="simulator" element={<AdminSimulator />} />
               <Route path="nlu-testing" element={<AdminNLUTesting />} />
               <Route path="vat-testing" element={<AdminVATTesting />} />
+              <Route path="classification-testing" element={<AdminClassificationTesting />} />
               <Route path="patterns" element={<AdminPatterns />} />
-              <Route path="documents" element={<AdminDocuments />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
