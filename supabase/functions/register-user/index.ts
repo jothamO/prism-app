@@ -45,6 +45,32 @@ interface RegistrationRequest {
   bvnVerifiedName?: string;
 }
 
+/**
+ * Validate password strength
+ * Must have: 8+ chars, uppercase, lowercase, number, special char
+ */
+function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (password.length < 8) {
+    errors.push('Password must be at least 8 characters');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Password must contain an uppercase letter');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('Password must contain a lowercase letter');
+  }
+  if (!/\d/.test(password)) {
+    errors.push('Password must contain a number');
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    errors.push('Password must contain a special character');
+  }
+  
+  return { valid: errors.length === 0, errors };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -66,6 +92,19 @@ serve(async (req) => {
     if (!body.fullName || !body.email || !body.phone || !body.password) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing required fields' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(body.password);
+    if (!passwordValidation.valid) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Password does not meet requirements',
+          passwordErrors: passwordValidation.errors 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
