@@ -71,3 +71,9 @@ verify_jwt = false
 
 [functions.mono-sync-transactions]
 verify_jwt = false
+
+[functions.verify-identity]
+verify_jwt = false
+
+[functions.register-business]
+verify_jwt = false
