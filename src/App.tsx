@@ -48,6 +48,9 @@ import AdminClassificationTesting from "./pages/admin/AdminClassificationTesting
 import AdminLogs from "./pages/admin/AdminLogs";
 import AdminCompliance from "./pages/admin/AdminCompliance";
 import AdminComplianceDocuments from "./pages/admin/AdminComplianceDocuments";
+import AdminComplianceDocumentDetail from "./pages/admin/AdminComplianceDocumentDetail";
+import AdminComplianceRules from "./pages/admin/AdminComplianceRules";
+import AdminComplianceChangelog from "./pages/admin/AdminComplianceChangelog";
 import AcceptInvite from "./pages/AcceptInvite";
 
 function App() {
@@ -183,6 +186,9 @@ function App() {
               <Route path="logs" element={<AdminLogs />} />
               <Route path="compliance" element={<AdminCompliance />} />
               <Route path="compliance/documents" element={<AdminComplianceDocuments />} />
+              <Route path="compliance/documents/:id" element={<AdminComplianceDocumentDetail />} />
+              <Route path="compliance/rules" element={<AdminComplianceRules />} />
+              <Route path="compliance/changelog" element={<AdminComplianceChangelog />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import {
     Upload,
     FileText,
@@ -30,7 +31,7 @@ interface LegalDocument {
     regulatory_body_id: string | null;
     summary: string | null;
     created_at: string;
-    regulatory_bodies?: { code: string; full_name: string };
+    regulatory_bodies?: { id: string; code: string; full_name: string };
 }
 
 interface RegulatoryBody {
@@ -52,6 +53,7 @@ const DOCUMENT_TYPES = [
 export default function AdminComplianceDocuments() {
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [searchParams] = useSearchParams();
 
     const [loading, setLoading] = useState(true);
     const [documents, setDocuments] = useState<LegalDocument[]>([]);
@@ -75,6 +77,24 @@ export default function AdminComplianceDocuments() {
         isUrgent: false,
     });
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+    // Handle URL query parameters
+    useEffect(() => {
+        const action = searchParams.get("action");
+        const filter = searchParams.get("filter");
+        const body = searchParams.get("body");
+
+        if (action === "new") {
+            setShowUploadModal(true);
+        }
+        if (filter === "pending") {
+            setFilterStatus("pending_review");
+        }
+        if (body) {
+            // Will be applied after regulatory bodies are loaded
+            setFilterBody(body);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         fetchData();

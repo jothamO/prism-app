@@ -94,6 +94,9 @@ export default function AdminLayout() {
       defaultOpen: true,
       items: [
         { name: "Knowledge Base", path: "/admin/compliance", icon: Scale },
+        { name: "Documents", path: "/admin/compliance/documents", icon: FileText },
+        { name: "Rules", path: "/admin/compliance/rules", icon: Scale },
+        { name: "Change Log", path: "/admin/compliance/changelog", icon: ScrollText },
         { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
         { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
         { name: "Filings", path: "/admin/filings", icon: FileText },

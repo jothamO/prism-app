@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { AlertTriangle, Search, Check, X, Eye, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ReviewItem {
   id: string;
@@ -19,6 +25,7 @@ interface ReviewItem {
     total: number;
     vat_amount: number;
     date: string;
+    items: unknown;
   };
   user?: {
     business_name: string;
@@ -31,6 +38,7 @@ export default function AdminReviews() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedReview, setSelectedReview] = useState<ReviewItem | null>(null);
 
   useEffect(() => {
     fetchReviews();
@@ -42,7 +50,7 @@ export default function AdminReviews() {
       .from("review_queue")
       .select(`
         *,
-        invoice:invoices(invoice_number, customer_name, total, vat_amount, date),
+        invoice:invoices(invoice_number, customer_name, total, vat_amount, date, items),
         user:users(business_name, whatsapp_number)
       `)
       .eq("status", "pending")
@@ -64,6 +72,7 @@ export default function AdminReviews() {
 
     if (!error) {
       setReviews(reviews.filter(r => r.id !== id));
+      setSelectedReview(null);
     }
   }
 
@@ -75,6 +84,7 @@ export default function AdminReviews() {
 
     if (!error) {
       setReviews(reviews.filter(r => r.id !== id));
+      setSelectedReview(null);
     }
   }
 
@@ -241,6 +251,7 @@ export default function AdminReviews() {
                       size="sm"
                       variant="ghost"
                       className="text-muted-foreground"
+                      onClick={() => setSelectedReview(review)}
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
@@ -251,6 +262,104 @@ export default function AdminReviews() {
           </div>
         )}
       </div>
+
+      {/* Detail Modal */}
+      <Dialog open={!!selectedReview} onOpenChange={() => setSelectedReview(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review Details</DialogTitle>
+          </DialogHeader>
+          {selectedReview && (
+            <div className="space-y-6">
+              {/* Invoice Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Invoice Number</p>
+                  <p className="text-sm font-medium text-foreground">{selectedReview.invoice?.invoice_number || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Customer</p>
+                  <p className="text-sm font-medium text-foreground">{selectedReview.invoice?.customer_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Amount</p>
+                  <p className="text-sm font-medium text-foreground">₦{selectedReview.invoice?.total?.toLocaleString() || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">VAT Amount</p>
+                  <p className="text-sm font-medium text-foreground">₦{selectedReview.invoice?.vat_amount?.toLocaleString() || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Date</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {selectedReview.invoice?.date ? new Date(selectedReview.invoice.date).toLocaleDateString() : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Business</p>
+                  <p className="text-sm font-medium text-foreground">{selectedReview.user?.business_name || "—"}</p>
+                </div>
+              </div>
+
+              {/* Risk Assessment */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Risk Assessment</p>
+                <span className={`px-2 py-1 text-xs font-medium rounded border ${getRiskBadgeStyles(selectedReview.priority)}`}>
+                  {selectedReview.priority.toUpperCase()} RISK (Score: {selectedReview.priority_score})
+                </span>
+              </div>
+
+              {/* Reasons */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Flagged Reasons</p>
+                <div className="space-y-2">
+                  {selectedReview.reasons.map((reason, idx) => {
+                    const taxRef = getTaxActReference(reason);
+                    return (
+                      <div key={idx} className="flex items-start gap-2 p-2 bg-muted/30 rounded">
+                        <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-sm text-muted-foreground flex-1">{reason}</span>
+                        {taxRef && (
+                          <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">
+                            NTA 2025 {taxRef}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* AI Notes */}
+              {selectedReview.notes && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">AI Recommendation</p>
+                  <p className="text-sm text-foreground p-3 bg-muted/30 rounded">{selectedReview.notes}</p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t border-border">
+                <Button
+                  variant="outline"
+                  onClick={() => handleReject(selectedReview.id)}
+                  className="text-red-400 border-red-500/20 hover:bg-red-500/10"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Reject
+                </Button>
+                <Button
+                  onClick={() => handleApprove(selectedReview.id)}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Approve
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
