@@ -85,6 +85,14 @@ export default function AdminMLHealth() {
       if (modelsError) throw modelsError;
       setModels(modelsData || []);
 
+      // Fetch TOTAL untrained feedback count (not limited to 14 days)
+      const { count: totalUntrainedCount, error: untrainedError } = await supabase
+        .from("ai_feedback")
+        .select("id", { count: "exact", head: true })
+        .eq("used_in_training", false);
+
+      if (untrainedError) throw untrainedError;
+
       // Fetch feedback for trends (last 14 days)
       const twoWeeksAgo = new Date();
       twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
@@ -108,9 +116,6 @@ export default function AdminMLHealth() {
         trendMap.set(date, existing);
       });
       setFeedbackTrends(Array.from(trendMap.values()));
-
-      // Count untrained feedback
-      const untrainedCount = feedbackData?.filter(f => !f.used_in_training).length || 0;
       
       // Calculate next training (next Sunday 2 AM)
       const now = new Date();
@@ -125,7 +130,7 @@ export default function AdminMLHealth() {
         status: 'scheduled',
         lastRun: modelsData?.[0]?.trained_at || null,
         nextRun: nextSunday.toISOString(),
-        untrainedCount,
+        untrainedCount: totalUntrainedCount || 0,
       });
 
       // Fetch pattern stats
