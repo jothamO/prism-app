@@ -12,6 +12,7 @@ import Transactions from "./pages/Transactions";
 import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import TaxCalendar from "./pages/TaxCalendar";
+import EducationCenter from "./pages/EducationCenter";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -117,6 +118,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <TaxCalendar />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/education"
+              element={
+                <ProtectedRoute>
+                  <EducationCenter />
                 </ProtectedRoute>
               }
             />
