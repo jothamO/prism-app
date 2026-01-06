@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Users, Building2, UserCheck } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Plus, Trash2, Users, Building2, UserCheck, RefreshCw } from "lucide-react";
 
 interface RelatedParty {
   id: string;
@@ -30,6 +31,8 @@ export default function AdminRelatedParties() {
   const [relatedParties, setRelatedParties] = useState<RelatedParty[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [deletePartyId, setDeletePartyId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [newParty, setNewParty] = useState({
     party_name: '',
     party_tin: '',
@@ -107,11 +110,14 @@ export default function AdminRelatedParties() {
     }
   };
 
-  const handleDeleteParty = async (id: string) => {
+  const handleDeleteParty = async () => {
+    if (!deletePartyId) return;
+    
+    setDeleting(true);
     const { error } = await supabase
       .from('related_parties')
       .delete()
-      .eq('id', id);
+      .eq('id', deletePartyId);
 
     if (error) {
       toast({
@@ -126,6 +132,8 @@ export default function AdminRelatedParties() {
       });
       fetchRelatedParties();
     }
+    setDeleting(false);
+    setDeletePartyId(null);
   };
 
   const getRelationshipLabel = (type: string) => {
@@ -136,6 +144,8 @@ export default function AdminRelatedParties() {
     const RelIcon = RELATIONSHIP_TYPES.find(r => r.value === type)?.icon || Users;
     return <RelIcon className="w-4 h-4" />;
   };
+
+  const partyToDelete = relatedParties.find(p => p.id === deletePartyId);
 
   return (
     <div className="space-y-6">
@@ -151,6 +161,18 @@ export default function AdminRelatedParties() {
           Add Related Party
         </Button>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deletePartyId}
+        onOpenChange={(open) => !open && setDeletePartyId(null)}
+        title="Delete Related Party"
+        description={`Are you sure you want to remove "${partyToDelete?.party_name}"? This will stop automatic detection for transactions with this party.`}
+        confirmText="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteParty}
+        loading={deleting}
+      />
 
       {showAddForm && (
         <Card className="border-primary/20">
@@ -223,7 +245,10 @@ export default function AdminRelatedParties() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+              Loading...
+            </div>
           ) : relatedParties.length === 0 ? (
             <div className="text-center py-8">
               <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
@@ -262,7 +287,7 @@ export default function AdminRelatedParties() {
                     variant="ghost"
                     size="sm"
                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDeleteParty(party.id)}
+                    onClick={() => setDeletePartyId(party.id)}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

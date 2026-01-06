@@ -1,6 +1,16 @@
 import { FileText, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminInvoices() {
+  const { toast } = useToast();
+
+  const handleCreateInvoice = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Invoice creation will be available in a future update.",
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -8,7 +18,10 @@ export default function AdminInvoices() {
           <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage client invoices and billing</p>
         </div>
-        <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+        <button 
+          onClick={handleCreateInvoice}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+        >
           <Plus className="w-4 h-4" /> Create Invoice
         </button>
       </div>

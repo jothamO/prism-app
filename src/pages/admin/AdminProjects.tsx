@@ -12,6 +12,7 @@ import {
 import { Search, MoreHorizontal, ArrowUpDown, FolderPlus, CheckCircle, Clock, AlertTriangle, Eye, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 type Project = {
   id: string;
@@ -39,12 +40,27 @@ function formatCurrency(amount: number): string {
 }
 
 export default function AdminProjects() {
+  const { toast } = useToast();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+
+  const handleNewProject = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Project creation will be available in a future update. Projects are created via WhatsApp.",
+    });
+  };
+
+  const handleGenerateStatement = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Statement generation will be available in a future update.",
+    });
+  };
 
   useEffect(() => {
     fetchProjects();
@@ -207,6 +223,7 @@ export default function AdminProjects() {
             <Eye className="w-4 h-4" />
           </button>
           <button 
+            onClick={handleGenerateStatement}
             className="p-2 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-colors"
             title="Generate Statement"
           >
@@ -253,7 +270,10 @@ export default function AdminProjects() {
           <h1 className="text-2xl font-bold text-foreground">Project Funds</h1>
           <p className="text-muted-foreground text-sm mt-1">Track third-party agency funds (Section 5 compliance)</p>
         </div>
-        <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+        <button 
+          onClick={handleNewProject}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+        >
           <FolderPlus className="w-4 h-4" /> New Project
         </button>
       </div>
@@ -402,7 +422,10 @@ export default function AdminProjects() {
             </div>
 
             <div className="mt-6 flex gap-3">
-              <button className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
+              <button 
+                onClick={handleGenerateStatement}
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
                 <FileText className="w-4 h-4" /> Generate Statement
               </button>
               <button 

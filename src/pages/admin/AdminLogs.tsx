@@ -296,6 +296,18 @@ export default function AdminLogs() {
         </div>
       </div>
 
+      {/* Info Banner */}
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 flex items-start gap-3">
+        <CheckCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-medium text-foreground">Application-Level Logs</p>
+          <p className="text-muted-foreground mt-0.5">
+            This page shows application events synthesized from database records (ML training, feedback, classifications). 
+            For raw server logs and edge function debugging, check the backend panel in your project settings.
+          </p>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>

@@ -1,6 +1,16 @@
 import { CreditCard, Download } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminPayments() {
+  const { toast } = useToast();
+
+  const handleExportCSV = () => {
+    toast({
+      title: "Coming Soon",
+      description: "CSV export will be available once there are payments to export.",
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -8,7 +18,10 @@ export default function AdminPayments() {
           <h1 className="text-2xl font-bold text-foreground">Payments</h1>
           <p className="text-muted-foreground text-sm mt-1">Transaction history and payouts</p>
         </div>
-        <button className="px-4 py-2 border border-border rounded-lg text-foreground hover:bg-accent flex items-center gap-2 transition-colors">
+        <button 
+          onClick={handleExportCSV}
+          className="px-4 py-2 border border-border rounded-lg text-foreground hover:bg-accent flex items-center gap-2 transition-colors"
+        >
           <Download className="w-4 h-4" /> Export CSV
         </button>
       </div>

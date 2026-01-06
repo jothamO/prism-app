@@ -1,6 +1,16 @@
 import { FileText, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminFilings() {
+  const { toast } = useToast();
+
+  const handleNewFiling = () => {
+    toast({
+      title: "Coming Soon",
+      description: "Filing creation will be available in a future update.",
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -8,7 +18,10 @@ export default function AdminFilings() {
           <h1 className="text-2xl font-bold text-foreground">Filings Management</h1>
           <p className="text-muted-foreground text-sm mt-1">Track and manage tax filings</p>
         </div>
-        <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+        <button 
+          onClick={handleNewFiling}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+        >
           <Plus className="w-4 h-4" /> New Filing
         </button>
       </div>
