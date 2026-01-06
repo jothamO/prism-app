@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { ConfidenceGauge } from "./ConfidenceGauge";
 import { useProfileLearning, LearningHistory } from "@/hooks/useProfileLearning";
 import { useToast } from "@/hooks/use-toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ProfileLearningTabProps {
   userId: string;
@@ -28,6 +29,7 @@ export function ProfileLearningTab({ userId }: ProfileLearningTabProps) {
   const { data, loading, error, confirmProfile, resetLearning, refetch } = useProfileLearning(userId);
   const { toast } = useToast();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   if (loading) {
     return (
@@ -68,9 +70,7 @@ export function ProfileLearningTab({ userId }: ProfileLearningTabProps) {
   };
 
   const handleResetLearning = async () => {
-    if (!confirm("Are you sure you want to reset all learning data for this user? This cannot be undone.")) {
-      return;
-    }
+    setShowResetConfirm(false);
     setActionLoading("reset");
     try {
       await resetLearning();
@@ -250,7 +250,7 @@ export function ProfileLearningTab({ userId }: ProfileLearningTabProps) {
         </button>
         
         <button
-          onClick={handleResetLearning}
+          onClick={() => setShowResetConfirm(true)}
           disabled={actionLoading !== null}
           className="flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
         >
@@ -258,6 +258,18 @@ export function ProfileLearningTab({ userId }: ProfileLearningTabProps) {
           {actionLoading === "reset" ? "Resetting..." : "Reset Learning"}
         </button>
       </div>
+
+      {/* Reset Learning Confirmation Dialog */}
+      <ConfirmDialog
+        open={showResetConfirm}
+        onOpenChange={setShowResetConfirm}
+        title="Reset Learning Data"
+        description="This will permanently delete all learned patterns, income sources, and spending categories for this user. This action cannot be undone."
+        confirmText="Reset Learning"
+        variant="destructive"
+        onConfirm={handleResetLearning}
+        loading={actionLoading === "reset"}
+      />
     </div>
   );
 }

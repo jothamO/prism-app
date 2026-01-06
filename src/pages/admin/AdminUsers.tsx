@@ -32,6 +32,7 @@ import { SendMessageModal } from "@/components/admin/SendMessageModal";
 import { AddUserModal } from "@/components/admin/AddUserModal";
 import { BulkActionBar } from "@/components/admin/BulkActionBar";
 import { BulkConfirmModal } from "@/components/admin/BulkConfirmModal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type User = {
   id: string;
@@ -160,6 +161,8 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [messageUser, setMessageUser] = useState<User | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   // Bulk action state
   const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
@@ -339,44 +342,52 @@ export default function AdminUsers() {
         break;
       
       case 'delete':
-        if (confirm(`Are you sure you want to delete ${user.name}? This will permanently remove all their data and cannot be undone.`)) {
-          try {
-            // Use edge function for full cascade delete (handles both bot users and web profiles)
-            const { data, error } = await supabase.functions.invoke('admin-bot-messaging', {
-              body: {
-                action: 'delete-user',
-                userId: user.id,
-              },
-            });
-
-            if (error) throw error;
-            
-            if (!data?.success) {
-              throw new Error(data?.error || 'Delete failed');
-            }
-
-            // Also delete from profiles table if this is a web user or has auth_user_id
-            if (user.platform === 'web') {
-              await supabase.from('profiles').delete().eq('id', user.id);
-              // Delete from user_roles as well
-              await supabase.from('user_roles').delete().eq('user_id', user.id);
-            } else if (user.authUserId) {
-              await supabase.from('profiles').delete().eq('id', user.authUserId);
-              await supabase.from('user_roles').delete().eq('user_id', user.authUserId);
-            }
-            
-            toast({ title: "User Deleted", description: `${user.name} and all related data have been deleted` });
-            fetchUsers();
-          } catch (error) {
-            console.error("Error deleting user:", error);
-            toast({ 
-              title: "Error", 
-              description: error instanceof Error ? error.message : "Failed to delete user", 
-              variant: "destructive" 
-            });
-          }
-        }
+        setDeleteUser(user);
         break;
+    }
+  }
+
+  async function executeDeleteUser() {
+    if (!deleteUser) return;
+    
+    setDeleteLoading(true);
+    try {
+      // Use edge function for full cascade delete (handles both bot users and web profiles)
+      const { data, error } = await supabase.functions.invoke('admin-bot-messaging', {
+        body: {
+          action: 'delete-user',
+          userId: deleteUser.id,
+        },
+      });
+
+      if (error) throw error;
+      
+      if (!data?.success) {
+        throw new Error(data?.error || 'Delete failed');
+      }
+
+      // Also delete from profiles table if this is a web user or has auth_user_id
+      if (deleteUser.platform === 'web') {
+        await supabase.from('profiles').delete().eq('id', deleteUser.id);
+        // Delete from user_roles as well
+        await supabase.from('user_roles').delete().eq('user_id', deleteUser.id);
+      } else if (deleteUser.authUserId) {
+        await supabase.from('profiles').delete().eq('id', deleteUser.authUserId);
+        await supabase.from('user_roles').delete().eq('user_id', deleteUser.authUserId);
+      }
+      
+      toast({ title: "User Deleted", description: `${deleteUser.name} and all related data have been deleted` });
+      fetchUsers();
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to delete user", 
+        variant: "destructive" 
+      });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteUser(null);
     }
   }
 
@@ -727,6 +738,18 @@ export default function AdminUsers() {
           </div>
         </div>
       </div>
+
+      {/* Delete User Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteUser}
+        onOpenChange={(open) => !open && setDeleteUser(null)}
+        title="Delete User"
+        description={`Are you sure you want to delete ${deleteUser?.name || 'this user'}? This will permanently remove all their data and cannot be undone.`}
+        confirmText="Delete User"
+        variant="destructive"
+        onConfirm={executeDeleteUser}
+        loading={deleteLoading}
+      />
     </div>
     </>
   );

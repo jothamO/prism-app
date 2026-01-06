@@ -17,6 +17,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { usePatternManagement, ClassificationPattern } from "@/hooks/usePatternManagement";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function AdminPatterns() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -27,6 +28,8 @@ export default function AdminPatterns() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false);
   const [newCategory, setNewCategory] = useState("");
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [deletePatternId, setDeletePatternId] = useState<string | null>(null);
 
   const { 
     patterns, 
@@ -80,10 +83,14 @@ export default function AdminPatterns() {
   };
 
   const handleBulkDelete = () => {
-    if (selectedIds.size > 0 && confirm(`Delete ${selectedIds.size} patterns?`)) {
-      bulkDelete.mutate(Array.from(selectedIds));
-      setSelectedIds(new Set());
+    if (selectedIds.size > 0) {
+      setShowBulkDeleteConfirm(true);
     }
+  };
+
+  const executeBulkDelete = () => {
+    bulkDelete.mutate(Array.from(selectedIds));
+    setSelectedIds(new Set());
   };
 
   const handleBulkApprove = () => {
@@ -360,13 +367,11 @@ export default function AdminPatterns() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => {
-                              if (confirm('Delete this pattern?')) {
-                                deletePattern.mutate(pattern.id);
-                              }
-                            }} 
+                            onClick={() => setDeletePatternId(pattern.id)} 
                             className="p-1.5 hover:bg-red-500/10 rounded text-muted-foreground hover:text-red-500"
                           >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -426,6 +431,35 @@ export default function AdminPatterns() {
           </div>
         </div>
       )}
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showBulkDeleteConfirm}
+        onOpenChange={setShowBulkDeleteConfirm}
+        title="Delete Patterns"
+        description={`This will permanently delete ${selectedIds.size} selected patterns. This action cannot be undone.`}
+        confirmText="Delete Patterns"
+        variant="destructive"
+        onConfirm={executeBulkDelete}
+        loading={bulkDelete.isPending}
+      />
+
+      {/* Single Pattern Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deletePatternId}
+        onOpenChange={(open) => !open && setDeletePatternId(null)}
+        title="Delete Pattern"
+        description="Are you sure you want to delete this pattern? This action cannot be undone."
+        confirmText="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          if (deletePatternId) {
+            deletePattern.mutate(deletePatternId);
+            setDeletePatternId(null);
+          }
+        }}
+        loading={deletePattern.isPending}
+      />
     </div>
   );
 }

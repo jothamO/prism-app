@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Brain, CheckCircle, AlertTriangle, RefreshCw, TrendingUp, Database, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+
 interface FeedbackStats {
   total: number;
   confirmations: number;
@@ -36,11 +38,10 @@ export default function AdminFeedback() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [recentFeedback, setRecentFeedback] = useState<any[]>([]);
+  const [showSeedConfirm, setShowSeedConfirm] = useState(false);
 
   const seedMLData = async () => {
-    if (!confirm("This will seed the ML pipeline with ~50 feedback records and ~30 patterns. Continue?")) {
-      return;
-    }
+    setShowSeedConfirm(false);
     
     setSeeding(true);
     try {
@@ -154,7 +155,7 @@ export default function AdminFeedback() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={seedMLData}
+            onClick={() => setShowSeedConfirm(true)}
             disabled={seeding}
             className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors disabled:opacity-50"
           >
@@ -170,6 +171,18 @@ export default function AdminFeedback() {
           </button>
         </div>
       </div>
+
+      {/* Seed ML Data Confirmation Dialog */}
+      <ConfirmDialog
+        open={showSeedConfirm}
+        onOpenChange={setShowSeedConfirm}
+        title="Seed ML Training Data"
+        description="This will create approximately 50 feedback records and 30 classification patterns for testing purposes."
+        confirmText="Seed Data"
+        variant="warning"
+        onConfirm={seedMLData}
+        loading={seeding}
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
