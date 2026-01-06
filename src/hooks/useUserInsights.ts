@@ -90,8 +90,20 @@ export function useUserInsights(): UseUserInsightsReturn {
     try {
       setGenerating(true);
 
+      // First, look up the users table ID from auth_user_id
+      const { data: userRecord, error: lookupError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single();
+
+      if (lookupError || !userRecord) {
+        throw new Error('User profile not found. Please complete registration first.');
+      }
+
+      // Call generate-insights with the correct users.id
       const { error: genError } = await supabase.functions.invoke('generate-insights', {
-        body: { userId: user.id },
+        body: { userId: userRecord.id, saveInsights: true },
       });
 
       if (genError) throw genError;

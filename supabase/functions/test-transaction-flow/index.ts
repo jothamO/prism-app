@@ -6,8 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Sample Nigerian transactions for testing
+// Comprehensive Nigerian transactions for testing - includes edge cases
 const SAMPLE_TRANSACTIONS = [
+  // USSD Transactions
   {
     description: "USSD/AIRTIME/MTN/2348012345678",
     amount: 500,
@@ -16,12 +17,35 @@ const SAMPLE_TRANSACTIONS = [
     expectedFlags: { isUSSD: true }
   },
   {
+    description: "*737*1*500#/GTB USSD AIRTIME",
+    amount: 500,
+    type: "debit",
+    expectedClassification: "personal_expense",
+    expectedFlags: { isUSSD: true }
+  },
+  {
+    description: "*894*1*1000#/FIRST BANK TRANSFER",
+    amount: 1000,
+    type: "debit",
+    expectedClassification: "transfer",
+    expectedFlags: { isUSSD: true }
+  },
+  // POS Transactions
+  {
     description: "POS/BUKKA HUT RESTAURANT/LAGOS",
     amount: 15000,
     type: "debit",
     expectedClassification: "meals_entertainment",
     expectedFlags: { isPOS: true }
   },
+  {
+    description: "POS/TERMINAL ID 12345/SHOPRITE LEKKI",
+    amount: 35000,
+    type: "debit",
+    expectedClassification: "expense",
+    expectedFlags: { isPOS: true }
+  },
+  // Salary/Income
   {
     description: "SALARY FOR DECEMBER 2025/ACME CORP",
     amount: 450000,
@@ -36,6 +60,7 @@ const SAMPLE_TRANSACTIONS = [
     expectedClassification: "freelance_income",
     expectedFlags: {}
   },
+  // Bank Charges - Various types
   {
     description: "EMTL CHARGE/ELECTRONIC MONEY TRANSFER",
     amount: 50,
@@ -51,6 +76,35 @@ const SAMPLE_TRANSACTIONS = [
     expectedFlags: { isBankCharge: true }
   },
   {
+    description: "ATM WDL FEE/FIRST BANK ATM",
+    amount: 65,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isBankCharge: true }
+  },
+  {
+    description: "ACCOUNT MAINTENANCE FEE DEC 2025",
+    amount: 500,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isBankCharge: true }
+  },
+  {
+    description: "COT CHARGE/COMMISSION ON TURNOVER",
+    amount: 2500,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isBankCharge: true }
+  },
+  {
+    description: "SMS ALERT CHARGES OCT-DEC 2025",
+    amount: 150,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isBankCharge: true }
+  },
+  // Mobile Money
+  {
     description: "OPAY/TRANSFER TO 0812345678",
     amount: 25000,
     type: "debit",
@@ -58,11 +112,63 @@ const SAMPLE_TRANSACTIONS = [
     expectedFlags: { isMobileMoney: true }
   },
   {
+    description: "PALMPAY TRANSFER FROM 08123456789",
+    amount: 45000,
+    type: "credit",
+    expectedClassification: "income",
+    expectedFlags: { isMobileMoney: true }
+  },
+  {
+    description: "KUDA/TRF TO SAVINGS",
+    amount: 20000,
+    type: "debit",
+    expectedClassification: "transfer",
+    expectedFlags: { isMobileMoney: true }
+  },
+  // Stamp Duty
+  {
     description: "STAMP DUTY CHARGE",
     amount: 50,
     type: "debit",
     expectedClassification: "bank_charges",
     expectedFlags: { isStampDuty: true }
+  },
+  {
+    description: "NXG STAMP DUTY/10000",
+    amount: 50,
+    type: "debit",
+    expectedClassification: "bank_charges",
+    expectedFlags: { isStampDuty: true }
+  },
+  // Foreign Currency
+  {
+    description: "USD TRANSFER/INTERNATIONAL/500USD",
+    amount: 750000,
+    type: "credit",
+    expectedClassification: "income",
+    expectedFlags: { isForeignCurrency: true }
+  },
+  {
+    description: "FX PURCHASE 100 GBP AT 1850",
+    amount: 185000,
+    type: "debit",
+    expectedClassification: "transfer",
+    expectedFlags: { isForeignCurrency: true }
+  },
+  // NIP Transfers
+  {
+    description: "NIP TRF TO GTB/JOHN DOE/0012345678",
+    amount: 150000,
+    type: "debit",
+    expectedClassification: "transfer",
+    expectedFlags: {}
+  },
+  {
+    description: "NIP/INWARD/FROM ACCESS/MARY JANE",
+    amount: 100000,
+    type: "credit",
+    expectedClassification: "income",
+    expectedFlags: {}
   }
 ];
 
@@ -237,18 +343,56 @@ serve(async (req) => {
     timing.insightsMs = Date.now() - insightsStart;
     timing.totalMs = Date.now() - startTime;
 
-    // Calculate summary stats
+    // Calculate summary stats including flag detection
     const successfulClassifications = results.filter(r => r.actual && !r.actual.error);
     const matchingClassifications = results.filter(r => r.matchesExpected);
+    
+    // Calculate flag detection accuracy
+    let expectedFlagsCount = 0;
+    let detectedFlagsCount = 0;
+    
+    for (const result of successfulClassifications) {
+      const expectedFlags = result.expected?.flags || {};
+      const actualFlags = result.actual?.nigerianFlags || {};
+      
+      for (const [flagName, expectedValue] of Object.entries(expectedFlags)) {
+        if (expectedValue === true) {
+          expectedFlagsCount++;
+          // Map expected flag names to actual flag names
+          const flagMapping: Record<string, string> = {
+            'isUSSD': 'isUSSD',
+            'isPOS': 'isPOS',
+            'isBankCharge': 'isBankCharge',
+            'isEMTL': 'isEMTL',
+            'isStampDuty': 'isStampDuty',
+            'isMobileMoney': 'isMobileMoney',
+            'isForeignCurrency': 'isForeignCurrency'
+          };
+          const actualFlagName = flagMapping[flagName] || flagName;
+          if (actualFlags[actualFlagName] === true) {
+            detectedFlagsCount++;
+          }
+        }
+      }
+    }
+    
+    const flagDetectionAccuracy = expectedFlagsCount > 0 
+      ? (detectedFlagsCount / expectedFlagsCount * 100).toFixed(1) + '%'
+      : 'N/A';
     
     const summary = {
       totalTransactions: transactions.length,
       inserted: results.filter(r => r.id).length,
       classified: successfulClassifications.length,
       matchingExpected: matchingClassifications.length,
-      accuracy: successfulClassifications.length > 0 
+      classificationAccuracy: successfulClassifications.length > 0 
         ? (matchingClassifications.length / successfulClassifications.length * 100).toFixed(1) + '%'
         : 'N/A',
+      flagDetection: {
+        expected: expectedFlagsCount,
+        detected: detectedFlagsCount,
+        accuracy: flagDetectionAccuracy
+      },
       avgClassificationTime: successfulClassifications.length > 0
         ? Math.round(successfulClassifications.reduce((sum, r) => sum + (r.classificationTime || 0), 0) / successfulClassifications.length)
         : 0
