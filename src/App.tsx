@@ -10,6 +10,7 @@ import Insights from "./pages/Insights";
 import Reports from "./pages/Reports";
 import Transactions from "./pages/Transactions";
 import Settings from "./pages/Settings";
+import Analytics from "./pages/Analytics";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -99,6 +100,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute>
+                  <Analytics />
                 </ProtectedRoute>
               }
             />
