@@ -7,6 +7,7 @@ import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import TaxDashboard from "./pages/TaxDashboard";
 import Insights from "./pages/Insights";
+import Reports from "./pages/Reports";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -71,6 +72,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <TaxDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <Reports />
                 </ProtectedRoute>
               }
             />
