@@ -22,6 +22,7 @@ import {
   BookOpen,
   FileText,
   HelpCircle,
+  Users,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -155,6 +156,10 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/team')}>
+            <Users className="h-4 w-4 mr-2" />
+            Team
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate('/faq')}>
             <HelpCircle className="h-4 w-4 mr-2" />
             Help
