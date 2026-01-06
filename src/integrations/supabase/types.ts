@@ -893,6 +893,200 @@ export type Database = {
         }
         Relationships: []
       }
+      compliance_change_log: {
+        Row: {
+          change_reason: string | null
+          change_type: string
+          changed_by: string | null
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          source_document_id: string | null
+        }
+        Insert: {
+          change_reason?: string | null
+          change_type: string
+          changed_by?: string | null
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          source_document_id?: string | null
+        }
+        Update: {
+          change_reason?: string | null
+          change_type?: string
+          changed_by?: string | null
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          source_document_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_change_log_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_notifications: {
+        Row: {
+          action_url: string | null
+          created_at: string | null
+          document_id: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          metadata: Json | null
+          notification_type: string
+          read_at: string | null
+          rule_id: string | null
+          severity: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          action_url?: string | null
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          metadata?: Json | null
+          notification_type: string
+          read_at?: string | null
+          rule_id?: string | null
+          severity?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          action_url?: string | null
+          created_at?: string | null
+          document_id?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          metadata?: Json | null
+          notification_type?: string
+          read_at?: string | null
+          rule_id?: string | null
+          severity?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_notifications_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_notifications_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_rules: {
+        Row: {
+          actions: Json | null
+          applies_to: string[] | null
+          conditions: Json | null
+          created_at: string | null
+          description: string | null
+          document_id: string | null
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          is_active: boolean | null
+          parameters: Json | null
+          previous_version_id: string | null
+          priority: number | null
+          provision_id: string | null
+          rule_code: string | null
+          rule_name: string
+          rule_type: string
+          tax_types: string[] | null
+          updated_at: string | null
+          version: number | null
+        }
+        Insert: {
+          actions?: Json | null
+          applies_to?: string[] | null
+          conditions?: Json | null
+          created_at?: string | null
+          description?: string | null
+          document_id?: string | null
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean | null
+          parameters?: Json | null
+          previous_version_id?: string | null
+          priority?: number | null
+          provision_id?: string | null
+          rule_code?: string | null
+          rule_name: string
+          rule_type: string
+          tax_types?: string[] | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Update: {
+          actions?: Json | null
+          applies_to?: string[] | null
+          conditions?: Json | null
+          created_at?: string | null
+          description?: string | null
+          document_id?: string | null
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          is_active?: boolean | null
+          parameters?: Json | null
+          previous_version_id?: string | null
+          priority?: number | null
+          provision_id?: string | null
+          rule_code?: string | null
+          rule_name?: string
+          rule_type?: string
+          tax_types?: string[] | null
+          updated_at?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_rules_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_rules_provision_id_fkey"
+            columns: ["provision_id"]
+            isOneToOne: false
+            referencedRelation: "legal_provisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       connected_accounts: {
         Row: {
           account_name: string | null
@@ -1419,6 +1613,166 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_documents: {
+        Row: {
+          affected_taxpayers: string[] | null
+          ai_summary: string | null
+          created_at: string | null
+          document_number: string | null
+          document_type: string
+          effective_date: string | null
+          embedding: string | null
+          expiry_date: string | null
+          file_url: string | null
+          id: string
+          key_provisions: string[] | null
+          metadata: Json | null
+          needs_human_review: boolean | null
+          publication_date: string | null
+          raw_text: string | null
+          regulatory_body_id: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_url: string | null
+          status: string | null
+          summary: string | null
+          tax_types: string[] | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          affected_taxpayers?: string[] | null
+          ai_summary?: string | null
+          created_at?: string | null
+          document_number?: string | null
+          document_type: string
+          effective_date?: string | null
+          embedding?: string | null
+          expiry_date?: string | null
+          file_url?: string | null
+          id?: string
+          key_provisions?: string[] | null
+          metadata?: Json | null
+          needs_human_review?: boolean | null
+          publication_date?: string | null
+          raw_text?: string | null
+          regulatory_body_id?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_url?: string | null
+          status?: string | null
+          summary?: string | null
+          tax_types?: string[] | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          affected_taxpayers?: string[] | null
+          ai_summary?: string | null
+          created_at?: string | null
+          document_number?: string | null
+          document_type?: string
+          effective_date?: string | null
+          embedding?: string | null
+          expiry_date?: string | null
+          file_url?: string | null
+          id?: string
+          key_provisions?: string[] | null
+          metadata?: Json | null
+          needs_human_review?: boolean | null
+          publication_date?: string | null
+          raw_text?: string | null
+          regulatory_body_id?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_url?: string | null
+          status?: string | null
+          summary?: string | null
+          tax_types?: string[] | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_documents_regulatory_body_id_fkey"
+            columns: ["regulatory_body_id"]
+            isOneToOne: false
+            referencedRelation: "regulatory_bodies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_provisions: {
+        Row: {
+          affected_entities: string[] | null
+          ai_interpretation: string | null
+          compliance_actions: string[] | null
+          confidence_score: number | null
+          content: string
+          created_at: string | null
+          document_id: string
+          embedding: string | null
+          id: string
+          keywords: string[] | null
+          metadata: Json | null
+          provision_type: string | null
+          related_provisions: string[] | null
+          section_number: string | null
+          tax_implications: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          affected_entities?: string[] | null
+          ai_interpretation?: string | null
+          compliance_actions?: string[] | null
+          confidence_score?: number | null
+          content: string
+          created_at?: string | null
+          document_id: string
+          embedding?: string | null
+          id?: string
+          keywords?: string[] | null
+          metadata?: Json | null
+          provision_type?: string | null
+          related_provisions?: string[] | null
+          section_number?: string | null
+          tax_implications?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          affected_entities?: string[] | null
+          ai_interpretation?: string | null
+          compliance_actions?: string[] | null
+          confidence_score?: number | null
+          content?: string
+          created_at?: string | null
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          keywords?: string[] | null
+          metadata?: Json | null
+          provision_type?: string | null
+          related_provisions?: string[] | null
+          section_number?: string | null
+          tax_implications?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_provisions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -1960,6 +2314,78 @@ export type Database = {
           },
         ]
       }
+      regulation_relationships: {
+        Row: {
+          created_at: string | null
+          id: string
+          notes: string | null
+          relationship_type: string
+          source_document_id: string
+          target_document_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          relationship_type: string
+          source_document_id: string
+          target_document_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          relationship_type?: string
+          source_document_id?: string
+          target_document_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "regulation_relationships_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "regulation_relationships_target_document_id_fkey"
+            columns: ["target_document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      regulatory_bodies: {
+        Row: {
+          abbreviation: string
+          created_at: string | null
+          id: string
+          jurisdiction: string | null
+          name: string
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          abbreviation: string
+          created_at?: string | null
+          id?: string
+          jurisdiction?: string | null
+          name: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          abbreviation?: string
+          created_at?: string | null
+          id?: string
+          jurisdiction?: string | null
+          name?: string
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       related_parties: {
         Row: {
           created_at: string | null
@@ -2281,6 +2707,48 @@ export type Database = {
           id?: string
           ip_address?: unknown
           user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_compliance_preferences: {
+        Row: {
+          created_at: string | null
+          email_notifications: boolean | null
+          id: string
+          in_app_notifications: boolean | null
+          notify_amendments: boolean | null
+          notify_deadlines: boolean | null
+          notify_new_regulations: boolean | null
+          notify_rate_changes: boolean | null
+          tax_types: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: string
+          in_app_notifications?: boolean | null
+          notify_amendments?: boolean | null
+          notify_deadlines?: boolean | null
+          notify_new_regulations?: boolean | null
+          notify_rate_changes?: boolean | null
+          tax_types?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: string
+          in_app_notifications?: boolean | null
+          notify_amendments?: boolean | null
+          notify_deadlines?: boolean | null
+          notify_new_regulations?: boolean | null
+          notify_rate_changes?: boolean | null
+          tax_types?: string[] | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -2821,6 +3289,36 @@ export type Database = {
         Returns: undefined
       }
       refresh_transaction_analytics: { Args: never; Returns: undefined }
+      search_compliance_documents: {
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          document_type: string
+          id: string
+          similarity: number
+          summary: string
+          title: string
+        }[]
+      }
+      search_compliance_provisions: {
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          document_id: string
+          id: string
+          provision_type: string
+          section_number: string
+          similarity: number
+          title: string
+        }[]
+      }
       upsert_business_pattern: {
         Args: {
           p_amount?: number
