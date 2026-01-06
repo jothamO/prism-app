@@ -30,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import TelegramConnectModal from '@/components/TelegramConnectModal';
 import BankConnectModal from '@/components/BankConnectModal';
 import VerifyIdentityModal from '@/components/VerifyIdentityModal';
+import ChatWidget from '@/components/ChatWidget';
 
 export default function Dashboard() {
   const location = useLocation();
@@ -530,6 +531,9 @@ export default function Dashboard() {
         onOpenChange={setShowVerifyModal}
         onVerified={handleIdentityVerified}
       />
+
+      {/* AI Chat Widget */}
+      <ChatWidget />
     </div>
   );
 }
