@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.chat-assist]
 verify_jwt = false
+
+[functions.team-invite]
+verify_jwt = false
