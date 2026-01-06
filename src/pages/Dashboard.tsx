@@ -18,6 +18,9 @@ import {
   Lightbulb,
   Plus,
   Receipt,
+  BarChart3,
+  BookOpen,
+  FileText,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -477,6 +480,41 @@ export default function Dashboard() {
           </Button>
         </CardHeader>
       </Card>
+
+      {/* Quick Access to Features */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <button
+          onClick={() => navigate('/analytics')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <BarChart3 className="h-6 w-6 text-indigo-600" />
+          <span className="text-sm font-medium">Analytics</span>
+        </button>
+        
+        <button
+          onClick={() => navigate('/tax-calendar')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <Calendar className="h-6 w-6 text-indigo-600" />
+          <span className="text-sm font-medium">Tax Calendar</span>
+        </button>
+        
+        <button
+          onClick={() => navigate('/education')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <BookOpen className="h-6 w-6 text-indigo-600" />
+          <span className="text-sm font-medium">Education</span>
+        </button>
+        
+        <button
+          onClick={() => navigate('/reports')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <FileText className="h-6 w-6 text-indigo-600" />
+          <span className="text-sm font-medium">Reports</span>
+        </button>
+      </div>
 
       {/* Main content area */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

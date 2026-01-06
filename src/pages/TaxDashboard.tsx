@@ -519,7 +519,7 @@ export default function TaxDashboard() {
                                             </p>
                                         </div>
                                     </div>
-                                    <Button variant="outline" size="sm">
+                                    <Button variant="outline" size="sm" onClick={() => navigate('/transactions?filter=needs_review')}>
                                         Review <ArrowRight className="h-4 w-4 ml-1" />
                                     </Button>
                                 </div>
@@ -540,7 +540,7 @@ export default function TaxDashboard() {
                                         </p>
                                     </div>
                                 </div>
-                                <Button size="sm">
+                                <Button size="sm" onClick={() => navigate('/reports')}>
                                     Generate <ArrowRight className="h-4 w-4 ml-1" />
                                 </Button>
                             </div>
@@ -550,11 +550,14 @@ export default function TaxDashboard() {
 
                 {/* Tax Calendar Preview */}
                 <Card className="mt-6">
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="flex items-center gap-2">
                             <Calendar className="h-5 w-5" />
                             Upcoming Deadlines
                         </CardTitle>
+                        <Button variant="ghost" size="sm" onClick={() => navigate('/tax-calendar')}>
+                            View All
+                        </Button>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-3">

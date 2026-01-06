@@ -12,6 +12,7 @@ import {
     HelpCircle,
     Search,
     ExternalLink,
+    Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -421,7 +422,17 @@ export default function EducationCenter() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="grid sm:grid-cols-3 gap-4">
+                            <button
+                                onClick={() => navigate('/tax-calendar')}
+                                className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors text-left"
+                            >
+                                <Calendar className="h-5 w-5 text-indigo-600" />
+                                <div>
+                                    <p className="font-medium text-sm">Tax Calendar</p>
+                                    <p className="text-xs text-gray-500">View upcoming deadlines</p>
+                                </div>
+                            </button>
                             <a
                                 href="https://taxpromax.firs.gov.ng"
                                 target="_blank"
