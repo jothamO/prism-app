@@ -14,6 +14,9 @@ import {
   Edit,
   Globe,
   Activity,
+  Users,
+  Trash2,
+  Shield,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -86,12 +89,22 @@ interface MessageData {
   created_at: string | null;
 }
 
-type TabId = "details" | "receipts" | "messages" | "learning" | "activity";
+type TabId = "details" | "receipts" | "messages" | "learning" | "activity" | "team";
+
+interface TeamMember {
+  id: string;
+  email: string;
+  role: "owner" | "admin" | "member" | "accountant";
+  status: "pending" | "active" | "revoked";
+  invited_at: string;
+  joined_at: string | null;
+}
 
 export function UserProfileModal({ userId, platform, onClose }: UserProfileModalProps) {
   const [profile, setProfile] = useState<UnifiedProfile | null>(null);
   const [receipts, setReceipts] = useState<ReceiptData[]>([]);
   const [messages, setMessages] = useState<MessageData[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("details");
   const [isEditing, setIsEditing] = useState(false);
@@ -225,6 +238,14 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
         setReceipts(receiptsRes.data || []);
         setMessages(messagesRes.data || []);
       }
+
+      // Fetch team members for this user
+      const { data: teamData } = await supabase
+        .from("team_members")
+        .select("*")
+        .eq("user_id", userId)
+        .order("invited_at", { ascending: false });
+      setTeamMembers((teamData || []) as TeamMember[]);
     } catch (error) {
       console.error("Error fetching user data:", error);
     } finally {
@@ -253,11 +274,12 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
     { id: "activity", label: "Activity", icon: Activity },
     ...(hasMessagingData
       ? [
-          { id: "learning" as TabId, label: "Profile Learning", icon: Brain },
-          { id: "receipts" as TabId, label: `Receipts (${receipts.length})`, icon: Receipt },
-          { id: "messages" as TabId, label: `Messages (${messages.length})`, icon: MessageSquare },
-        ]
+        { id: "learning" as TabId, label: "Profile Learning", icon: Brain },
+        { id: "receipts" as TabId, label: `Receipts (${receipts.length})`, icon: Receipt },
+        { id: "messages" as TabId, label: `Messages (${messages.length})`, icon: MessageSquare },
+      ]
       : []),
+    { id: "team", label: `Team (${teamMembers.length})`, icon: Users },
   ];
 
   return (
@@ -330,8 +352,8 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
                         profile.platform === "web"
                           ? "bg-blue-500/20 text-blue-500"
                           : profile.platform === "telegram"
-                          ? "bg-sky-500/20 text-sky-500"
-                          : "bg-green-500/20 text-green-500"
+                            ? "bg-sky-500/20 text-sky-500"
+                            : "bg-green-500/20 text-green-500"
                       )}
                     >
                       {profile.platform === "web" ? (
@@ -349,8 +371,8 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
                         profile.verification_status === "verified"
                           ? "bg-green-500/20 text-green-500"
                           : profile.verification_status === "pending"
-                          ? "bg-yellow-500/20 text-yellow-500"
-                          : "bg-muted text-muted-foreground"
+                            ? "bg-yellow-500/20 text-yellow-500"
+                            : "bg-muted text-muted-foreground"
                       )}
                     >
                       {profile.verification_status || "unverified"}
@@ -560,6 +582,71 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
                         <p className="text-xs opacity-70 mt-1">
                           {msg.created_at ? new Date(msg.created_at).toLocaleString() : ""}
                         </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === "team" && (
+                <div className="space-y-3">
+                  {teamMembers.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No team members</p>
+                  ) : (
+                    teamMembers.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between p-3 bg-accent/30 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                            <User className="w-4 h-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{member.email}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-xs font-medium",
+                                  member.role === "owner"
+                                    ? "bg-purple-500/20 text-purple-500"
+                                    : member.role === "admin"
+                                      ? "bg-blue-500/20 text-blue-500"
+                                      : member.role === "accountant"
+                                        ? "bg-green-500/20 text-green-500"
+                                        : "bg-muted text-muted-foreground"
+                                )}
+                              >
+                                <Shield className="w-3 h-3 inline mr-1" />
+                                {member.role}
+                              </span>
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded-full text-xs",
+                                  member.status === "active"
+                                    ? "bg-green-500/20 text-green-500"
+                                    : member.status === "pending"
+                                      ? "bg-yellow-500/20 text-yellow-500"
+                                      : "bg-red-500/20 text-red-500"
+                                )}
+                              >
+                                {member.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right text-xs text-muted-foreground">
+                          <p>{member.joined_at ? `Joined ${new Date(member.joined_at).toLocaleDateString()}` : `Invited ${new Date(member.invited_at).toLocaleDateString()}`}</p>
+                          {member.status !== "revoked" && member.role !== "owner" && (
+                            <button
+                              className="text-destructive hover:underline mt-1"
+                              onClick={async () => {
+                                await supabase.from("team_members").update({ status: "revoked" }).eq("id", member.id);
+                                setTeamMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, status: "revoked" } : m)));
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3 inline mr-1" />
+                              Revoke
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
