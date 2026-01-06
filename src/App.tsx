@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import TaxDashboard from "./pages/TaxDashboard";
 import Insights from "./pages/Insights";
 import Reports from "./pages/Reports";
+import Transactions from "./pages/Transactions";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -80,6 +81,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/transactions"
+              element={
+                <ProtectedRoute>
+                  <Transactions />
                 </ProtectedRoute>
               }
             />
