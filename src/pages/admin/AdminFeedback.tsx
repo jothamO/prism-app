@@ -80,7 +80,15 @@ export default function AdminFeedback() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      // Fetch feedback stats
+      // Fetch TOTAL untrained feedback count (not limited by query limit)
+      const { count: totalUntrainedCount, error: untrainedError } = await supabase
+        .from("ai_feedback")
+        .select("id", { count: "exact", head: true })
+        .eq("used_in_training", false);
+
+      if (untrainedError) throw untrainedError;
+
+      // Fetch feedback stats (limited for display purposes)
       const { data: feedback, error: feedbackError } = await supabase
         .from("ai_feedback")
         .select("correction_type, used_in_training, created_at, item_description")
@@ -93,10 +101,9 @@ export default function AdminFeedback() {
       const confirmations = feedback?.filter(f => f.correction_type === "confirmation").length || 0;
       const partialEdits = feedback?.filter(f => f.correction_type === "partial_edit").length || 0;
       const overrides = feedback?.filter(f => f.correction_type === "full_override").length || 0;
-      const untrained = feedback?.filter(f => !f.used_in_training).length || 0;
       const accuracy = total > 0 ? ((confirmations + partialEdits * 0.5) / total) * 100 : 0;
 
-      setFeedbackStats({ total, confirmations, partialEdits, overrides, accuracy, untrained });
+      setFeedbackStats({ total, confirmations, partialEdits, overrides, accuracy, untrained: totalUntrainedCount || 0 });
       setRecentFeedback(feedback?.slice(0, 10) || []);
 
       // Fetch pattern stats

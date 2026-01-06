@@ -65,6 +65,7 @@ export default function AdminProfiles() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<UserTaxProfile>>({});
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfiles();
@@ -157,6 +158,7 @@ export default function AdminProfiles() {
   };
 
   const handleConfirm = async (profileId: string) => {
+    setConfirmingId(profileId);
     try {
       const { error } = await supabase
         .from("user_tax_profiles")
@@ -181,6 +183,8 @@ export default function AdminProfiles() {
         description: "Failed to confirm profile",
         variant: "destructive"
       });
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -452,8 +456,13 @@ export default function AdminProfiles() {
                                 size="sm"
                                 variant="default"
                                 onClick={() => handleConfirm(profile.id)}
+                                disabled={confirmingId === profile.id}
                               >
-                                <CheckCircle className="w-3 h-3 mr-1" />
+                                {confirmingId === profile.id ? (
+                                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                )}
                                 Confirm
                               </Button>
                             )}
