@@ -136,7 +136,7 @@ export default function TelegramConnectModal({
 
     const handleOpenTelegram = () => {
         if (token) {
-            const botUsername = 'PrismTaxBot'; // TODO: Make configurable
+            const botUsername = 'prism_tax_bot';
             window.open(`https://t.me/${botUsername}?start=${token}`, '_blank');
         }
     };
