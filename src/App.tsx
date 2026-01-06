@@ -9,6 +9,7 @@ import TaxDashboard from "./pages/TaxDashboard";
 import Insights from "./pages/Insights";
 import Reports from "./pages/Reports";
 import Transactions from "./pages/Transactions";
+import Settings from "./pages/Settings";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -89,6 +90,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Transactions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />
