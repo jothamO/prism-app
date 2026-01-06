@@ -21,6 +21,7 @@ import {
   BarChart3,
   BookOpen,
   FileText,
+  HelpCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -153,10 +154,16 @@ export default function Dashboard() {
             {profile?.occupation || profile?.taxCategory?.replace('_', ' ') || 'Your tax dashboard'}
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => signOut()}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign out
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/faq')}>
+            <HelpCircle className="h-4 w-4 mr-2" />
+            Help
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => signOut()}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign out
+          </Button>
+        </div>
       </div>
 
       {/* Onboarding Progress (if not complete) */}
@@ -290,8 +297,8 @@ export default function Dashboard() {
                   )}
                   <span className="text-sm">Telegram</span>
                 </div>
-                <Badge 
-                  variant={profile?.telegramConnected ? "default" : "outline"} 
+                <Badge
+                  variant={profile?.telegramConnected ? "default" : "outline"}
                   className={profile?.telegramConnected ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : ""}
                 >
                   {profile?.telegramConnected ? "Connected" : "Not linked"}
@@ -306,7 +313,7 @@ export default function Dashboard() {
                   )}
                   <span className="text-sm">Bank</span>
                 </div>
-                <Badge 
+                <Badge
                   variant={profile?.bankConnected ? "default" : "outline"}
                   className={profile?.bankConnected ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : ""}
                 >
@@ -506,7 +513,7 @@ export default function Dashboard() {
           <BarChart3 className="h-6 w-6 text-indigo-600" />
           <span className="text-sm font-medium">Analytics</span>
         </button>
-        
+
         <button
           onClick={() => navigate('/tax-calendar')}
           className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
@@ -514,7 +521,7 @@ export default function Dashboard() {
           <Calendar className="h-6 w-6 text-indigo-600" />
           <span className="text-sm font-medium">Tax Calendar</span>
         </button>
-        
+
         <button
           onClick={() => navigate('/education')}
           className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
@@ -522,7 +529,7 @@ export default function Dashboard() {
           <BookOpen className="h-6 w-6 text-indigo-600" />
           <span className="text-sm font-medium">Education</span>
         </button>
-        
+
         <button
           onClick={() => navigate('/reports')}
           className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
