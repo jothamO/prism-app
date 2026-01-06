@@ -163,7 +163,10 @@ export default function AdminComplianceDocuments() {
 
             // 2. Extract text (for now, we'll use the file content directly for txt files)
             let extractedText = "";
-            if (selectedFile.type === "text/plain") {
+            if (selectedFile.type === "text/plain" || 
+                selectedFile.type === "text/markdown" || 
+                selectedFile.type === "text/x-markdown" ||
+                selectedFile.name.endsWith('.md')) {
                 extractedText = await selectedFile.text();
             } else {
                 // For PDF/DOCX, we'd need a text extraction service
@@ -490,14 +493,14 @@ export default function AdminComplianceDocuments() {
                                         <>
                                             <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                                             <p className="text-muted-foreground">Click to upload or drag & drop</p>
-                                            <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, or TXT</p>
+                                            <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, TXT, or MD</p>
                                         </>
                                     )}
                                 </div>
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept=".pdf,.docx,.txt"
+                                    accept=".pdf,.docx,.txt,.md"
                                     onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                                     className="hidden"
                                 />
