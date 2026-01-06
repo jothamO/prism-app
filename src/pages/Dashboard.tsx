@@ -8,7 +8,7 @@ import {
   Building2,
   CreditCard,
   CheckCircle2,
-  AlertCircle,
+  XCircle,
   ChevronRight,
   User,
   Briefcase,
@@ -280,22 +280,38 @@ export default function Dashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                {profile?.telegramConnected ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="text-sm">Telegram</span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {profile?.telegramConnected ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  )}
+                  <span className="text-sm">Telegram</span>
+                </div>
+                <Badge 
+                  variant={profile?.telegramConnected ? "default" : "outline"} 
+                  className={profile?.telegramConnected ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : ""}
+                >
+                  {profile?.telegramConnected ? "Connected" : "Not linked"}
+                </Badge>
               </div>
-              <div className="flex items-center gap-2">
-                {profile?.bankConnected ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="text-sm">Bank</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {profile?.bankConnected ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  )}
+                  <span className="text-sm">Bank</span>
+                </div>
+                <Badge 
+                  variant={profile?.bankConnected ? "default" : "outline"}
+                  className={profile?.bankConnected ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : ""}
+                >
+                  {profile?.bankConnected ? "Connected" : "Not linked"}
+                </Badge>
               </div>
             </div>
           </CardContent>
