@@ -372,8 +372,6 @@ export default function AdminPatterns() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
                       )}
                     </td>
