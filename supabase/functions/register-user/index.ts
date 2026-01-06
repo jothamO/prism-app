@@ -267,7 +267,7 @@ serve(async (req) => {
         });
 
       if (!tokenError) {
-        const botUsername = 'PrismTaxBot';
+        const botUsername = 'prism_tax_bot';
         telegramLink = `https://t.me/${botUsername}?start=${token}`;
       } else {
         console.error('[register-user] Token insert error:', tokenError);
