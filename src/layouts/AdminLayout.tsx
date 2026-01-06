@@ -25,7 +25,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   FileStack,
-  ScrollText
+  ScrollText,
+  Scale
 } from "lucide-react";
 
 interface NavGroup {
@@ -44,12 +45,12 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  
+
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem("admin-sidebar-collapsed");
     return saved === "true";
   });
-  
+
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem("admin-sidebar-groups");
     return saved ? JSON.parse(saved) : {
@@ -92,6 +93,7 @@ export default function AdminLayout() {
       name: "Compliance",
       defaultOpen: true,
       items: [
+        { name: "Knowledge Base", path: "/admin/compliance", icon: Scale },
         { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
         { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
         { name: "Filings", path: "/admin/filings", icon: FileText },
@@ -192,7 +194,7 @@ export default function AdminLayout() {
           {navGroups.map((group) => {
             const isOpen = openGroups[group.name] ?? group.defaultOpen;
             const hasActiveItem = group.items.some(item => location.pathname === item.path);
-            
+
             return (
               <div key={group.name} className="mb-2">
                 {/* Group Header - Only show if not collapsed and more than one item */}
@@ -208,7 +210,7 @@ export default function AdminLayout() {
                     {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                   </button>
                 )}
-                
+
                 {/* Group Items */}
                 {(collapsed || isOpen || group.items.length === 1) && (
                   <div className={cn("space-y-1", !collapsed && group.items.length > 1 && "ml-2")}>
@@ -241,7 +243,7 @@ export default function AdminLayout() {
 
         {/* Footer */}
         <div className="p-2 border-t border-border">
-          <button 
+          <button
             onClick={handleLogout}
             className={cn(
               "flex items-center gap-3 px-3 py-2 w-full text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10",

@@ -46,6 +46,7 @@ import AdminPatterns from "./pages/admin/AdminPatterns";
 import AdminDocuments from "./pages/admin/AdminDocuments";
 import AdminClassificationTesting from "./pages/admin/AdminClassificationTesting";
 import AdminLogs from "./pages/admin/AdminLogs";
+import AdminCompliance from "./pages/admin/AdminCompliance";
 import AcceptInvite from "./pages/AcceptInvite";
 
 function App() {
@@ -179,6 +180,7 @@ function App() {
               <Route path="patterns" element={<AdminPatterns />} />
               <Route path="documents" element={<AdminDocuments />} />
               <Route path="logs" element={<AdminLogs />} />
+              <Route path="compliance" element={<AdminCompliance />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
 
