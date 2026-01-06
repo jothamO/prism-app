@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Lightbulb,
   Plus,
+  Receipt,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -90,7 +91,7 @@ export default function Dashboard() {
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
-    
+
     if (minutes < 1) return 'Just now';
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
@@ -398,7 +399,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <Badge 
+                      <Badge
                         variant={account.status === 'active' ? 'default' : 'secondary'}
                         className={account.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : ''}
                       >
@@ -434,7 +435,7 @@ export default function Dashboard() {
             <div>
               <CardTitle className="text-lg">Financial Insights</CardTitle>
               <CardDescription>
-                {highPriorityCount > 0 
+                {highPriorityCount > 0
                   ? `${highPriorityCount} high priority insight${highPriorityCount > 1 ? 's' : ''} need attention`
                   : 'Personalized tax optimization tips'
                 }
@@ -453,6 +454,27 @@ export default function Dashboard() {
             </p>
           </CardContent>
         )}
+      </Card>
+
+      {/* Tax Dashboard Quick Link */}
+      <Card className="border-indigo-500/20 bg-indigo-500/5">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-indigo-500/10">
+              <Receipt className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Tax Dashboard</CardTitle>
+              <CardDescription>
+                View compliance score, EMTL/VAT breakdown, and monthly charts
+              </CardDescription>
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => navigate('/tax-dashboard')}>
+            Open Tax Dashboard
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+        </CardHeader>
       </Card>
 
       {/* Main content area */}

@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
+import TaxDashboard from "./pages/TaxDashboard";
 import Insights from "./pages/Insights";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
@@ -62,6 +63,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Insights />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tax-dashboard"
+              element={
+                <ProtectedRoute>
+                  <TaxDashboard />
                 </ProtectedRoute>
               }
             />
