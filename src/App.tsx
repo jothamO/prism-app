@@ -46,6 +46,7 @@ import AdminPatterns from "./pages/admin/AdminPatterns";
 import AdminDocuments from "./pages/admin/AdminDocuments";
 import AdminClassificationTesting from "./pages/admin/AdminClassificationTesting";
 import AdminLogs from "./pages/admin/AdminLogs";
+import AcceptInvite from "./pages/AcceptInvite";
 
 function App() {
   return (
@@ -64,6 +65,7 @@ function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/invite/:token" element={<AcceptInvite />} />
 
             {/* Protected User Routes */}
             <Route

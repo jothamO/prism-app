@@ -23,6 +23,7 @@ import {
   FileText,
   HelpCircle,
   Users,
+  Settings,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -159,6 +160,10 @@ export default function Dashboard() {
           <Button variant="ghost" size="sm" onClick={() => navigate('/team')}>
             <Users className="h-4 w-4 mr-2" />
             Team
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/settings')}>
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
           </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate('/faq')}>
             <HelpCircle className="h-4 w-4 mr-2" />
