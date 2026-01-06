@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.test-transaction-flow]
 verify_jwt = false
+
+[functions.chat-assist]
+verify_jwt = false

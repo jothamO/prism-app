@@ -252,6 +252,9 @@ export default function Analytics() {
                                     <SelectItem value="2025">2025</SelectItem>
                                 </SelectContent>
                             </Select>
+                            <Button variant="ghost" size="sm" onClick={() => navigate('/tax-dashboard')}>
+                                Tax Dashboard
+                            </Button>
                             <Button variant="outline" onClick={() => navigate('/dashboard')}>
                                 Back to Dashboard
                             </Button>
