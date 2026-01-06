@@ -37,6 +37,7 @@ import AdminMLHealth from "./pages/admin/AdminMLHealth";
 import AdminPatterns from "./pages/admin/AdminPatterns";
 import AdminDocuments from "./pages/admin/AdminDocuments";
 import AdminClassificationTesting from "./pages/admin/AdminClassificationTesting";
+import AdminLogs from "./pages/admin/AdminLogs";
 
 function App() {
   return (
@@ -131,6 +132,7 @@ function App() {
               <Route path="classification-testing" element={<AdminClassificationTesting />} />
               <Route path="patterns" element={<AdminPatterns />} />
               <Route path="documents" element={<AdminDocuments />} />
+              <Route path="logs" element={<AdminLogs />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
 

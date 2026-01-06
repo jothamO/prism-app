@@ -24,7 +24,8 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
-  FileStack
+  FileStack,
+  ScrollText
 } from "lucide-react";
 
 interface NavGroup {
@@ -104,6 +105,7 @@ export default function AdminLayout() {
         { name: "AI Feedback", path: "/admin/feedback", icon: Brain },
         { name: "Patterns", path: "/admin/patterns", icon: Sparkles },
         { name: "Documents", path: "/admin/documents", icon: FileStack },
+        { name: "System Logs", path: "/admin/logs", icon: ScrollText },
       ]
     },
     {

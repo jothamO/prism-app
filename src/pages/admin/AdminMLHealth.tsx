@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Brain, 
   TrendingUp, 
@@ -13,7 +15,8 @@ import {
   Zap,
   Target,
   BarChart3,
-  Layers
+  Layers,
+  ExternalLink
 } from "lucide-react";
 
 interface ModelInfo {
@@ -46,6 +49,8 @@ interface PipelineStatus {
 }
 
 export default function AdminMLHealth() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [feedbackTrends, setFeedbackTrends] = useState<FeedbackTrend[]>([]);
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus>({
@@ -168,10 +173,27 @@ export default function AdminMLHealth() {
   const triggerManualTraining = async () => {
     setTriggeringTraining(true);
     try {
-      // This would call the training worker - for now, show a message
-      alert("Manual training triggered! Check logs for progress.");
+      // In a real implementation, this would trigger an edge function
+      // For now, show a toast with a link to logs
+      toast({
+        title: "Training Triggered",
+        description: "Model retraining has been queued.",
+        action: (
+          <button
+            onClick={() => navigate('/admin/logs')}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            View Logs <ExternalLink className="w-3 h-3" />
+          </button>
+        ),
+      });
     } catch (error) {
       console.error("Training trigger error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger training",
+        variant: "destructive",
+      });
     } finally {
       setTriggeringTraining(false);
     }
