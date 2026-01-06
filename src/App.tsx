@@ -13,6 +13,10 @@ import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import TaxCalendar from "./pages/TaxCalendar";
 import EducationCenter from "./pages/EducationCenter";
+import FAQ from "./pages/FAQ";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Terms from "./pages/Terms";
+import Contact from "./pages/Contact";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -55,6 +59,10 @@ function App() {
             <Route path="/register/business" element={<BusinessSignup />} />
             <Route path="/bank-connected" element={<BankConnected />} />
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/contact" element={<Contact />} />
 
             {/* Protected User Routes */}
             <Route

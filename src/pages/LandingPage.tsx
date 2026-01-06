@@ -69,7 +69,7 @@ export default function LandingPage() {
               <span className="block text-primary">VAT Compliance</span>
             </h1>
             <p className="mt-6 max-w-2xl mx-auto text-lg sm:text-xl text-muted-foreground">
-              PRISM simplifies VAT management for Nigerian businesses. Capture invoices via WhatsApp, 
+              PRISM simplifies VAT management for Nigerian businesses. Capture invoices via WhatsApp,
               automate calculations, and file returns effortlessly.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
@@ -146,9 +146,10 @@ export default function LandingPage() {
               </span>
             </div>
             <div className="flex gap-6 text-sm text-muted-foreground">
-              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-              <a href="#" className="hover:text-foreground transition-colors">Contact</a>
+              <Link to="/faq" className="hover:text-foreground transition-colors">FAQ</Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+              <Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link>
               <Link to="/admin/login" className="hover:text-foreground transition-colors">Admin</Link>
             </div>
           </div>
