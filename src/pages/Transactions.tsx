@@ -109,6 +109,7 @@ export default function Transactions() {
                 .from('bank_transactions')
                 .select('*')
                 .eq('user_id', userData.id)
+                .gte('transaction_date', '2026-01-01') // Nigeria Tax Act 2025 effective date
                 .order('transaction_date', { ascending: false })
                 .limit(500);
 

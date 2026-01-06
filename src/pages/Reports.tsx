@@ -111,6 +111,12 @@ export default function Reports() {
                 startDate = new Date(now.getFullYear(), now.getMonth(), 1);
             }
 
+            // Date floor: Nigeria Tax Act 2025 effective Jan 1, 2026
+            const dateFloor = new Date('2026-01-01');
+            if (startDate < dateFloor) {
+                startDate = dateFloor;
+            }
+
             const { data } = await supabase
                 .from('bank_transactions')
                 .select('*')
