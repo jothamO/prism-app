@@ -1,6 +1,7 @@
 /**
  * VAT Calculation Skill
  * Handles VAT calculations per Nigeria Tax Act 2025
+ * Uses Central Rules Engine for dynamic VAT rate
  */
 
 import { logger } from '../../utils/logger';
@@ -8,8 +9,10 @@ import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
 import { PersonalityFormatter } from '../../utils/personality';
+import { getVATRate } from '../../services/rules-fetcher';
 
-const STANDARD_RATE = 0.075; // 7.5% per Tax Act 2025 Section 148
+// Fallback VAT rate (used only if rules-fetcher fails)
+const FALLBACK_VAT_RATE = 0.075; // 7.5% per Tax Act 2025 Section 148
 
 // Zero-rated items per Tax Act 2025 Section 186
 const ZERO_RATED_KEYWORDS = [
@@ -48,10 +51,34 @@ export interface VATCalculationResult {
 }
 
 export class VATCalculationSkill {
+    private vatRateCache: number | null = null;
+    private cacheTimestamp: number = 0;
+    private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    /**
+     * Get current VAT rate from Central Rules Engine
+     */
+    private async getVATRateWithCache(): Promise<number> {
+        if (this.vatRateCache !== null && Date.now() - this.cacheTimestamp < this.CACHE_TTL) {
+            return this.vatRateCache;
+        }
+
+        try {
+            const rate = await getVATRate();
+            this.vatRateCache = rate;
+            this.cacheTimestamp = Date.now();
+            logger.info(`[VAT Skill] Loaded VAT rate from Central Rules Engine: ${rate * 100}%`);
+            return rate;
+        } catch (error) {
+            logger.warn('[VAT Skill] Failed to fetch VAT rate, using fallback:', error);
+            return FALLBACK_VAT_RATE;
+        }
+    }
+
     /**
      * Classify supply for VAT purposes
      */
-    classifySupply(description: string, category?: string): VATClassification {
+    async classifySupply(description: string, category?: string): Promise<VATClassification> {
         const lowerDesc = description.toLowerCase();
         const lowerCat = category?.toLowerCase() || '';
 
@@ -81,10 +108,11 @@ export class VATCalculationSkill {
             }
         }
 
-        // Default to standard rate
+        // Default to standard rate from Central Rules Engine
+        const standardRate = await this.getVATRateWithCache();
         return {
             category: 'standard',
-            rate: STANDARD_RATE,
+            rate: standardRate,
             canClaimInputVAT: true,
             actReference: 'Section 148'
         };
@@ -146,8 +174,8 @@ export class VATCalculationSkill {
             const amount = parseInt(vatMatch[1].replace(/,/g, ''));
             const description = vatMatch[2]?.trim() || 'goods';
 
-            // Classify and calculate
-            const classification = this.classifySupply(description);
+            // Classify and calculate using dynamic rate
+            const classification = await this.classifySupply(description);
             const calculation = this.calculateVAT(amount, false, classification);
 
             // Format response based on classification
@@ -171,11 +199,12 @@ export class VATCalculationSkill {
                     `✅ Can claim input VAT on related purchases\n\n` +
                     `Reference: ${classification.actReference} NTA 2025`;
             } else {
+                const ratePercent = classification.rate * 100;
                 response = `📋 VAT Calculation\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
                     `Item: ${description}\n` +
                     `Subtotal: ${this.formatCurrency(calculation.subtotal)}\n` +
-                    `VAT @ 7.5%: ${this.formatCurrency(calculation.vatAmount)}\n` +
+                    `VAT @ ${ratePercent}%: ${this.formatCurrency(calculation.vatAmount)}\n` +
                     `━━━━━━━━━━━━━━━━━━━━━━━\n` +
                     `*Total: ${this.formatCurrency(calculation.total)}*\n\n` +
                     `✅ Can claim as input VAT if business expense\n\n` +
@@ -189,8 +218,10 @@ export class VATCalculationSkill {
                     amount,
                     description,
                     classification: classification.category,
+                    vatRate: classification.rate,
                     vatAmount: calculation.vatAmount,
-                    total: calculation.total
+                    total: calculation.total,
+                    rulesSource: 'central-engine'
                 }
             };
         } catch (error) {
