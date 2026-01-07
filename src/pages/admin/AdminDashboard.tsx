@@ -58,16 +58,16 @@ export default function AdminDashboard() {
   async function fetchDashboardData() {
     setLoading(true);
     try {
-      // Get total users
+      // Get total users from profiles (single source of truth for web registrations)
       const { count: userCount } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*', { count: 'exact', head: true });
 
       // Get users from last month for growth calculation
       const lastMonth = new Date();
       lastMonth.setMonth(lastMonth.getMonth() - 1);
       const { count: lastMonthUsers } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*', { count: 'exact', head: true })
         .lt('created_at', lastMonth.toISOString());
 
@@ -108,11 +108,11 @@ export default function AdminDashboard() {
         .eq('status', 'pending')
         .eq('priority', 'high');
 
-      // Get recent mixed activity
-      const [recentUsers, recentFilings, recentReviews, recentFeedback] = await Promise.all([
+      // Get recent mixed activity - using profiles for user registrations
+      const [recentProfiles, recentFilings, recentReviews, recentFeedback] = await Promise.all([
         supabase
-          .from('users')
-          .select('id, full_name, first_name, telegram_username, whatsapp_number, platform, created_at')
+          .from('profiles')
+          .select('id, full_name, email, created_at')
           .order('created_at', { ascending: false })
           .limit(3),
         supabase
@@ -135,13 +135,13 @@ export default function AdminDashboard() {
       // Build activity feed
       const activities: RecentActivity[] = [];
       
-      (recentUsers.data || []).forEach(u => {
+      (recentProfiles.data || []).forEach(p => {
         activities.push({
-          id: `user-${u.id}`,
+          id: `user-${p.id}`,
           type: "user",
           title: "New user registration",
-          description: `${u.full_name || u.first_name || u.telegram_username || u.whatsapp_number || 'User'} joined via ${u.platform || 'unknown'}`,
-          timestamp: u.created_at,
+          description: `${p.full_name || p.email || 'User'} registered`,
+          timestamp: p.created_at,
           icon: Users,
           iconColor: "text-blue-400"
         });

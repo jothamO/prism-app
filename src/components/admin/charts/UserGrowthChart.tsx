@@ -1,12 +1,10 @@
 import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
 interface GrowthDataPoint {
   date: string;
-  telegram: number;
-  whatsapp: number;
-  total: number;
+  users: number;
 }
 
 export function UserGrowthChart() {
@@ -22,25 +20,22 @@ export function UserGrowthChart() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const { data: users } = await supabase
-        .from("users")
-        .select("created_at, platform")
+      // Query profiles table (single source of truth for web registrations)
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("created_at")
         .gte("created_at", thirtyDaysAgo.toISOString())
         .order("created_at", { ascending: true });
 
-      // Group by date and platform
-      const grouped: Record<string, { telegram: number; whatsapp: number }> = {};
+      // Group by date
+      const grouped: Record<string, number> = {};
       
-      (users || []).forEach(user => {
-        const date = user.created_at?.split("T")[0] || "";
+      (profiles || []).forEach(profile => {
+        const date = profile.created_at?.split("T")[0] || "";
         if (!grouped[date]) {
-          grouped[date] = { telegram: 0, whatsapp: 0 };
+          grouped[date] = 0;
         }
-        if (user.platform === "telegram") {
-          grouped[date].telegram++;
-        } else if (user.platform === "whatsapp") {
-          grouped[date].whatsapp++;
-        }
+        grouped[date]++;
       });
 
       // Fill in missing dates and format
@@ -50,12 +45,9 @@ export function UserGrowthChart() {
       
       while (current <= today) {
         const dateStr = current.toISOString().split("T")[0];
-        const counts = grouped[dateStr] || { telegram: 0, whatsapp: 0 };
         filledData.push({
           date: current.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-          telegram: counts.telegram,
-          whatsapp: counts.whatsapp,
-          total: counts.telegram + counts.whatsapp
+          users: grouped[dateStr] || 0
         });
         current.setDate(current.getDate() + 1);
       }
@@ -101,22 +93,11 @@ export function UserGrowthChart() {
             color: "hsl(var(--foreground))"
           }}
         />
-        <Legend 
-          wrapperStyle={{ color: "hsl(var(--foreground))" }}
-        />
         <Bar 
-          dataKey="telegram" 
-          name="Telegram" 
+          dataKey="users" 
+          name="New Users" 
           fill="hsl(199 89% 48%)"
           radius={[4, 4, 0, 0]}
-          stackId="a"
-        />
-        <Bar 
-          dataKey="whatsapp" 
-          name="WhatsApp" 
-          fill="hsl(142 76% 36%)"
-          radius={[4, 4, 0, 0]}
-          stackId="a"
         />
       </BarChart>
     </ResponsiveContainer>
