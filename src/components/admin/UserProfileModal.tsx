@@ -17,6 +17,8 @@ import {
   Users,
   Trash2,
   Shield,
+  FolderKanban,
+  DollarSign,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -24,6 +26,7 @@ import { ProfileLearningTab } from "./ProfileLearningTab";
 import { RoleManager } from "./RoleManager";
 import { UserEditForm } from "./UserEditForm";
 import { UserActivityTab } from "./UserActivityTab";
+import { Progress } from "@/components/ui/progress";
 
 interface UserProfileModalProps {
   userId: string;
@@ -89,7 +92,17 @@ interface MessageData {
   created_at: string | null;
 }
 
-type TabId = "details" | "receipts" | "messages" | "learning" | "activity" | "team";
+type TabId = "details" | "receipts" | "messages" | "learning" | "activity" | "team" | "projects";
+
+interface ProjectData {
+  id: string;
+  name: string;
+  budget: number;
+  spent: number;
+  status: string;
+  source_person: string | null;
+  created_at: string;
+}
 
 interface TeamMember {
   id: string;
@@ -105,6 +118,7 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
   const [receipts, setReceipts] = useState<ReceiptData[]>([]);
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("details");
   const [isEditing, setIsEditing] = useState(false);
@@ -246,6 +260,15 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
         .eq("user_id", userId)
         .order("invited_at", { ascending: false });
       setTeamMembers((teamData || []) as TeamMember[]);
+
+      // Fetch projects for this user
+      const projectUserId = botUserId || userId;
+      const { data: projectsData } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("user_id", projectUserId)
+        .order("created_at", { ascending: false });
+      setProjects((projectsData || []) as ProjectData[]);
     } catch (error) {
       console.error("Error fetching user data:", error);
     } finally {
@@ -272,6 +295,7 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
   const tabs: { id: TabId; label: string; icon: typeof User }[] = [
     { id: "details", label: "Details", icon: User },
     { id: "activity", label: "Activity", icon: Activity },
+    { id: "projects", label: `Projects (${projects.length})`, icon: FolderKanban },
     ...(hasMessagingData
       ? [
         { id: "learning" as TabId, label: "Profile Learning", icon: Brain },
@@ -529,6 +553,59 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
               )}
 
               {activeTab === "activity" && <UserActivityTab userId={userId} />}
+
+              {activeTab === "projects" && (
+                <div className="space-y-3">
+                  {projects.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No projects found</p>
+                  ) : (
+                    projects.map((project) => {
+                      const progress = project.budget > 0 ? (project.spent / project.budget) * 100 : 0;
+                      const isOverBudget = progress > 100;
+                      return (
+                        <div key={project.id} className="p-4 bg-accent/30 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <FolderKanban className="w-4 h-4 text-primary" />
+                              <span className="font-medium text-foreground">{project.name}</span>
+                            </div>
+                            <span
+                              className={cn(
+                                "px-2 py-0.5 rounded-full text-xs font-medium capitalize",
+                                project.status === "active"
+                                  ? "bg-blue-500/20 text-blue-500"
+                                  : project.status === "completed"
+                                    ? "bg-green-500/20 text-green-500"
+                                    : "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {project.status}
+                            </span>
+                          </div>
+                          {project.source_person && (
+                            <p className="text-xs text-muted-foreground mb-2">From: {project.source_person}</p>
+                          )}
+                          <Progress 
+                            value={Math.min(progress, 100)} 
+                            className={cn("h-1.5 mb-1", isOverBudget && "[&>div]:bg-red-500")}
+                          />
+                          <div className="flex justify-between text-xs">
+                            <span className={cn(isOverBudget ? "text-red-500" : "text-muted-foreground")}>
+                              ₦{project.spent?.toLocaleString() || 0} spent
+                            </span>
+                            <span className="text-muted-foreground">
+                              ₦{project.budget?.toLocaleString() || 0} budget
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Created: {new Date(project.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
 
               {activeTab === "learning" && <ProfileLearningTab userId={userId} />}
 

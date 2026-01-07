@@ -97,18 +97,20 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all hover:scale-105 z-50"
+                className="fixed bottom-4 right-4 md:bottom-6 md:right-6 p-3 md:p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all hover:scale-105 z-[100]"
+                style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
                 aria-label="Open chat"
             >
-                <MessageSquare className="h-6 w-6" />
+                <MessageSquare className="h-5 w-5 md:h-6 md:w-6" />
             </button>
         );
     }
 
     return (
         <div
-            className={`fixed bottom-6 right-6 bg-white rounded-xl shadow-2xl z-50 flex flex-col transition-all ${isMinimized ? 'w-72 h-14' : 'w-96 h-[500px]'
+            className={`fixed bottom-4 right-4 md:bottom-6 md:right-6 bg-white dark:bg-card rounded-xl shadow-2xl z-[100] flex flex-col transition-all ${isMinimized ? 'w-72 h-14' : 'w-[calc(100vw-2rem)] md:w-96 max-w-96 h-[70vh] md:h-[500px]'
                 }`}
+            style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white rounded-t-xl">

@@ -26,7 +26,8 @@ import {
   PanelLeft,
   FileStack,
   ScrollText,
-  Scale
+  Scale,
+  Home
 } from "lucide-react";
 
 interface NavGroup {
@@ -117,6 +118,7 @@ export default function AdminLayout() {
       name: "Finance",
       defaultOpen: true,
       items: [
+        { name: "Projects", path: "/admin/projects", icon: FolderKanban },
         { name: "Invoices", path: "/admin/invoices", icon: FileText },
         { name: "Payments", path: "/admin/payments", icon: CreditCard },
         { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
@@ -264,6 +266,13 @@ export default function AdminLayout() {
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6">
           <h2 className="text-lg font-medium text-foreground">{currentPageName}</h2>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-3 py-1.5 text-sm bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors flex items-center gap-2"
+            >
+              <Home className="w-4 h-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </button>
             <span className="text-sm text-muted-foreground hidden sm:block">{user?.email}</span>
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
               {userInitial}
