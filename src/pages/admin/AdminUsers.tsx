@@ -176,7 +176,7 @@ export default function AdminUsers() {
   async function fetchUsers() {
     setLoading(true);
     try {
-      // Fetch web-registered users from profiles table
+      // Fetch web-registered users from profiles (single source of truth)
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, email, full_name, created_at, updated_at')
@@ -184,29 +184,38 @@ export default function AdminUsers() {
 
       if (profilesError) throw profilesError;
 
-      // Fetch bot users from users table (WhatsApp/Telegram)
-      const { data: botUsersData, error: botUsersError } = await supabase
+      // Fetch bot session data to enrich profiles with connected channels
+      const { data: botUsersData } = await supabase
         .from('users')
         .select(`
           id,
-          full_name,
-          first_name,
-          last_name,
-          email,
           whatsapp_number,
           telegram_id,
           telegram_username,
-          platform,
           onboarding_completed,
           is_blocked,
-          subscription_tier,
-          created_at,
           updated_at,
           auth_user_id
-        `)
-        .order('created_at', { ascending: false });
+        `);
 
-      if (botUsersError) throw botUsersError;
+      // Create a map of auth_user_id -> bot session data
+      const botSessionMap = new Map<string, {
+        telegramId?: string | null;
+        whatsappNumber?: string | null;
+        isBlocked?: boolean;
+        botUserId?: string;
+      }>();
+      
+      (botUsersData || []).forEach(u => {
+        if (u.auth_user_id) {
+          botSessionMap.set(u.auth_user_id, {
+            telegramId: u.telegram_id,
+            whatsappNumber: u.whatsapp_number,
+            isBlocked: u.is_blocked,
+            botUserId: u.id,
+          });
+        }
+      });
 
       // Fetch all user roles
       const { data: roles } = await supabase
@@ -222,36 +231,24 @@ export default function AdminUsers() {
         }
       });
 
-      // Map web-registered users (profiles)
-      const webUsers: User[] = (profilesData || []).map(p => ({
-        id: p.id,
-        name: p.full_name || p.email || 'Unknown',
-        email: p.email || '-',
-        role: roleMap.get(p.id) || 'user',
-        status: 'active' as const,
-        lastActive: p.updated_at ? formatRelativeTime(p.updated_at) : 'Never',
-        platform: 'web'
-      }));
+      // Map profiles with enriched bot session data
+      const mappedUsers: User[] = (profilesData || []).map(p => {
+        const botSession = botSessionMap.get(p.id);
+        return {
+          id: p.id,
+          name: p.full_name || p.email || 'Unknown',
+          email: p.email || '-',
+          role: roleMap.get(p.id) || 'user',
+          status: botSession?.isBlocked ? 'suspended' as const : 'active' as const,
+          lastActive: p.updated_at ? formatRelativeTime(p.updated_at) : 'Never',
+          platform: 'web',
+          telegramId: botSession?.telegramId,
+          whatsappNumber: botSession?.whatsappNumber,
+          authUserId: p.id,
+        };
+      });
 
-      // Map bot users (WhatsApp/Telegram) - exclude those already in profiles
-      const profileIds = new Set(profilesData?.map(p => p.id) || []);
-      const botUsers: User[] = (botUsersData || [])
-        .filter(u => !u.auth_user_id || !profileIds.has(u.auth_user_id))
-        .map(u => ({
-          id: u.id,
-          name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_username || u.whatsapp_number || 'Unknown',
-          email: u.email || u.whatsapp_number || u.telegram_id || '-',
-          role: roleMap.get(u.auth_user_id || u.id) || 'user',
-          status: u.is_blocked ? 'suspended' as const : (u.onboarding_completed ? 'active' as const : 'pending' as const),
-          lastActive: u.updated_at ? formatRelativeTime(u.updated_at) : 'Never',
-          platform: u.platform || 'unknown',
-          telegramId: u.telegram_id,
-          whatsappNumber: u.whatsapp_number,
-          authUserId: u.auth_user_id,
-        }));
-
-      // Combine both user types
-      setUsers([...webUsers, ...botUsers]);
+      setUsers(mappedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast({ title: "Error", description: "Failed to fetch users", variant: "destructive" });
