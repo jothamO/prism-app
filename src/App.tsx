@@ -18,6 +18,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
 import Team from "./pages/Team";
+import Projects from "./pages/Projects";
 import BankConnected from "./pages/BankConnected";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
@@ -150,6 +151,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Team />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute>
+                  <Projects />
                 </ProtectedRoute>
               }
             />

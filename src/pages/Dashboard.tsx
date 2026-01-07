@@ -24,11 +24,14 @@ import {
   HelpCircle,
   Users,
   Settings,
+  Shield,
+  FolderKanban,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useConnectedAccounts } from '@/hooks/useConnectedAccounts';
 import { useUserInsights } from '@/hooks/useUserInsights';
@@ -42,7 +45,7 @@ export default function Dashboard() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, isAdmin } = useAuth();
   const { toast } = useToast();
   const { profile, business, loading, refetch } = useUserProfile();
   const { accounts, loading: accountsLoading, syncAccount, syncing, refetch: refetchAccounts } = useConnectedAccounts();
@@ -157,6 +160,17 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={() => navigate('/admin')}
+              className="bg-primary/90 hover:bg-primary"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Admin
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => navigate('/team')}>
             <Users className="h-4 w-4 mr-2" />
             Team
@@ -515,7 +529,15 @@ export default function Dashboard() {
       </Card>
 
       {/* Quick Access to Features */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <button
+          onClick={() => navigate('/projects')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <FolderKanban className="h-6 w-6 text-emerald-600" />
+          <span className="text-sm font-medium">Projects</span>
+        </button>
+
         <button
           onClick={() => navigate('/analytics')}
           className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"

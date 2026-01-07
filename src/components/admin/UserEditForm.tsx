@@ -80,6 +80,7 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
           .single();
 
         if (linkedUser) {
+          // Update existing linked user record
           await supabase
             .from("users")
             .update({
@@ -95,6 +96,31 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
               whatsapp_number: formData.whatsapp_number || null,
             })
             .eq("id", linkedUser.id);
+        } else {
+          // Create a new user record linked to this web profile
+          const { error: createError } = await supabase
+            .from("users")
+            .insert({
+              auth_user_id: userId,
+              platform: "web",
+              full_name: formData.full_name || null,
+              email: formData.email || null,
+              entity_type: formData.entity_type || null,
+              occupation: formData.occupation || null,
+              location: formData.location || null,
+              nin_verified: formData.nin_verified,
+              bvn_verified: formData.bvn_verified,
+              subscription_tier: formData.subscription_tier || "basic",
+              telegram_id: formData.telegram_id || null,
+              whatsapp_number: formData.whatsapp_number || null,
+              onboarding_completed: true,
+              onboarding_step: 4,
+            });
+          
+          if (createError) {
+            console.error("Error creating user record:", createError);
+            // Don't throw - the profile update already succeeded
+          }
         }
       } else {
         // Update users table for bot users
