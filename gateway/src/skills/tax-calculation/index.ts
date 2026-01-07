@@ -1,28 +1,27 @@
 /**
  * Tax Calculation Skill
  * Handles income tax calculations per Nigeria Tax Act 2025
+ * Uses Central Rules Engine for dynamic tax bands
  */
 
 import { logger } from '../../utils/logger';
 import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
+import { getTaxBands, getThreshold, TaxBand } from '../../services/rules-fetcher';
 
-// Nigeria Tax Act 2025 - Section 58 Progressive Tax Rates
-const TAX_BANDS = [
+// Fallback values (used only if rules-fetcher fails completely)
+const FALLBACK_TAX_BANDS: TaxBand[] = [
     { min: 0, max: 800000, rate: 0, label: 'First ₦800,000' },
     { min: 800000, max: 3000000, rate: 0.15, label: 'Next ₦2,200,000' },
     { min: 3000000, max: 12000000, rate: 0.18, label: 'Next ₦9,000,000' },
     { min: 12000000, max: 25000000, rate: 0.21, label: 'Next ₦13,000,000' },
     { min: 25000000, max: 50000000, rate: 0.23, label: 'Next ₦25,000,000' },
-    { min: 50000000, max: Infinity, rate: 0.25, label: 'Above ₦50,000,000' },
+    { min: 50000000, max: null, rate: 0.25, label: 'Above ₦50,000,000' },
 ];
 
-// Minimum wage exemption threshold (₦70,000/month)
-const MINIMUM_WAGE_ANNUAL = 840000;
-
-// Small Company threshold for 0% rate
-const SMALL_COMPANY_THRESHOLD = 50000000;
+const FALLBACK_MINIMUM_WAGE_ANNUAL = 840000;
+const FALLBACK_SMALL_COMPANY_THRESHOLD = 50000000;
 
 export interface TaxBandBreakdown {
     band: string;
@@ -46,6 +45,77 @@ export interface TaxCalculationResult {
 }
 
 export class TaxCalculationSkill {
+    private taxBandsCache: TaxBand[] | null = null;
+    private minimumWageCache: number | null = null;
+    private smallCompanyThresholdCache: number | null = null;
+    private cacheTimestamp: number = 0;
+    private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+    /**
+     * Get tax bands (from cache or fetch)
+     */
+    private async getTaxBandsWithCache(): Promise<TaxBand[]> {
+        if (this.taxBandsCache && Date.now() - this.cacheTimestamp < this.CACHE_TTL) {
+            return this.taxBandsCache;
+        }
+
+        try {
+            const bands = await getTaxBands();
+            if (bands.length > 0) {
+                this.taxBandsCache = bands;
+                this.cacheTimestamp = Date.now();
+                logger.info('[Tax Skill] Loaded tax bands from Central Rules Engine');
+                return bands;
+            }
+        } catch (error) {
+            logger.warn('[Tax Skill] Failed to fetch tax bands, using fallback:', error);
+        }
+
+        return FALLBACK_TAX_BANDS;
+    }
+
+    /**
+     * Get minimum wage threshold
+     */
+    private async getMinimumWageAnnual(): Promise<number> {
+        if (this.minimumWageCache && Date.now() - this.cacheTimestamp < this.CACHE_TTL) {
+            return this.minimumWageCache;
+        }
+
+        try {
+            const threshold = await getThreshold('MINIMUM_WAGE');
+            if (threshold?.annual) {
+                this.minimumWageCache = threshold.annual;
+                return threshold.annual;
+            }
+        } catch (error) {
+            logger.warn('[Tax Skill] Failed to fetch minimum wage, using fallback:', error);
+        }
+
+        return FALLBACK_MINIMUM_WAGE_ANNUAL;
+    }
+
+    /**
+     * Get small company threshold
+     */
+    private async getSmallCompanyThreshold(): Promise<number> {
+        if (this.smallCompanyThresholdCache && Date.now() - this.cacheTimestamp < this.CACHE_TTL) {
+            return this.smallCompanyThresholdCache;
+        }
+
+        try {
+            const threshold = await getThreshold('SMALL_COMPANY_TURNOVER');
+            if (threshold?.limit) {
+                this.smallCompanyThresholdCache = threshold.limit;
+                return threshold.limit;
+            }
+        } catch (error) {
+            logger.warn('[Tax Skill] Failed to fetch small company threshold, using fallback:', error);
+        }
+
+        return FALLBACK_SMALL_COMPANY_THRESHOLD;
+    }
+
     /**
      * Format currency
      */
@@ -54,17 +124,21 @@ export class TaxCalculationSkill {
     }
 
     /**
-     * Calculate progressive tax
+     * Calculate progressive tax using current tax bands
      */
-    private calculateProgressiveTax(chargeableIncome: number): { breakdown: TaxBandBreakdown[]; totalTax: number } {
+    private calculateProgressiveTax(
+        chargeableIncome: number,
+        taxBands: TaxBand[]
+    ): { breakdown: TaxBandBreakdown[]; totalTax: number } {
         const breakdown: TaxBandBreakdown[] = [];
         let totalTax = 0;
         let remainingIncome = chargeableIncome;
 
-        for (const band of TAX_BANDS) {
+        for (const band of taxBands) {
             if (remainingIncome <= 0) break;
 
-            const bandWidth = band.max === Infinity ? Infinity : band.max - band.min;
+            const bandMax = band.max === null ? Infinity : band.max;
+            const bandWidth = bandMax === Infinity ? Infinity : bandMax - band.min;
             const taxableInBand = Math.min(remainingIncome, bandWidth);
             const taxInBand = taxableInBand * band.rate;
 
@@ -91,6 +165,11 @@ export class TaxCalculationSkill {
     ): Promise<Static<typeof MessageResponseSchema>> {
         try {
             logger.info('[Tax Skill] Processing request', { userId: context.userId, message });
+
+            // Fetch current rules
+            const taxBands = await this.getTaxBandsWithCache();
+            const minimumWageAnnual = await this.getMinimumWageAnnual();
+            const smallCompanyThreshold = await this.getSmallCompanyThreshold();
 
             const lowerMessage = message.toLowerCase();
 
@@ -124,10 +203,10 @@ export class TaxCalculationSkill {
                 const expenses = freelanceMatch[2] ? parseInt(freelanceMatch[2].replace(/,/g, '')) : 0;
                 const netIncome = Math.max(0, income - expenses);
 
-                // Check Small Company status
-                const isSmallCompany = income <= SMALL_COMPANY_THRESHOLD;
+                // Check Small Company status using dynamic threshold
+                const isSmallCompany = income <= smallCompanyThreshold;
 
-                const { breakdown, totalTax } = this.calculateProgressiveTax(netIncome);
+                const { breakdown, totalTax } = this.calculateProgressiveTax(netIncome, taxBands);
                 const effectiveRate = netIncome > 0 ? (totalTax / netIncome) * 100 : 0;
 
                 const breakdownStr = breakdown
@@ -143,7 +222,7 @@ export class TaxCalculationSkill {
 
                 if (isSmallCompany) {
                     response += `✅ *SMALL COMPANY STATUS*\n` +
-                        `Turnover ≤ ₦50M qualifies for 0% Company Tax\n\n`;
+                        `Turnover ≤ ${this.formatCurrency(smallCompanyThreshold)} qualifies for 0% Company Tax\n\n`;
                 }
 
                 response += `📋 Tax Breakdown (Section 58):\n${breakdownStr}\n` +
@@ -171,7 +250,8 @@ export class TaxCalculationSkill {
                         expenses,
                         netIncome,
                         totalTax,
-                        isSmallCompany
+                        isSmallCompany,
+                        rulesSource: 'central-engine'
                     }
                 };
             }
@@ -186,25 +266,26 @@ export class TaxCalculationSkill {
                 const isMonthly = amount < 1000000; // Assume monthly if < 1M
                 const annualIncome = isMonthly ? amount * 12 : amount;
 
-                // Check minimum wage exemption
-                if (annualIncome <= MINIMUM_WAGE_ANNUAL) {
+                // Check minimum wage exemption using dynamic threshold
+                if (annualIncome <= minimumWageAnnual) {
+                    const monthlyWage = minimumWageAnnual / 12;
                     return {
                         message: `💰 Income Tax Calculation\n` +
                             `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
                             `Annual Income: ${this.formatCurrency(annualIncome)}\n\n` +
                             `✅ *MINIMUM WAGE EXEMPTION*\n\n` +
                             `Your income is at or below the national\n` +
-                            `minimum wage threshold (₦70,000/month).\n\n` +
+                            `minimum wage threshold (${this.formatCurrency(monthlyWage)}/month).\n\n` +
                             `📊 Summary:\n` +
                             `├─ Tax Payable: ₦0\n` +
                             `├─ Effective Rate: 0%\n` +
                             `└─ Monthly Net: ${this.formatCurrency(annualIncome / 12)}\n\n` +
                             `Reference: Section 58 NTA 2025`,
-                        metadata: { skill: 'tax-calculation', minimumWageExempt: true }
+                        metadata: { skill: 'tax-calculation', minimumWageExempt: true, rulesSource: 'central-engine' }
                     };
                 }
 
-                const { breakdown, totalTax } = this.calculateProgressiveTax(annualIncome);
+                const { breakdown, totalTax } = this.calculateProgressiveTax(annualIncome, taxBands);
                 const effectiveRate = (totalTax / annualIncome) * 100;
 
                 const breakdownStr = breakdown
@@ -229,7 +310,8 @@ export class TaxCalculationSkill {
                         grossIncome: annualIncome,
                         totalTax,
                         effectiveRate,
-                        monthlyTax: totalTax / 12
+                        monthlyTax: totalTax / 12,
+                        rulesSource: 'central-engine'
                     }
                 };
             }

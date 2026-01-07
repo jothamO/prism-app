@@ -998,6 +998,13 @@ export type Database = {
             foreignKeyName: "compliance_notifications_rule_id_fkey"
             columns: ["rule_id"]
             isOneToOne: false
+            referencedRelation: "active_tax_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_notifications_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
             referencedRelation: "compliance_rules"
             referencedColumns: ["id"]
           },
@@ -3223,6 +3230,37 @@ export type Database = {
       }
     }
     Views: {
+      active_tax_rules: {
+        Row: {
+          description: string | null
+          document_id: string | null
+          effective_from: string | null
+          effective_to: string | null
+          id: string | null
+          parameters: Json | null
+          priority: number | null
+          provision_id: string | null
+          rule_code: string | null
+          rule_name: string | null
+          rule_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_rules_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_rules_provision_id_fkey"
+            columns: ["provision_id"]
+            isOneToOne: false
+            referencedRelation: "legal_provisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transaction_analytics: {
         Row: {
           ai_classified_count: number | null
