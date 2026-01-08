@@ -27,7 +27,8 @@ import {
   FileStack,
   ScrollText,
   Scale,
-  Home
+  Home,
+  Code
 } from "lucide-react";
 
 interface NavGroup {
@@ -98,6 +99,7 @@ export default function AdminLayout() {
         { name: "Documents", path: "/admin/compliance/documents", icon: FileText },
         { name: "Rules", path: "/admin/compliance/rules", icon: Scale },
         { name: "Change Log", path: "/admin/compliance/changelog", icon: ScrollText },
+        { name: "Code Proposals", path: "/admin/compliance/proposals", icon: Code },
         { name: "Review Queue", path: "/admin/reviews", icon: ShieldAlert },
         { name: "Related Parties", path: "/admin/related-parties", icon: Link2 },
         { name: "Filings", path: "/admin/filings", icon: FileText },
