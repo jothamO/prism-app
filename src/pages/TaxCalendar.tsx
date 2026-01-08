@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Calendar as CalendarIcon,
-    AlertCircle,
-    CheckCircle2,
     Clock,
     ChevronLeft,
     ChevronRight,
@@ -11,26 +9,25 @@ import {
     Receipt,
     Building2,
     DollarSign,
+    Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useTaxDeadlines, generateDeadlineDates } from '@/hooks/useTaxDeadlines';
 
-interface TaxDeadline {
+interface CalendarDeadline {
     id: string;
     title: string;
     description: string;
     date: Date;
-    type: 'vat' | 'paye' | 'annual' | 'emtl' | 'other';
+    type: string;
     recurring: boolean;
-    icon: typeof Receipt;
 }
 
-// Nigerian tax deadlines
-const generateDeadlines = (year: number): TaxDeadline[] => {
-    const deadlines: TaxDeadline[] = [];
-
-    // Monthly VAT returns (21st of each month)
+// Fallback deadlines if DB is unavailable
+const generateFallbackDeadlines = (year: number): CalendarDeadline[] => {
+    const deadlines: CalendarDeadline[] = [];
     for (let month = 0; month < 12; month++) {
         deadlines.push({
             id: `vat-${year}-${month}`,
@@ -39,12 +36,7 @@ const generateDeadlines = (year: number): TaxDeadline[] => {
             date: new Date(year, month, 21),
             type: 'vat',
             recurring: true,
-            icon: Receipt,
         });
-    }
-
-    // PAYE remittance (10th of each month)
-    for (let month = 0; month < 12; month++) {
         deadlines.push({
             id: `paye-${year}-${month}`,
             title: 'PAYE Remittance',
@@ -52,50 +44,49 @@ const generateDeadlines = (year: number): TaxDeadline[] => {
             date: new Date(year, month, 10),
             type: 'paye',
             recurring: true,
-            icon: DollarSign,
         });
     }
-
-    // Annual returns
     deadlines.push({
         id: `annual-${year}`,
         title: 'Annual Tax Return',
         description: 'Personal/Corporate income tax filing',
-        date: new Date(year, 2, 31), // March 31
+        date: new Date(year, 2, 31),
         type: 'annual',
         recurring: false,
-        icon: FileText,
     });
-
-    // Company annual returns
-    deadlines.push({
-        id: `company-${year}`,
-        title: 'Company Annual Returns',
-        description: 'CAC annual returns submission',
-        date: new Date(year, 5, 30), // June 30
-        type: 'other',
-        recurring: false,
-        icon: Building2,
-    });
-
     return deadlines;
+};
+
+const getTypeIcon = (type: string) => {
+    switch (type) {
+        case 'vat': return Receipt;
+        case 'paye': return DollarSign;
+        case 'annual': return FileText;
+        default: return Building2;
+    }
 };
 
 export default function TaxCalendar() {
     const navigate = useNavigate();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [deadlines, setDeadlines] = useState<TaxDeadline[]>([]);
+    
+    const { data: dbDeadlines, isLoading } = useTaxDeadlines();
 
-    useEffect(() => {
-        // Generate deadlines for current and next year
+    // Generate deadline dates from DB or fallback
+    const deadlines = useMemo(() => {
         const currentYear = currentDate.getFullYear();
-        const allDeadlines = [
-            ...generateDeadlines(currentYear),
-            ...generateDeadlines(currentYear + 1),
+        if (dbDeadlines && dbDeadlines.length > 0) {
+            return [
+                ...generateDeadlineDates(dbDeadlines, currentYear),
+                ...generateDeadlineDates(dbDeadlines, currentYear + 1),
+            ];
+        }
+        return [
+            ...generateFallbackDeadlines(currentYear),
+            ...generateFallbackDeadlines(currentYear + 1),
         ];
-        setDeadlines(allDeadlines);
-    }, [currentDate]);
+    }, [dbDeadlines, currentDate]);
 
     const getDaysInMonth = (date: Date) => {
         return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -132,12 +123,6 @@ export default function TaxCalendar() {
             .filter(d => d.date >= today)
             .sort((a, b) => a.date.getTime() - b.date.getTime())
             .slice(0, 5);
-    };
-
-    const isPastDeadline = (date: Date) => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        return date < today;
     };
 
     const isToday = (date: Date) => {
@@ -194,6 +179,7 @@ export default function TaxCalendar() {
                         <div className="flex items-center gap-3">
                             <CalendarIcon className="h-8 w-8 text-indigo-600" />
                             <h1 className="text-xl font-bold text-gray-900">Tax Calendar</h1>
+                            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
                         </div>
                         <Button variant="outline" onClick={() => navigate('/dashboard')}>
                             Back to Dashboard
@@ -300,18 +286,21 @@ export default function TaxCalendar() {
                                         <p className="text-sm text-gray-500">No deadlines on this date</p>
                                     ) : (
                                         <div className="space-y-3">
-                                            {getDeadlinesForDate(selectedDate).map(d => (
-                                                <div key={d.id} className="p-3 bg-gray-50 rounded-lg">
-                                                    <div className="flex items-center gap-2">
-                                                        <d.icon className="h-4 w-4 text-gray-600" />
-                                                        <span className="font-medium text-sm">{d.title}</span>
+                                            {getDeadlinesForDate(selectedDate).map(d => {
+                                                const Icon = getTypeIcon(d.type);
+                                                return (
+                                                    <div key={d.id} className="p-3 bg-gray-50 rounded-lg">
+                                                        <div className="flex items-center gap-2">
+                                                            <Icon className="h-4 w-4 text-gray-600" />
+                                                            <span className="font-medium text-sm">{d.title}</span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 mt-1">{d.description}</p>
+                                                        <Badge variant="secondary" className={`mt-2 text-xs ${getTypeBadgeColor(d.type)}`}>
+                                                            {d.type.toUpperCase()}
+                                                        </Badge>
                                                     </div>
-                                                    <p className="text-xs text-gray-500 mt-1">{d.description}</p>
-                                                    <Badge variant="secondary" className={`mt-2 text-xs ${getTypeBadgeColor(d.type)}`}>
-                                                        {d.type.toUpperCase()}
-                                                    </Badge>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </CardContent>
