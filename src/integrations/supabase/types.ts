@@ -184,6 +184,107 @@ export type Database = {
         }
         Relationships: []
       }
+      app_changelog_entries: {
+        Row: {
+          commit_hash: string | null
+          component: string | null
+          contributor: string | null
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          entry_type: string
+          id: string
+          pull_request_url: string | null
+          release_id: string | null
+          title: string
+        }
+        Insert: {
+          commit_hash?: string | null
+          component?: string | null
+          contributor?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          entry_type: string
+          id?: string
+          pull_request_url?: string | null
+          release_id?: string | null
+          title: string
+        }
+        Update: {
+          commit_hash?: string | null
+          component?: string | null
+          contributor?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          entry_type?: string
+          id?: string
+          pull_request_url?: string | null
+          release_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_changelog_entries_release_id_fkey"
+            columns: ["release_id"]
+            isOneToOne: false
+            referencedRelation: "app_releases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_releases: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          github_release_id: number | null
+          github_release_url: string | null
+          id: string
+          is_breaking: boolean | null
+          is_major: boolean | null
+          published_at: string | null
+          release_date: string
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string | null
+          version: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          github_release_id?: number | null
+          github_release_url?: string | null
+          id?: string
+          is_breaking?: boolean | null
+          is_major?: boolean | null
+          published_at?: string | null
+          release_date?: string
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string | null
+          version: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          github_release_id?: number | null
+          github_release_url?: string | null
+          id?: string
+          is_breaking?: boolean | null
+          is_major?: boolean | null
+          published_at?: string | null
+          release_date?: string
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string

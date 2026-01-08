@@ -81,6 +81,7 @@ export default function AdminLayout() {
       defaultOpen: true,
       items: [
         { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
+        { name: "Changelog", path: "/admin/changelog", icon: ScrollText },
       ]
     },
     {

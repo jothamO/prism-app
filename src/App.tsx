@@ -53,6 +53,7 @@ import AdminComplianceDocumentDetail from "./pages/admin/AdminComplianceDocument
 import AdminComplianceRules from "./pages/admin/AdminComplianceRules";
 import AdminComplianceChangelog from "./pages/admin/AdminComplianceChangelog";
 import AdminCodeProposals from "./pages/admin/AdminCodeProposals";
+import AdminChangelog from "./pages/admin/AdminChangelog";
 import AcceptInvite from "./pages/AcceptInvite";
 
 function App() {
@@ -174,6 +175,7 @@ function App() {
               }
             >
               <Route index element={<AdminDashboard />} />
+              <Route path="changelog" element={<AdminChangelog />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="projects" element={<AdminProjects />} />
               <Route path="reviews" element={<AdminReviews />} />
