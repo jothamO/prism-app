@@ -201,7 +201,7 @@ export default function AdminComplianceDocuments() {
                     effective_date: uploadForm.effectiveDate || null,
                     file_url: urlData.publicUrl,
                     raw_text: extractedText,
-                    status: "draft",
+                    status: "pending",
                     needs_human_review: true,
                     metadata: {
                         version: "1.0",
