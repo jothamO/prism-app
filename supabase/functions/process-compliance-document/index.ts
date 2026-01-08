@@ -97,11 +97,12 @@ Return ONLY valid JSON array:
   }
 ]`;
 
-        const provisions = await callClaudeJSON<ExtractedProvision[]>(
+        const provisionsResult = await callClaudeJSON<ExtractedProvision[]>(
             'You are an expert Nigerian tax lawyer. Extract provisions accurately.',
             extractionPrompt,
             { model: CLAUDE_MODELS.SONNET, maxTokens: 4000 }
-        ) || [];
+        );
+        const provisions = Array.isArray(provisionsResult) ? provisionsResult : [];
 
         console.log(`[process-compliance-document] Extracted ${provisions.length} provisions`);
 
@@ -129,11 +130,12 @@ Return ONLY valid JSON array:
   }
 ]`;
 
-        const rules = await callClaudeJSON<ComplianceRule[]>(
+        const rulesResult = await callClaudeJSON<ComplianceRule[]>(
             'You are a tax rules engineer. Create machine-readable rules.',
             rulesPrompt,
             { model: CLAUDE_MODELS.SONNET, maxTokens: 2000 }
-        ) || [];
+        );
+        const rules = Array.isArray(rulesResult) ? rulesResult : [];
 
         console.log(`[process-compliance-document] Generated ${rules.length} rules`);
 
@@ -185,7 +187,7 @@ Return ONLY valid JSON:
                 key_provisions: classification.keyProvisions,
                 affected_taxpayers: classification.affectedTaxpayers,
                 tax_types: classification.taxTypes,
-                review_status: classification.needsReview ? 'pending' : 'auto_approved',
+                needs_human_review: classification.needsReview ?? true,
                 review_notes: classification.reviewReasons?.join('; '),
                 updated_at: new Date().toISOString(),
             })
@@ -208,14 +210,16 @@ Return ONLY valid JSON:
         // Save rules
         for (const rule of rules) {
             await supabase.from('compliance_rules').insert({
+                document_id: documentId,
                 rule_name: rule.ruleName,
                 rule_type: rule.ruleType,
                 conditions: rule.conditions,
-                outcome: rule.outcome,
-                applies_to_transactions: rule.appliesToTransactions,
-                applies_to_filing: rule.appliesToFiling,
-                validation_status: 'pending',
-                active: false, // Activate after human review
+                actions: rule.outcome,
+                parameters: {
+                    appliesToTransactions: rule.appliesToTransactions,
+                    appliesToFiling: rule.appliesToFiling,
+                },
+                is_active: false, // Activate after human review
             });
         }
 
