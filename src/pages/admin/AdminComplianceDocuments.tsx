@@ -196,15 +196,19 @@ export default function AdminComplianceDocuments() {
                     regulatory_body_id: uploadForm.regulatoryBodyId,
                     document_type: uploadForm.documentType,
                     title: uploadForm.title,
-                    official_reference: uploadForm.officialReference || null,
+                    document_number: uploadForm.officialReference || null,
                     publication_date: uploadForm.publicationDate || null,
                     effective_date: uploadForm.effectiveDate || null,
-                    original_file_url: urlData.publicUrl,
-                    extracted_text: extractedText,
+                    file_url: urlData.publicUrl,
+                    raw_text: extractedText,
                     status: "draft",
-                    review_status: "pending",
-                    version: "1.0",
-                    supersedes_id: uploadForm.amendsExisting ? uploadForm.supersededDocId : null,
+                    needs_human_review: true,
+                    metadata: {
+                        version: "1.0",
+                        supersedes_id: uploadForm.amendsExisting ? uploadForm.supersededDocId : null,
+                        uploaded_by: "admin",
+                        upload_timestamp: new Date().toISOString()
+                    }
                 })
                 .select()
                 .single();
