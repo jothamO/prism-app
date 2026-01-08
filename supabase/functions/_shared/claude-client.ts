@@ -109,14 +109,31 @@ export async function callClaudeJSON<T>(
     );
 
     try {
-        // Try to extract JSON from response
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]) as T;
+        // Strip markdown code blocks if present
+        let cleaned = response.trim();
+        if (cleaned.startsWith('```json')) {
+            cleaned = cleaned.slice(7);
+        } else if (cleaned.startsWith('```')) {
+            cleaned = cleaned.slice(3);
         }
-        return JSON.parse(response) as T;
+        if (cleaned.endsWith('```')) {
+            cleaned = cleaned.slice(0, -3);
+        }
+        cleaned = cleaned.trim();
+
+        // Try to extract JSON array [...] or object {...} from response
+        const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+        const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+        
+        if (arrayMatch && (!objectMatch || arrayMatch.index! <= objectMatch.index!)) {
+            return JSON.parse(arrayMatch[0]) as T;
+        }
+        if (objectMatch) {
+            return JSON.parse(objectMatch[0]) as T;
+        }
+        return JSON.parse(cleaned) as T;
     } catch (error) {
-        console.error('[claude-client] Failed to parse JSON:', response);
+        console.error('[claude-client] Failed to parse JSON:', response.slice(0, 500));
         return null;
     }
 }
