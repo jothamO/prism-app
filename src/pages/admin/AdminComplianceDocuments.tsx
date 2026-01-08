@@ -177,15 +177,42 @@ export default function AdminComplianceDocuments() {
                 .from("documents")
                 .getPublicUrl(fileName);
 
-            // 2. Extract text (for now, we'll use the file content directly for txt files)
+            // 2. Extract text based on file type
             let extractedText = "";
             if (selectedFile.type === "text/plain" || 
                 selectedFile.type === "text/markdown" || 
                 selectedFile.type === "text/x-markdown" ||
                 selectedFile.name.endsWith('.md')) {
                 extractedText = await selectedFile.text();
+            } else if (selectedFile.type === "application/pdf" || selectedFile.name.endsWith('.pdf')) {
+                // Convert PDF to base64 and call document-ocr for text extraction
+                toast({
+                    title: "Extracting text from PDF...",
+                    description: "This may take a moment.",
+                });
+                const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(selectedFile);
+                    reader.onload = () => {
+                        const result = reader.result as string;
+                        resolve(result.split(',')[1]); // Remove data:mime;base64, prefix
+                    };
+                    reader.onerror = reject;
+                });
+                const { data: ocrResult, error: ocrError } = await supabase.functions.invoke(
+                    "document-ocr",
+                    { body: { image: base64, documentType: "legal_document" } }
+                );
+                if (ocrError) {
+                    console.error("OCR error:", ocrError);
+                    extractedText = `[PDF OCR failed - manual text entry required]`;
+                } else if (ocrResult?.data?.text) {
+                    extractedText = ocrResult.data.text;
+                } else {
+                    extractedText = `[PDF processing incomplete - review required]`;
+                }
             } else {
-                // For PDF/DOCX, we'd need a text extraction service
+                // For DOCX and other formats
                 extractedText = `[Document content from: ${selectedFile.name}]`;
             }
 

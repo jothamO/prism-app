@@ -2694,6 +2694,7 @@ export type Database = {
           abbreviation: string
           created_at: string | null
           id: string
+          is_active: boolean | null
           jurisdiction: string | null
           name: string
           updated_at: string | null
@@ -2703,6 +2704,7 @@ export type Database = {
           abbreviation: string
           created_at?: string | null
           id?: string
+          is_active?: boolean | null
           jurisdiction?: string | null
           name: string
           updated_at?: string | null
@@ -2712,6 +2714,7 @@ export type Database = {
           abbreviation?: string
           created_at?: string | null
           id?: string
+          is_active?: boolean | null
           jurisdiction?: string | null
           name?: string
           updated_at?: string | null

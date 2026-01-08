@@ -155,7 +155,24 @@ Confidence scores should be 0.0-1.0 based on readability:
 - 0.5-0.69: Partially readable, low certainty
 - 0.0-0.49: Guessed or unreadable
 
-This is a Nigerian tax document (FIRS). Use null for unreadable fields.`
+This is a Nigerian tax document (FIRS). Use null for unreadable fields.`,
+
+      legal_document: `Extract ALL text from this legal/compliance document image. 
+Return the full text preserving the structure (sections, paragraphs, lists).
+Output format:
+{
+  "data": {
+    "text": "full extracted text content...",
+    "documentType": "legal_document",
+    "sections": ["Section 1 title", "Section 2 title", ...]
+  },
+  "confidence": {
+    "overall": 0.85
+  }
+}
+
+Focus on accurate text extraction. Preserve section numbers, article references, and legal language exactly as written.
+Include ALL visible text from the document. Do not summarize or truncate.`
     };
 
     const prompt = prompts[documentType] || prompts.invoice;

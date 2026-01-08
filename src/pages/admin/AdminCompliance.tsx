@@ -13,11 +13,24 @@ import {
     Gavel,
     Search,
     Bell,
+    Plus,
+    MoreVertical,
+    Edit,
+    EyeOff,
+    Eye,
+    X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import ComplianceSearchPanel from "@/components/admin/ComplianceSearchPanel";
 import ComplianceNotificationCenter from "@/components/admin/ComplianceNotificationCenter";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Stats {
     regulatoryBodies: number;
@@ -32,7 +45,17 @@ interface RegulatoryBody {
     id: string;
     abbreviation: string;
     name: string;
-    document_count?: number;
+    jurisdiction: string | null;
+    website_url: string | null;
+    is_active: boolean;
+    document_count: number;
+}
+
+interface RegulatoryBodyForm {
+    abbreviation: string;
+    name: string;
+    jurisdiction: string;
+    website_url: string;
 }
 
 interface RecentDocument {
@@ -44,6 +67,7 @@ interface RecentDocument {
 }
 
 export default function AdminCompliance() {
+    const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<Stats>({
         regulatoryBodies: 0,
@@ -58,9 +82,37 @@ export default function AdminCompliance() {
     const [activeTab, setActiveTab] = useState<"overview" | "search" | "notifications">("overview");
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+    // Regulatory Body Modal state
+    const [showBodyModal, setShowBodyModal] = useState(false);
+    const [editingBody, setEditingBody] = useState<RegulatoryBody | null>(null);
+    const [bodyForm, setBodyForm] = useState<RegulatoryBodyForm>({
+        abbreviation: "",
+        name: "",
+        jurisdiction: "Federal",
+        website_url: "",
+    });
+    const [savingBody, setSavingBody] = useState(false);
+
     useEffect(() => {
         fetchData();
         getCurrentUser();
+
+        // Subscribe to legal_documents changes for real-time counter updates
+        const channel = supabase
+            .channel('legal_documents_changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'legal_documents' },
+                () => {
+                    // Refresh regulatory body document counts
+                    fetchRegulatoryBodiesWithCounts();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     async function getCurrentUser() {
@@ -68,13 +120,34 @@ export default function AdminCompliance() {
         setCurrentUserId(user?.id || null);
     }
 
+    async function fetchRegulatoryBodiesWithCounts() {
+        // Fetch regulatory bodies
+        const { data: bodies } = await supabase
+            .from("regulatory_bodies")
+            .select("id, abbreviation, name, jurisdiction, website_url, is_active");
+
+        if (!bodies) return;
+
+        // Fetch document counts for each body
+        const bodiesWithCounts = await Promise.all(
+            bodies.map(async (body) => {
+                const { count } = await supabase
+                    .from("legal_documents")
+                    .select("*", { count: "exact", head: true })
+                    .eq("regulatory_body_id", body.id)
+                    .eq("status", "active");
+                return { ...body, document_count: count || 0 };
+            })
+        );
+
+        setRegulatoryBodies(bodiesWithCounts);
+    }
+
     async function fetchData() {
         setLoading(true);
         try {
-            // Fetch regulatory bodies
-            const { data: bodies, count: bodiesCount } = await supabase
-                .from("regulatory_bodies")
-                .select("id, abbreviation, name", { count: "exact" });
+            // Fetch regulatory bodies with document counts
+            await fetchRegulatoryBodiesWithCounts();
 
             // Fetch document stats
             const { count: activeDocsCount } = await supabase
@@ -111,6 +184,11 @@ export default function AdminCompliance() {
                 .order("created_at", { ascending: false })
                 .limit(5);
 
+            // Get bodies count
+            const { count: bodiesCount } = await supabase
+                .from("regulatory_bodies")
+                .select("*", { count: "exact", head: true });
+
             setStats({
                 regulatoryBodies: bodiesCount || 0,
                 activeDocuments: activeDocsCount || 0,
@@ -119,12 +197,107 @@ export default function AdminCompliance() {
                 rules: rulesCount || 0,
                 recentChanges: changesCount || 0,
             });
-            setRegulatoryBodies(bodies || []);
             setRecentDocuments(recentDocs || []);
         } catch (error) {
             console.error("Error fetching compliance data:", error);
         } finally {
             setLoading(false);
+        }
+    }
+
+    // Regulatory Body CRUD handlers
+    function handleAddBody() {
+        setEditingBody(null);
+        setBodyForm({
+            abbreviation: "",
+            name: "",
+            jurisdiction: "Federal",
+            website_url: "",
+        });
+        setShowBodyModal(true);
+    }
+
+    function handleEditBody(body: RegulatoryBody) {
+        setEditingBody(body);
+        setBodyForm({
+            abbreviation: body.abbreviation,
+            name: body.name,
+            jurisdiction: body.jurisdiction || "Federal",
+            website_url: body.website_url || "",
+        });
+        setShowBodyModal(true);
+    }
+
+    async function handleSaveBody(e: React.FormEvent) {
+        e.preventDefault();
+        if (!bodyForm.abbreviation || !bodyForm.name) {
+            toast({
+                title: "Missing fields",
+                description: "Abbreviation and Name are required.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setSavingBody(true);
+        try {
+            if (editingBody) {
+                const { error } = await supabase
+                    .from("regulatory_bodies")
+                    .update({
+                        abbreviation: bodyForm.abbreviation,
+                        name: bodyForm.name,
+                        jurisdiction: bodyForm.jurisdiction || null,
+                        website_url: bodyForm.website_url || null,
+                    })
+                    .eq("id", editingBody.id);
+                if (error) throw error;
+                toast({ title: "Regulatory body updated" });
+            } else {
+                const { error } = await supabase
+                    .from("regulatory_bodies")
+                    .insert({
+                        abbreviation: bodyForm.abbreviation,
+                        name: bodyForm.name,
+                        jurisdiction: bodyForm.jurisdiction || null,
+                        website_url: bodyForm.website_url || null,
+                        is_active: true,
+                    });
+                if (error) throw error;
+                toast({ title: "Regulatory body created" });
+            }
+            setShowBodyModal(false);
+            fetchData();
+        } catch (error) {
+            console.error("Save error:", error);
+            toast({
+                title: "Save failed",
+                description: error instanceof Error ? error.message : "Unknown error",
+                variant: "destructive",
+            });
+        } finally {
+            setSavingBody(false);
+        }
+    }
+
+    async function handleToggleActive(body: RegulatoryBody) {
+        try {
+            const { error } = await supabase
+                .from("regulatory_bodies")
+                .update({ is_active: !body.is_active })
+                .eq("id", body.id);
+            if (error) throw error;
+            toast({
+                title: body.is_active ? "Regulatory body deactivated" : "Regulatory body activated",
+            });
+            fetchData();
+        } catch (error) {
+            console.error("Toggle error:", error);
+            toast({
+                title: "Action failed",
+                description: error instanceof Error ? error.message : "Unknown error",
+                variant: "destructive",
+            });
         }
     }
 
@@ -265,27 +438,74 @@ export default function AdminCompliance() {
                     <div className="grid md:grid-cols-2 gap-6">
                         {/* Regulatory Bodies */}
                         <div className="bg-card border border-border rounded-lg">
-                            <div className="p-4 border-b border-border">
+                            <div className="p-4 border-b border-border flex items-center justify-between">
                                 <h2 className="font-semibold text-foreground flex items-center gap-2">
                                     <Building2 className="w-4 h-4" />
                                     Regulatory Bodies
                                 </h2>
+                                <button
+                                    onClick={handleAddBody}
+                                    className="text-sm text-primary hover:underline flex items-center gap-1"
+                                >
+                                    <Plus className="w-3 h-3" /> Add New
+                                </button>
                             </div>
                             <div className="p-4 space-y-2">
                                 {regulatoryBodies.length === 0 ? (
-                                    <p className="text-muted-foreground text-sm">No regulatory bodies found. Run the migration to seed data.</p>
+                                    <p className="text-muted-foreground text-sm">No regulatory bodies found. Click "Add New" to create one.</p>
                                 ) : (
                                     regulatoryBodies.map((body) => (
                                         <div
                                             key={body.id}
-                                            className="flex items-center justify-between p-3 bg-accent/30 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                                            onClick={() => window.location.href = `/admin/compliance/documents?body=${body.abbreviation}`}
+                                            className={cn(
+                                                "flex items-center justify-between p-3 rounded-lg transition-colors",
+                                                body.is_active
+                                                    ? "bg-accent/30 hover:bg-accent/50"
+                                                    : "bg-muted/30 opacity-60"
+                                            )}
                                         >
-                                            <div>
-                                                <p className="font-medium text-foreground">{body.abbreviation}</p>
+                                            <div
+                                                className="flex-1 cursor-pointer"
+                                                onClick={() => window.location.href = `/admin/compliance/documents?body=${body.id}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium text-foreground">{body.abbreviation}</p>
+                                                    {!body.is_active && (
+                                                        <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
+                                                            Inactive
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-muted-foreground">{body.name}</p>
                                             </div>
-                                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                            <div className="flex items-center gap-2">
+                                                {/* Real-time document counter badge */}
+                                                <span className="px-2 py-1 bg-blue-500/20 text-blue-500 rounded-full text-xs font-medium">
+                                                    {body.document_count} active
+                                                </span>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <button
+                                                            className="p-1 hover:bg-accent rounded"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                                                        </button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => handleEditBody(body)}>
+                                                            <Edit className="w-4 h-4 mr-2" /> Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleToggleActive(body)}>
+                                                            {body.is_active ? (
+                                                                <><EyeOff className="w-4 h-4 mr-2" /> Deactivate</>
+                                                            ) : (
+                                                                <><Eye className="w-4 h-4 mr-2" /> Activate</>
+                                                            )}
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
                                         </div>
                                     ))
                                 )}
@@ -388,6 +608,96 @@ export default function AdminCompliance() {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Regulatory Body Add/Edit Modal */}
+            {showBodyModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-card border border-border rounded-xl w-full max-w-md shadow-xl">
+                        <div className="p-4 border-b border-border flex items-center justify-between">
+                            <h2 className="text-lg font-semibold text-foreground">
+                                {editingBody ? "Edit Regulatory Body" : "Add Regulatory Body"}
+                            </h2>
+                            <button
+                                onClick={() => setShowBodyModal(false)}
+                                className="p-1 hover:bg-accent rounded"
+                            >
+                                <X className="w-5 h-5 text-muted-foreground" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSaveBody} className="p-4 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1">
+                                    Abbreviation *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={bodyForm.abbreviation}
+                                    onChange={(e) => setBodyForm({ ...bodyForm, abbreviation: e.target.value })}
+                                    placeholder="e.g., FIRS, CBN"
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1">
+                                    Full Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={bodyForm.name}
+                                    onChange={(e) => setBodyForm({ ...bodyForm, name: e.target.value })}
+                                    placeholder="e.g., Federal Inland Revenue Service"
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1">
+                                    Jurisdiction
+                                </label>
+                                <select
+                                    value={bodyForm.jurisdiction}
+                                    onChange={(e) => setBodyForm({ ...bodyForm, jurisdiction: e.target.value })}
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                >
+                                    <option value="Federal">Federal</option>
+                                    <option value="State">State</option>
+                                    <option value="Local">Local</option>
+                                    <option value="International">International</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1">
+                                    Website URL
+                                </label>
+                                <input
+                                    type="url"
+                                    value={bodyForm.website_url}
+                                    onChange={(e) => setBodyForm({ ...bodyForm, website_url: e.target.value })}
+                                    placeholder="https://..."
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowBodyModal(false)}
+                                    className="flex-1 px-4 py-2 border border-border rounded-lg text-foreground hover:bg-accent transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingBody}
+                                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                >
+                                    {savingBody ? "Saving..." : editingBody ? "Save Changes" : "Add Body"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
         </div>
     );
