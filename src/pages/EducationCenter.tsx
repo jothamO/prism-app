@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     BookOpen,
@@ -13,231 +13,22 @@ import {
     Search,
     ExternalLink,
     Calendar,
+    Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { useEducationArticles, type EducationArticle } from '@/hooks/useEducationArticles';
 
-interface Article {
-    id: string;
-    title: string;
-    description: string;
-    category: 'basics' | 'vat' | 'paye' | 'business' | 'deductions' | 'compliance';
-    readTime: string;
-    icon: typeof Receipt;
-    content: string;
-}
-
-const ARTICLES: Article[] = [
-    {
-        id: 'what-is-vat',
-        title: 'Understanding VAT in Nigeria',
-        description: 'Learn how Value Added Tax works under the Nigeria Tax Act 2025',
-        category: 'vat',
-        readTime: '5 min',
-        icon: Receipt,
-        content: `
-## What is VAT?
-
-Value Added Tax (VAT) is a consumption tax levied at 7.5% on goods and services in Nigeria. 
-
-### Key Points:
-- Standard rate: **7.5%**
-- Administered by FIRS (Federal Inland Revenue Service)
-- Monthly returns due by the **21st** of each month
-
-### Exempt Items:
-- Basic food items (unprocessed grains, tubers, fruits)
-- Medical and pharmaceutical products
-- Educational materials
-
-### Zero-Rated Items:
-- Exports of goods
-- Goods and services purchased by diplomats
-
-### How to Calculate:
-VAT = Sale Amount × 7.5%
-
-For example, if you sell goods for ₦100,000:
-VAT = ₦100,000 × 7.5% = **₦7,500**
-    `,
-    },
-    {
-        id: 'what-is-emtl',
-        title: 'Electronic Money Transfer Levy (EMTL)',
-        description: 'Understanding the ₦50 charge on bank transfers',
-        category: 'basics',
-        readTime: '3 min',
-        icon: DollarSign,
-        content: `
-## What is EMTL?
-
-Electronic Money Transfer Levy is a ₦50 flat charge on electronic fund transfers of ₦10,000 or more.
-
-### Key Facts:
-- Amount: **₦50 flat fee**
-- Applies to transfers: **₦10,000 and above**
-- Collected by: Banks and financial institutions
-- Goes to: State governments
-
-### Tips to Minimize EMTL:
-1. Consolidate smaller transfers into one larger transfer
-2. Use cash for small transactions where practical
-3. Plan your transfers to reduce frequency
-
-### Exceptions:
-- Transfers below ₦10,000
-- Intra-bank transfers (same account)
-- Salary payments (employer to employee)
-    `,
-    },
-    {
-        id: 'paye-explained',
-        title: 'PAYE Tax System Explained',
-        description: 'How Pay As You Earn tax works for employees',
-        category: 'paye',
-        readTime: '6 min',
-        icon: Calculator,
-        content: `
-## What is PAYE?
-
-Pay As You Earn (PAYE) is a method of paying income tax where your employer deducts tax from your salary before paying you.
-
-### Tax Bands (Nigeria Tax Act 2025):
-| Taxable Income | Rate |
-|----------------|------|
-| First ₦800,000 | 0% |
-| Next ₦2,200,000 (₦800,001 - ₦3,000,000) | 15% |
-| Next ₦2,600,000 (₦3,000,001 - ₦5,600,000) | 19% |
-| Next ₦5,600,000 (₦5,600,001 - ₦11,200,000) | 21% |
-| Above ₦11,200,000 | 24% |
-
-### Allowable Deductions:
-- Pension: 8% of gross income
-- National Housing Fund (NHF): 2.5%
-- Life Insurance Premium
-- National Health Insurance (NHIS)
-
-### Example:
-For ₦5,000,000 annual salary:
-- First ₦800,000 @ 0% = ₦0
-- Next ₦2,200,000 @ 15% = ₦330,000
-- Next ₦2,000,000 @ 19% = ₦380,000
-- **Total Tax: ₦710,000**
-    `,
-    },
-    {
-        id: 'business-taxes',
-        title: 'Taxes for Small Businesses',
-        description: 'A guide to business taxation in Nigeria',
-        category: 'business',
-        readTime: '7 min',
-        icon: Building2,
-        content: `
-## Business Taxes in Nigeria
-
-### Types of Business Taxes:
-
-1. **Company Income Tax (CIT)**
-   - Standard rate: 30%
-   - Medium companies: 20%
-   - Small companies (turnover < ₦25M): 0%
-
-2. **VAT (if registered)**
-   - Rate: 7.5%
-   - Registration threshold: ₦25M turnover
-
-3. **Withholding Tax (WHT)**
-   - Construction: 5%
-   - Professional services: 10%
-   - Rent: 10%
-
-### Important Deadlines:
-- VAT Returns: 21st of each month
-- Annual Returns: March 31st
-- CIT Payment: Based on accounting period
-
-### Record Keeping:
-Keep all invoices, receipts, and bank statements for at least 6 years.
-    `,
-    },
-    {
-        id: 'tax-deductions',
-        title: 'Maximizing Your Tax Deductions',
-        description: 'Legal ways to reduce your tax burden',
-        category: 'deductions',
-        readTime: '5 min',
-        icon: FileText,
-        content: `
-## Tax Deductions and Allowances
-
-### Automatic Deductions:
-1. **Pension Contribution**: 8% of basic salary
-2. **NHF**: 2.5% of basic salary (max ₦50,000)
-
-### Additional Allowances:
-1. **Consolidated Relief Allowance (CRA)**
-   - Higher of: ₦200,000 OR 1% of gross income
-   - PLUS 20% of gross income
-
-2. **Life Insurance Premium**
-   - Fully deductible
-
-3. **Housing Loan Interest**
-   - Interest on mortgage is deductible
-
-### Example Calculation:
-Gross Income: ₦6,000,000
-- CRA: ₦200,000 + (20% × ₦6M) = ₦1,400,000
-- Pension: 8% × ₦6M = ₦480,000
-- NHF: 2.5% × ₦6M = ₦150,000 (capped at ₦50,000)
-
-**Total Deductions: ₦1,930,000**
-    `,
-    },
-    {
-        id: 'filing-returns',
-        title: 'How to File Your Tax Returns',
-        description: 'Step-by-step guide to filing with FIRS',
-        category: 'compliance',
-        readTime: '4 min',
-        icon: GraduationCap,
-        content: `
-## Filing Tax Returns in Nigeria
-
-### For Employees (PAYE):
-Your employer handles monthly PAYE remittance. You may need to file annual returns if you have additional income.
-
-### For Self-Employed/Businesses:
-
-**Step 1: Register with FIRS**
-- Get your Tax Identification Number (TIN)
-- Register on the FIRS TaxPro Max portal
-
-**Step 2: Prepare Documents**
-- Financial statements
-- Payment receipts
-- Bank statements
-- Invoices
-
-**Step 3: File Online**
-- Log in to taxpromax.firs.gov.ng
-- Select return type
-- Fill in the forms
-- Submit and pay
-
-### Key Deadlines:
-- VAT: 21st of following month
-- PAYE: 10th of following month
-- Annual Returns: March 31st
-
-### Penalties for Late Filing:
-- ₦25,000 first month
-- ₦5,000 each subsequent month
-    `,
-    },
-];
+const CATEGORY_ICONS: Record<string, typeof Receipt> = {
+    basics: HelpCircle,
+    vat: Receipt,
+    paye: Calculator,
+    business: Building2,
+    deductions: FileText,
+    compliance: GraduationCap,
+};
 
 const CATEGORIES = [
     { id: 'all', label: 'All', icon: BookOpen },
@@ -249,17 +40,54 @@ const CATEGORIES = [
     { id: 'compliance', label: 'Compliance', icon: GraduationCap },
 ];
 
+// Fallback articles
+const FALLBACK_ARTICLES: EducationArticle[] = [
+    {
+        id: 'what-is-vat',
+        slug: 'what-is-vat',
+        title: 'Understanding VAT in Nigeria',
+        description: 'Learn how Value Added Tax works under the Nigeria Tax Act 2025',
+        category: 'vat',
+        read_time: '5 min',
+        content: '## What is VAT?\n\nValue Added Tax (VAT) is a consumption tax levied at 7.5% on goods and services in Nigeria.',
+        is_published: true,
+        version: 1,
+        updated_at: '',
+    },
+    {
+        id: 'what-is-emtl',
+        slug: 'what-is-emtl',
+        title: 'Electronic Money Transfer Levy (EMTL)',
+        description: 'Understanding the ₦50 charge on bank transfers',
+        category: 'basics',
+        read_time: '3 min',
+        content: '## What is EMTL?\n\nElectronic Money Transfer Levy is a ₦50 flat charge on electronic fund transfers of ₦10,000 or more.',
+        is_published: true,
+        version: 1,
+        updated_at: '',
+    },
+];
+
 export default function EducationCenter() {
     const navigate = useNavigate();
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+    const [selectedArticle, setSelectedArticle] = useState<EducationArticle | null>(null);
 
-    const filteredArticles = ARTICLES.filter(article => {
+    const { data: dbArticles, isLoading } = useEducationArticles();
+
+    const articles = useMemo(() => {
+        if (dbArticles && dbArticles.length > 0) {
+            return dbArticles;
+        }
+        return FALLBACK_ARTICLES;
+    }, [dbArticles]);
+
+    const filteredArticles = articles.filter(article => {
         const matchesCategory = selectedCategory === 'all' || article.category === selectedCategory;
         const matchesSearch = searchQuery === '' ||
             article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            article.description.toLowerCase().includes(searchQuery.toLowerCase());
+            (article.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
         return matchesCategory && matchesSearch;
     });
 
@@ -294,7 +122,7 @@ export default function EducationCenter() {
                                 <Badge variant="secondary" className={getCategoryColor(selectedArticle.category)}>
                                     {selectedArticle.category.toUpperCase()}
                                 </Badge>
-                                <span className="text-sm text-gray-500">{selectedArticle.readTime} read</span>
+                                <span className="text-sm text-gray-500">{selectedArticle.read_time} read</span>
                             </div>
                             <CardTitle className="text-2xl">{selectedArticle.title}</CardTitle>
                             <CardDescription>{selectedArticle.description}</CardDescription>
@@ -336,6 +164,7 @@ export default function EducationCenter() {
                         <div className="flex items-center gap-3">
                             <BookOpen className="h-8 w-8 text-indigo-600" />
                             <h1 className="text-xl font-bold text-gray-900">Education Center</h1>
+                            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
                         </div>
                         <Button variant="outline" onClick={() => navigate('/dashboard')}>
                             Back to Dashboard
@@ -374,7 +203,7 @@ export default function EducationCenter() {
                 {/* Articles Grid */}
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredArticles.map(article => {
-                        const Icon = article.icon;
+                        const Icon = CATEGORY_ICONS[article.category] || BookOpen;
                         return (
                             <Card
                                 key={article.id}
@@ -395,7 +224,7 @@ export default function EducationCenter() {
                                 </CardHeader>
                                 <CardContent className="pt-0">
                                     <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-500">{article.readTime}</span>
+                                        <span className="text-gray-500">{article.read_time}</span>
                                         <div className="flex items-center text-indigo-600">
                                             Read <ChevronRight className="h-4 w-4 ml-1" />
                                         </div>
@@ -454,7 +283,7 @@ export default function EducationCenter() {
                                 <FileText className="h-5 w-5 text-gray-600" />
                                 <div>
                                     <p className="font-medium text-sm">FIRS Website</p>
-                                    <p className="text-xs text-gray-500">Federal Inland Revenue Service</p>
+                                    <p className="text-xs text-gray-500">Official resources</p>
                                 </div>
                             </a>
                         </div>

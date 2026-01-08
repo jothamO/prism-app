@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
     HelpCircle,
@@ -6,134 +6,47 @@ import {
     ChevronUp,
     Shield,
     Building2,
-    Calculator,
     Bot,
     MessageSquare,
+    Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useFAQItems, groupFAQByCategory, type FAQItem } from '@/hooks/useFAQItems';
 
-interface FAQItem {
-    question: string;
-    answer: string;
-}
+const CATEGORY_CONFIG: Record<string, { title: string; icon: typeof HelpCircle }> = {
+    general: { title: 'About PRISM', icon: HelpCircle },
+    security: { title: 'Bank Sync & Security', icon: Shield },
+    tax: { title: 'Tax & Compliance', icon: Building2 },
+    ai: { title: 'AI & Accuracy', icon: Bot },
+    support: { title: 'Support', icon: MessageSquare },
+};
 
-interface FAQCategory {
-    id: string;
-    title: string;
-    icon: typeof HelpCircle;
-    items: FAQItem[];
-}
-
-const FAQ_DATA: FAQCategory[] = [
-    {
-        id: 'general',
-        title: 'About PRISM',
-        icon: HelpCircle,
-        items: [
-            {
-                question: 'What is PRISM?',
-                answer: 'PRISM is an AI-powered tax automation platform for Nigerian individuals and businesses. It connects to your bank accounts, automatically categorizes transactions, calculates VAT/EMTL, and helps you stay compliant with the Nigeria Tax Act 2025.',
-            },
-            {
-                question: 'Who is PRISM for?',
-                answer: 'PRISM is designed for freelancers, small business owners, employed professionals, and anyone who wants to simplify their Nigerian tax obligations. Whether you need to track VAT, monitor EMTL charges, or prepare for tax filing, PRISM can help.',
-            },
-            {
-                question: 'Is PRISM free?',
-                answer: 'PRISM offers a free tier with basic features including bank connection, transaction categorization, and tax insights. Premium features like advanced reports and priority support are available on paid plans.',
-            },
-            {
-                question: 'How do I get started?',
-                answer: 'Sign up with your email, verify your identity, connect your bank account via Mono, and PRISM starts analyzing your transactions automatically. The whole process takes less than 5 minutes.',
-            },
-        ],
-    },
-    {
-        id: 'security',
-        title: 'Bank Sync & Security',
-        icon: Shield,
-        items: [
-            {
-                question: 'How often should I sync my account?',
-                answer: 'PRISM syncs automatically every few hours. You can manually sync anytime from your dashboard. We recommend syncing at least once daily for the most accurate insights and tax calculations.',
-            },
-            {
-                question: 'Is my banking data secure?',
-                answer: 'Yes. PRISM uses Mono (a CBN-licensed provider) for bank connections. We never store your bank login credentials. All data is encrypted in transit using TLS 1.3 and at rest using AES-256 encryption.',
-            },
-            {
-                question: 'Can PRISM access my bank password?',
-                answer: 'No. We use secure OAuth connections through Mono. Your bank credentials are never shared with us or stored on our servers. You authenticate directly with your bank.',
-            },
-            {
-                question: 'What banks are supported?',
-                answer: 'We support all major Nigerian banks that integrate with Mono, including GTBank, Access Bank, Zenith Bank, UBA, First Bank, Kuda, OPay, Wema Bank, Stanbic IBTC, and many more.',
-            },
-        ],
-    },
-    {
-        id: 'tax',
-        title: 'Tax & Compliance',
-        icon: Building2,
-        items: [
-            {
-                question: 'What transactions are tax-deductible?',
-                answer: 'Business expenses like office supplies, professional services, utilities, rent, and transportation are typically deductible. PRISM automatically flags potential deductions based on your transaction categories and Nigerian tax law.',
-            },
-            {
-                question: 'When do I need to file taxes?',
-                answer: 'VAT returns are due by the 21st of each month. PAYE is due by the 10th. Annual income tax returns are due by March 31st. PRISM sends you reminders before each deadline so you never miss a filing.',
-            },
-            {
-                question: 'Does PRISM file taxes for me?',
-                answer: 'PRISM prepares all the data and generates reports you can use for filing. The actual submission to FIRS TaxPro Max is done by you or your tax advisor. We provide export functionality to make this process seamless.',
-            },
-            {
-                question: 'What is EMTL?',
-                answer: 'Electronic Money Transfer Levy (EMTL) is a ₦50 charge on bank transfers of ₦10,000 or more in Nigeria. PRISM automatically tracks your EMTL payments and includes them in your tax reports.',
-            },
-        ],
-    },
-    {
-        id: 'ai',
-        title: 'AI & Accuracy',
-        icon: Bot,
-        items: [
-            {
-                question: 'How accurate are the AI predictions?',
-                answer: 'Our AI classification achieves 85-95% accuracy depending on transaction clarity. Transactions with low confidence scores are automatically flagged for your review. The system learns from your corrections over time.',
-            },
-            {
-                question: 'Can I correct the AI\'s categorization?',
-                answer: 'Yes! Simply click any transaction to see suggested categories and select the correct one. Your corrections help train the system for better future predictions on similar transactions.',
-            },
-            {
-                question: 'What AI does PRISM use?',
-                answer: 'PRISM uses Claude by Anthropic for intelligent tax assistance and transaction analysis. Our document OCR uses advanced computer vision. All AI processing follows Nigerian tax law guidelines from the Nigeria Tax Act 2025.',
-            },
-        ],
-    },
-    {
-        id: 'support',
-        title: 'Support',
-        icon: MessageSquare,
-        items: [
-            {
-                question: 'How do I get help?',
-                answer: 'Use the AI chat widget in your dashboard to ask PRISM questions about your taxes. For account issues or technical support, email support@prism.ng or connect with us on WhatsApp.',
-            },
-            {
-                question: 'Is there a mobile app?',
-                answer: 'PRISM is a mobile-first web app that works great on any smartphone browser. No app download is required - just visit prism.ng on your phone and you\'re ready to go.',
-            },
-        ],
-    },
-];
+// Fallback FAQ data
+const FALLBACK_FAQ: Record<string, FAQItem[]> = {
+    general: [
+        { id: '1', category: 'general', question: 'What is PRISM?', answer: 'PRISM is an AI-powered tax automation platform for Nigerian individuals and businesses.', display_order: 1, is_published: true, updated_at: '' },
+        { id: '2', category: 'general', question: 'Who is PRISM for?', answer: 'PRISM is designed for freelancers, small business owners, employed professionals, and anyone who wants to simplify their Nigerian tax obligations.', display_order: 2, is_published: true, updated_at: '' },
+    ],
+    security: [
+        { id: '3', category: 'security', question: 'Is my banking data secure?', answer: 'Yes. PRISM uses Mono (a CBN-licensed provider) for bank connections. We never store your bank login credentials.', display_order: 1, is_published: true, updated_at: '' },
+    ],
+    tax: [
+        { id: '4', category: 'tax', question: 'When do I need to file taxes?', answer: 'VAT returns are due by the 21st of each month. PAYE is due by the 10th. Annual income tax returns are due by March 31st.', display_order: 1, is_published: true, updated_at: '' },
+    ],
+};
 
 export default function FAQ() {
     const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+    const { data: faqItems, isLoading } = useFAQItems();
+
+    const groupedFAQ = useMemo(() => {
+        if (faqItems && faqItems.length > 0) {
+            return groupFAQByCategory(faqItems);
+        }
+        return FALLBACK_FAQ;
+    }, [faqItems]);
 
     const toggleItem = (categoryId: string, index: number) => {
         const key = `${categoryId}-${index}`;
@@ -146,6 +59,11 @@ export default function FAQ() {
     const isExpanded = (categoryId: string, index: number) => {
         return expandedItems[`${categoryId}-${index}`] || false;
     };
+
+    const categories = Object.keys(groupedFAQ).sort((a, b) => {
+        const order = ['general', 'security', 'tax', 'ai', 'support'];
+        return order.indexOf(a) - order.indexOf(b);
+    });
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -160,6 +78,7 @@ export default function FAQ() {
                                 </div>
                                 <span className="text-xl font-bold">PRISM</span>
                             </Link>
+                            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
                         </div>
                         <Link to="/dashboard">
                             <Button variant="outline">Dashboard</Button>
@@ -182,37 +101,40 @@ export default function FAQ() {
 
                 {/* FAQ Categories */}
                 <div className="space-y-8">
-                    {FAQ_DATA.map((category) => {
-                        const Icon = category.icon;
+                    {categories.map((categoryId) => {
+                        const config = CATEGORY_CONFIG[categoryId] || { title: categoryId, icon: HelpCircle };
+                        const Icon = config.icon;
+                        const items = groupedFAQ[categoryId] || [];
+
                         return (
-                            <Card key={category.id}>
+                            <Card key={categoryId}>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2 text-lg">
                                         <Icon className="h-5 w-5 text-indigo-600" />
-                                        {category.title}
+                                        {config.title}
                                         <Badge variant="secondary" className="ml-2">
-                                            {category.items.length} questions
+                                            {items.length} questions
                                         </Badge>
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-0">
                                     <div className="divide-y">
-                                        {category.items.map((item, index) => (
-                                            <div key={index} className="py-4">
+                                        {items.map((item, index) => (
+                                            <div key={item.id} className="py-4">
                                                 <button
-                                                    onClick={() => toggleItem(category.id, index)}
+                                                    onClick={() => toggleItem(categoryId, index)}
                                                     className="w-full flex items-start justify-between text-left"
                                                 >
                                                     <span className="font-medium text-gray-900 pr-4">
                                                         {item.question}
                                                     </span>
-                                                    {isExpanded(category.id, index) ? (
+                                                    {isExpanded(categoryId, index) ? (
                                                         <ChevronUp className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                     ) : (
                                                         <ChevronDown className="h-5 w-5 text-gray-400 flex-shrink-0" />
                                                     )}
                                                 </button>
-                                                {isExpanded(category.id, index) && (
+                                                {isExpanded(categoryId, index) && (
                                                     <p className="mt-3 text-gray-600 text-sm leading-relaxed">
                                                         {item.answer}
                                                     </p>

@@ -1248,6 +1248,60 @@ export type Database = {
           },
         ]
       }
+      education_articles: {
+        Row: {
+          category: string
+          content: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_published: boolean | null
+          needs_review: boolean | null
+          read_time: string | null
+          review_notes: string | null
+          slug: string
+          source_provisions: string[] | null
+          suggested_by_ai: boolean | null
+          title: string
+          updated_at: string | null
+          version: number | null
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          needs_review?: boolean | null
+          read_time?: string | null
+          review_notes?: string | null
+          slug: string
+          source_provisions?: string[] | null
+          suggested_by_ai?: boolean | null
+          title: string
+          updated_at?: string | null
+          version?: number | null
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          needs_review?: boolean | null
+          read_time?: string | null
+          review_notes?: string | null
+          slug?: string
+          source_provisions?: string[] | null
+          suggested_by_ai?: boolean | null
+          title?: string
+          updated_at?: string | null
+          version?: number | null
+        }
+        Relationships: []
+      }
       emtl_charges: {
         Row: {
           amount: number
@@ -1385,6 +1439,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      faq_items: {
+        Row: {
+          answer: string
+          category: string
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_published: boolean | null
+          needs_review: boolean | null
+          question: string
+          source_rules: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          answer: string
+          category: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          needs_review?: boolean | null
+          question: string
+          source_rules?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          answer?: string
+          category?: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          needs_review?: boolean | null
+          question?: string
+          source_rules?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       filings: {
         Row: {
@@ -2586,6 +2679,66 @@ export type Database = {
           whatsapp_enabled?: boolean | null
         }
         Relationships: []
+      }
+      tax_deadlines: {
+        Row: {
+          created_at: string | null
+          day_of_month: number | null
+          deadline_type: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          month_of_year: number | null
+          recurrence: string | null
+          source_rule_id: string | null
+          specific_date: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          day_of_month?: number | null
+          deadline_type: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          month_of_year?: number | null
+          recurrence?: string | null
+          source_rule_id?: string | null
+          specific_date?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          day_of_month?: number | null
+          deadline_type?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          month_of_year?: number | null
+          recurrence?: string | null
+          source_rule_id?: string | null
+          specific_date?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_deadlines_source_rule_id_fkey"
+            columns: ["source_rule_id"]
+            isOneToOne: false
+            referencedRelation: "active_tax_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tax_deadlines_source_rule_id_fkey"
+            columns: ["source_rule_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_rules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       telegram_auth_tokens: {
         Row: {
