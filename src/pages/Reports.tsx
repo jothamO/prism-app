@@ -289,7 +289,6 @@ export default function Reports() {
                         creditCarriedForward: Math.max(0, inputVAT - vatPaid),
                         status: vatPaid >= inputVAT ? 'remit' : 'credit',
                     },
-                    },
                 };
             } else {
                 // Default bank statement analysis
