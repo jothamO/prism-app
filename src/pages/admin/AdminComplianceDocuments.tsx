@@ -31,13 +31,13 @@ interface LegalDocument {
     regulatory_body_id: string | null;
     summary: string | null;
     created_at: string;
-    regulatory_bodies?: { id: string; code: string; full_name: string };
+    regulatory_bodies?: { id: string; abbreviation: string; name: string };
 }
 
 interface RegulatoryBody {
     id: string;
-    code: string;
-    full_name: string;
+    abbreviation: string;
+    name: string;
 }
 
 const DOCUMENT_TYPES = [
@@ -106,9 +106,8 @@ export default function AdminComplianceDocuments() {
             // Fetch regulatory bodies
             const { data: bodies } = await supabase
                 .from("regulatory_bodies")
-                .select("id, code, full_name")
-                .eq("active", true)
-                .order("code");
+                .select("id, abbreviation, name")
+                .order("abbreviation");
             setRegulatoryBodies(bodies || []);
 
             // Fetch documents with filters
@@ -117,7 +116,7 @@ export default function AdminComplianceDocuments() {
                 .select(`
           id, title, document_type, official_reference, status, review_status,
           effective_date, publication_date, regulatory_body_id, summary, created_at,
-          regulatory_bodies (code, full_name)
+          regulatory_bodies (abbreviation, name)
         `)
                 .order("created_at", { ascending: false });
 
@@ -331,7 +330,7 @@ export default function AdminComplianceDocuments() {
                 >
                     <option value="all">All Bodies</option>
                     {regulatoryBodies.map((body) => (
-                        <option key={body.id} value={body.id}>{body.code}</option>
+                        <option key={body.id} value={body.id}>{body.abbreviation}</option>
                     ))}
                 </select>
             </div>
@@ -363,7 +362,7 @@ export default function AdminComplianceDocuments() {
                                             {doc.regulatory_bodies && (
                                                 <span className="flex items-center gap-1">
                                                     <Building2 className="w-3 h-3" />
-                                                    {doc.regulatory_bodies.code}
+                                                    {doc.regulatory_bodies.abbreviation}
                                                 </span>
                                             )}
                                             <span>{doc.document_type}</span>
@@ -412,7 +411,7 @@ export default function AdminComplianceDocuments() {
                                 >
                                     <option value="">Select...</option>
                                     {regulatoryBodies.map((body) => (
-                                        <option key={body.id} value={body.id}>{body.code} - {body.full_name}</option>
+                                        <option key={body.id} value={body.id}>{body.abbreviation} - {body.name}</option>
                                     ))}
                                 </select>
                             </div>
