@@ -23,11 +23,14 @@ interface ExtractedProvision {
     sectionNumber: string;
     title: string;
     provisionText: string;
-    provisionType: 'definition' | 'rate' | 'exemption' | 'penalty' | 'procedure' | 'threshold';
+    provisionType: string; // Will be validated before insert
     appliesTo: string[];
     taxImpact: 'increases_liability' | 'decreases_liability' | 'neutral' | 'procedural';
     plainLanguageSummary: string;
 }
+
+// Valid provision types in database
+const VALID_PROVISION_TYPES = ['definition', 'obligation', 'exemption', 'rate', 'penalty', 'procedure', 'deadline', 'relief', 'power', 'general'] as const;
 
 interface ComplianceRule {
     ruleName: string;
@@ -73,14 +76,24 @@ DOCUMENT TYPE: ${documentType}
 TITLE: ${title}
 
 DOCUMENT TEXT:
-${extractedText.slice(0, 15000)}
+${extractedText.slice(0, 30000)}
 
 Extract each provision as a JSON object. For each provision identify:
 1. Section number (e.g., "Section 2.1", "Article 4(a)")
 2. Title or heading
 3. The exact provision text
-4. Type: 'definition', 'rate', 'exemption', 'penalty', 'procedure', or 'threshold'
-5. Who it applies to: ['individuals', 'companies', 'smes', 'non-residents', 'all']
+4. Type: MUST be exactly one of: 'definition', 'obligation', 'exemption', 'rate', 'penalty', 'procedure', 'deadline', 'relief', 'power', 'general'
+   - definition: Defines a term or concept
+   - obligation: A requirement or duty
+   - exemption: An exclusion from tax/rule
+   - rate: A specific rate, amount, or fee structure
+   - penalty: Consequences for non-compliance
+   - procedure: Steps or processes to follow
+   - deadline: Time limits or due dates
+   - relief: Tax relief or reduction
+   - power: Authority granted to an entity
+   - general: Other provisions that don't fit above
+5. Who it applies to: ['individuals', 'companies', 'smes', 'non-residents', 'banks', 'all']
 6. Tax impact: 'increases_liability', 'decreases_liability', 'neutral', 'procedural'
 7. Plain language summary
 
@@ -100,7 +113,7 @@ Return ONLY valid JSON array:
         const provisionsResult = await callClaudeJSON<ExtractedProvision[]>(
             'You are an expert Nigerian tax lawyer. Extract provisions accurately.',
             extractionPrompt,
-            { model: CLAUDE_MODELS.SONNET, maxTokens: 4000 }
+            { model: CLAUDE_MODELS.SONNET, maxTokens: 8000 }
         );
         const provisions = Array.isArray(provisionsResult) ? provisionsResult : [];
 
@@ -133,7 +146,7 @@ Return ONLY valid JSON array:
         const rulesResult = await callClaudeJSON<ComplianceRule[]>(
             'You are a tax rules engineer. Create machine-readable rules.',
             rulesPrompt,
-            { model: CLAUDE_MODELS.SONNET, maxTokens: 2000 }
+            { model: CLAUDE_MODELS.SONNET, maxTokens: 8000 }
         );
         const rules = Array.isArray(rulesResult) ? rulesResult : [];
 
@@ -170,7 +183,7 @@ Return ONLY valid JSON:
         const classification = await callClaudeJSON<Partial<ProcessingResult>>(
             'You are a tax document classifier.',
             summaryPrompt,
-            { model: CLAUDE_MODELS.HAIKU, maxTokens: 1000 }
+            { model: CLAUDE_MODELS.HAIKU, maxTokens: 2000 }
         ) || {};
 
         // Step 4: Save to database
@@ -179,7 +192,7 @@ Return ONLY valid JSON:
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         );
 
-        // Update legal document with summary info
+        // Update legal document with summary info and processing status
         await supabase
             .from('legal_documents')
             .update({
@@ -189,21 +202,32 @@ Return ONLY valid JSON:
                 tax_types: classification.taxTypes,
                 needs_human_review: classification.needsReview ?? true,
                 review_notes: classification.reviewReasons?.join('; '),
+                status: 'pending', // Processing complete, ready for review
                 updated_at: new Date().toISOString(),
+                metadata: {
+                    processing_completed_at: new Date().toISOString(),
+                    provisions_count: provisions.length,
+                    rules_count: rules.length,
+                },
             })
             .eq('id', documentId);
 
-        // Save provisions
+        // Save provisions with validated provision_type
         for (const provision of provisions) {
+            // Validate provision_type, default to 'general' if invalid
+            const provisionType = VALID_PROVISION_TYPES.includes(provision.provisionType as typeof VALID_PROVISION_TYPES[number])
+                ? provision.provisionType
+                : 'general';
+
             const { error: provisionError } = await supabase.from('legal_provisions').insert({
                 document_id: documentId,
                 section_number: provision.sectionNumber,
                 title: provision.title,
-                content: provision.provisionText,                    // Fixed: was provision_text
-                provision_type: provision.provisionType,
-                affected_entities: provision.appliesTo,              // Fixed: was applies_to
-                tax_implications: provision.taxImpact,               // Fixed: was tax_impact
-                ai_interpretation: provision.plainLanguageSummary,   // Fixed: was plain_language_summary
+                content: provision.provisionText,
+                provision_type: provisionType, // Use validated type
+                affected_entities: provision.appliesTo,
+                tax_implications: provision.taxImpact,
+                ai_interpretation: provision.plainLanguageSummary,
             });
             if (provisionError) {
                 console.error('[process-compliance-document] Provision insert error:', provisionError);
@@ -249,6 +273,27 @@ Return ONLY valid JSON:
     } catch (error) {
         console.error('[process-compliance-document] Error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        
+        // Try to update document status to failed
+        try {
+            const { documentId } = await req.clone().json();
+            if (documentId) {
+                const supabase = createClient(
+                    Deno.env.get('SUPABASE_URL') ?? '',
+                    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+                );
+                await supabase.from('legal_documents').update({
+                    status: 'processing_failed',
+                    metadata: {
+                        processing_error: errorMessage,
+                        processing_failed_at: new Date().toISOString(),
+                    },
+                }).eq('id', documentId);
+            }
+        } catch (updateError) {
+            console.error('[process-compliance-document] Failed to update status:', updateError);
+        }
+        
         return new Response(
             JSON.stringify({ error: errorMessage }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -218,7 +218,7 @@ export default function AdminComplianceDocuments() {
                 extractedText = `[Document content from: ${selectedFile.name}]`;
             }
 
-            // 3. Create document record
+            // 3. Create document record with 'processing' status
             const { data: newDoc, error: insertError } = await supabase
                 .from("legal_documents")
                 .insert({
@@ -230,7 +230,7 @@ export default function AdminComplianceDocuments() {
                     effective_date: uploadForm.effectiveDate || null,
                     file_url: urlData.publicUrl,
                     raw_text: extractedText,
-                    status: "pending",
+                    status: "processing", // Start with processing status
                     needs_human_review: true,
                     metadata: {
                         version: "1.0",
@@ -244,13 +244,8 @@ export default function AdminComplianceDocuments() {
 
             if (insertError) throw insertError;
 
-            // 4. Call processing edge function
-            toast({
-                title: "Processing document...",
-                description: "AI is extracting provisions and generating rules.",
-            });
-
-            const { error: processError } = await supabase.functions.invoke(
+            // 4. Fire-and-forget: Start background processing (don't await)
+            supabase.functions.invoke(
                 "process-compliance-document",
                 {
                     body: {
@@ -260,21 +255,15 @@ export default function AdminComplianceDocuments() {
                         title: uploadForm.title,
                     },
                 }
-            );
+            ).catch((err) => {
+                console.error("Background processing error:", err);
+            });
 
-            if (processError) {
-                console.error("Processing error:", processError);
-                toast({
-                    title: "Processing warning",
-                    description: "Document uploaded but AI processing may have failed. Check the review queue.",
-                    variant: "destructive",
-                });
-            } else {
-                toast({
-                    title: "Document uploaded",
-                    description: "AI has processed the document. Check the review queue.",
-                });
-            }
+            // Immediately show success and close modal
+            toast({
+                title: "Document uploaded",
+                description: "AI processing started in background. Refresh to see results.",
+            });
 
             setShowUploadModal(false);
             setSelectedFile(null);
@@ -312,6 +301,8 @@ export default function AdminComplianceDocuments() {
             case "active": return "bg-green-500/20 text-green-500";
             case "draft": return "bg-gray-500/20 text-gray-500";
             case "pending": return "bg-yellow-500/20 text-yellow-500";
+            case "processing": return "bg-blue-500/20 text-blue-500 animate-pulse";
+            case "processing_failed": return "bg-red-500/20 text-red-500";
             case "repealed": return "bg-red-500/20 text-red-500";
             default: return "bg-muted text-muted-foreground";
         }
@@ -592,7 +583,7 @@ export default function AdminComplianceDocuments() {
                                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
                             >
                                 {uploading && <RefreshCw className="w-4 h-4 animate-spin" />}
-                                {uploading ? "Processing..." : "Upload & Process"}
+                                {uploading ? "Uploading..." : "Upload Document"}
                             </button>
                         </div>
                     </div>
