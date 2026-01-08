@@ -893,6 +893,85 @@ export type Database = {
         }
         Relationships: []
       }
+      code_change_proposals: {
+        Row: {
+          affected_files: string[]
+          change_log_id: string | null
+          code_diff: Json
+          created_at: string
+          description: string | null
+          generated_by: string | null
+          id: string
+          implemented_at: string | null
+          notes: string | null
+          priority: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          rule_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_files?: string[]
+          change_log_id?: string | null
+          code_diff?: Json
+          created_at?: string
+          description?: string | null
+          generated_by?: string | null
+          id?: string
+          implemented_at?: string | null
+          notes?: string | null
+          priority?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rule_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_files?: string[]
+          change_log_id?: string | null
+          code_diff?: Json
+          created_at?: string
+          description?: string | null
+          generated_by?: string | null
+          id?: string
+          implemented_at?: string | null
+          notes?: string | null
+          priority?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rule_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_change_proposals_change_log_id_fkey"
+            columns: ["change_log_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_change_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "code_change_proposals_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "active_tax_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "code_change_proposals_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compliance_change_log: {
         Row: {
           change_reason: string | null
@@ -1936,6 +2015,8 @@ export type Database = {
           model_type: string | null
           precision_score: number | null
           recall_score: number | null
+          rule_version_hash: string | null
+          rules_snapshot: Json | null
           status: string | null
           trained_at: string | null
           training_data_count: number | null
@@ -1952,6 +2033,8 @@ export type Database = {
           model_type?: string | null
           precision_score?: number | null
           recall_score?: number | null
+          rule_version_hash?: string | null
+          rules_snapshot?: Json | null
           status?: string | null
           trained_at?: string | null
           training_data_count?: number | null
@@ -1968,6 +2051,8 @@ export type Database = {
           model_type?: string | null
           precision_score?: number | null
           recall_score?: number | null
+          rule_version_hash?: string | null
+          rules_snapshot?: Json | null
           status?: string | null
           trained_at?: string | null
           training_data_count?: number | null
@@ -3447,6 +3532,7 @@ export type Database = {
       }
     }
     Functions: {
+      capture_rules_for_ml_training: { Args: never; Returns: Json }
       find_similar_pattern: {
         Args: {
           p_business_id: string
