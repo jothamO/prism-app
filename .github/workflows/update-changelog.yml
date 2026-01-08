@@ -1,0 +1,53 @@
+name: Update Changelog
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to update changelog for'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Update CHANGELOG.md from release
+        if: github.event_name == 'release'
+        uses: stefanzweifel/changelog-updater-action@v1
+        with:
+          release-date: ${{ github.event.release.published_at }}
+          release-notes: ${{ github.event.release.body }}
+          latest-version: ${{ github.event.release.tag_name }}
+
+      - name: Commit updated CHANGELOG
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          branch: main
+          commit_message: "docs: update CHANGELOG for ${{ github.event.release.tag_name || inputs.version }}"
+          file_pattern: CHANGELOG.md
+
+  sync-to-database:
+    runs-on: ubuntu-latest
+    needs: update-changelog
+    if: github.event_name == 'release'
+    steps:
+      - name: Sync release to database
+        run: |
+          echo "GitHub Release created: ${{ github.event.release.tag_name }}"
+          echo "Release URL: ${{ github.event.release.html_url }}"
+          # Optional: Call edge function to sync release back to database
+          # curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/sync-github-release" \
+          #   -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          #   -H "Content-Type: application/json" \
+          #   -d '{"release_tag": "${{ github.event.release.tag_name }}", "release_url": "${{ github.event.release.html_url }}"}'
