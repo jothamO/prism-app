@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useEMTLRate, useVATRate } from '@/hooks/useActiveRules';
 
 interface TaxMetrics {
     totalIncome: number;
@@ -60,9 +61,13 @@ export default function TaxDashboard() {
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'quarter' | 'year'>('month');
 
+    // Use dynamic rates from the rules engine
+    const { emtlRate } = useEMTLRate();
+    const { vatRate } = useVATRate();
+
     useEffect(() => {
         fetchTaxData();
-    }, [selectedPeriod]);
+    }, [selectedPeriod, emtlRate, vatRate]);
 
     const fetchTaxData = async () => {
         setLoading(true);
@@ -150,13 +155,13 @@ export default function TaxDashboard() {
                 const taxImpl = txn.tax_implications as Record<string, boolean> | null;
 
                 if (flags?.isEmtl) {
-                    emtlPaid += 50; // Standard EMTL is ₦50
+                    emtlPaid += emtlRate.amount; // Dynamic EMTL from rules engine
                     emtlCount++;
-                    monthData.emtl += 50;
+                    monthData.emtl += emtlRate.amount;
                 }
 
                 if (taxImpl?.vatApplicable && credit > 0) {
-                    const vatAmount = credit * 0.075;
+                    const vatAmount = credit * vatRate; // Dynamic VAT from rules engine
                     vatPaid += vatAmount;
                     vatCount++;
                     monthData.vat += vatAmount;

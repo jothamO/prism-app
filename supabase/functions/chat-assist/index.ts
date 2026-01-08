@@ -1,38 +1,10 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { generateSystemPrompt } from '../_shared/prompt-generator.ts';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const SYSTEM_PROMPT = `You are PRISM, a friendly Nigerian tax assistant. Your role is to help users understand their taxes, transactions, and financial obligations under Nigerian law.
-
-PERSONALITY:
-- Friendly, approachable, and conversational
-- Use simple language, avoid jargon when possible
-- Reference Nigerian context (Naira, FIRS/NRS, local examples)
-- Be helpful but always recommend consulting a tax professional for complex matters
-
-KNOWLEDGE AREAS:
-1. Nigeria Tax Act 2025 - Personal income tax, corporate tax, VAT (7.5%), CGT
-2. EMTL - Electronic Money Transfer Levy (₦50 per transfer ≥₦10,000)
-3. Tax Categories: Employed, Self-employed, Business owner, Freelancer
-4. Deductions: Pension (8%), NHF (2.5%), Life insurance, Rent relief
-5. Filing deadlines: Monthly VAT (21st), Annual returns (March 31)
-6. Tax bands: ₦0-800k (0%), ₦800k-3M (15%), ₦3M-5.6M (19%), ₦5.6M-11.2M (21%), Above ₦11.2M (24%)
-
-FORMATTING:
-- Use emojis sparingly to be friendly 💡📊
-- Format currency as ₦X,XXX
-- Keep responses concise (2-3 paragraphs max)
-- For calculations, show the math briefly
-- End with a helpful tip or next action when relevant
-
-LIMITATIONS:
-- You cannot access external websites or databases
-- For specific account questions, refer to their transaction history
-- For complex legal matters, recommend a tax professional`;
 
 interface Message {
     role: 'user' | 'assistant';
@@ -74,23 +46,15 @@ serve(async (req) => {
             );
         }
 
-        // Build context-aware system prompt
-        let contextPrompt = SYSTEM_PROMPT;
-        if (context) {
-            contextPrompt += `\n\nUSER FINANCIAL CONTEXT (use this to personalize answers):`;
-            if (context.totalIncome !== undefined) {
-                contextPrompt += `\n- Total income this period: ₦${context.totalIncome.toLocaleString()}`;
-            }
-            if (context.totalExpenses !== undefined) {
-                contextPrompt += `\n- Total expenses this period: ₦${context.totalExpenses.toLocaleString()}`;
-            }
-            if (context.emtlPaid !== undefined) {
-                contextPrompt += `\n- EMTL paid this period: ₦${context.emtlPaid.toLocaleString()}`;
-            }
-            if (context.transactionCount !== undefined) {
-                contextPrompt += `\n- Number of transactions: ${context.transactionCount}`;
-            }
-        }
+        // Build context-aware system prompt dynamically from database
+        const contextPrompt = await generateSystemPrompt(context?.userId, {
+            totalIncome: context?.totalIncome,
+            totalExpenses: context?.totalExpenses,
+            emtlPaid: context?.emtlPaid,
+            transactionCount: context?.transactionCount,
+        });
+
+        console.log('[chat-assist] Generated dynamic system prompt with DB rules');
 
         // Build messages array with history
         const messages = [
