@@ -42,7 +42,7 @@ interface LegalDocument {
   key_provisions: string[] | null;
   created_at: string;
   updated_at: string | null;
-  regulatory_bodies?: { code: string; full_name: string };
+  regulatory_bodies?: { abbreviation: string; name: string };
 }
 
 interface Provision {
@@ -92,7 +92,7 @@ export default function AdminComplianceDocumentDetail() {
         .from("legal_documents")
         .select(`
           *,
-          regulatory_bodies (code, full_name)
+          regulatory_bodies (abbreviation, name)
         `)
         .eq("id", id)
         .single();
@@ -216,7 +216,7 @@ export default function AdminComplianceDocumentDetail() {
               {document.regulatory_bodies && (
                 <span className="flex items-center gap-1">
                   <Building2 className="w-4 h-4" />
-                  {document.regulatory_bodies.code}
+                  {document.regulatory_bodies.abbreviation}
                 </span>
               )}
               <span className="flex items-center gap-1">
