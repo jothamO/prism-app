@@ -9,6 +9,7 @@ import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
 import type { NLUIntent } from '../../services/nlu.service';
+import { getReliefs, getDeadlines, formatNaira } from '../../services/rules-fetcher';
 
 export interface IntentHandlerResult {
     message: string;
@@ -49,24 +50,27 @@ export async function handleTaxReliefInfo(
 ): Promise<IntentHandlerResult> {
     const reliefType = intent.entities.relief_type as string;
     
-    // Specific relief information
+    // Fetch reliefs from database
+    const dbReliefs = await getReliefs();
+    
+    // Build relief info from database with fallback
     const reliefInfo: Record<string, { title: string; description: string; limit: string; reference: string }> = {
         pension: {
             title: 'Pension Contribution Relief',
             description: 'Contributions to approved pension schemes are tax-deductible.',
-            limit: 'Up to 8% of basic salary',
+            limit: dbReliefs.find(r => r.rule_code === 'RELIEF_PENSION')?.parameters?.label || 'Up to 8% of basic salary',
             reference: 'Section 69 NTA 2025'
         },
         nhf: {
             title: 'National Housing Fund',
             description: '2.5% contribution to NHF is tax-deductible.',
-            limit: '2.5% of basic salary',
+            limit: dbReliefs.find(r => r.rule_code === 'RELIEF_NHF')?.parameters?.label || '2.5% of basic salary',
             reference: 'NHF Act'
         },
         nhis: {
             title: 'Health Insurance',
             description: 'Contributions to NHIS or approved health insurance are deductible.',
-            limit: 'Actual contribution',
+            limit: dbReliefs.find(r => r.rule_code === 'RELIEF_NHIS')?.parameters?.label || 'Actual contribution',
             reference: 'Section 71 NTA 2025'
         },
         housing: {
@@ -78,7 +82,7 @@ export async function handleTaxReliefInfo(
         children: {
             title: 'Children Education Allowance',
             description: 'Allowance for dependent children in approved educational institutions.',
-            limit: '₦2,500 per child (max 4)',
+            limit: dbReliefs.find(r => r.rule_code === 'RELIEF_CHILDREN')?.parameters?.label || '₦2,500 per child (max 4)',
             reference: 'Section 68 NTA 2025'
         }
     };
@@ -99,17 +103,22 @@ export async function handleTaxReliefInfo(
         };
     }
     
+    // Build dynamic relief list from database
+    const reliefsList = dbReliefs.map(r => {
+        const emoji = r.rule_code.includes('PENSION') ? '👴' :
+                     r.rule_code.includes('NHF') ? '🏠' :
+                     r.rule_code.includes('NHIS') ? '🏥' :
+                     r.rule_code.includes('CHILDREN') ? '📚' : '💰';
+        return `${emoji} *${r.rule_name}* - ${r.parameters?.label || 'See details'}`;
+    }).join('\n');
+    
     // General relief overview
     return {
         message: `💡 *Available Tax Reliefs (NTA 2025)*\n\n` +
             `Nigeria Tax Act 2025 provides several reliefs to reduce your tax liability:\n\n` +
             `🏦 *Consolidated Relief Allowance (CRA)*\n` +
             `   Higher of ₦200,000 or 1% of gross income + 20% of gross\n\n` +
-            `👴 *Pension* - 8% of basic salary\n` +
-            `🏠 *NHF* - 2.5% of basic salary\n` +
-            `🏥 *NHIS* - Health insurance contributions\n` +
-            `📚 *Children* - ₦2,500/child (max 4)\n` +
-            `🏡 *Rent* - Up to 20% of earned income\n\n` +
+            `${reliefsList || '👴 *Pension* - 8% of basic salary\n🏠 *NHF* - 2.5% of basic salary\n🏥 *NHIS* - Health insurance contributions\n📚 *Children* - ₦2,500/child (max 4)\n🏡 *Rent* - Up to 20% of earned income'}\n\n` +
             `Which relief would you like to learn more about?`,
         buttons: [
             [
@@ -135,21 +144,35 @@ export async function handleSetReminder(
     const reminderType = intent.entities.reminder_type as string;
     const taxType = intent.entities.tax_type as string;
     
+    // Fetch deadlines from database
+    const dbDeadlines = await getDeadlines();
+    
     // Get upcoming deadlines
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     
-    // VAT is due on 21st of following month
-    const nextVATDue = new Date(currentYear, currentMonth + 1, 21);
+    // Calculate next VAT due from DB or fallback
+    const vatDeadline = dbDeadlines.find(d => d.rule_code === 'DEADLINE_VAT');
+    const vatDay = vatDeadline?.parameters?.day || 21;
+    const nextVATDue = new Date(currentYear, currentMonth + 1, vatDay);
     const daysToVAT = Math.ceil((nextVATDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Calculate PAYE deadline
+    const payeDeadline = dbDeadlines.find(d => d.rule_code === 'DEADLINE_PAYE');
+    const payeDay = payeDeadline?.parameters?.day || 10;
+    
+    // Calculate annual deadline
+    const annualDeadline = dbDeadlines.find(d => d.rule_code === 'DEADLINE_ANNUAL');
+    const annualMonth = annualDeadline?.parameters?.month || 3;
+    const annualDay = annualDeadline?.parameters?.day || 31;
     
     return {
         message: `📅 *Tax Filing Reminders*\n\n` +
             `📋 *Upcoming Deadlines:*\n\n` +
             `🔹 VAT Return: ${formatDate(nextVATDue)} (${daysToVAT} days)\n` +
-            `🔹 Monthly PAYE: 10th of each month\n` +
-            `🔹 Annual Tax: March 31st\n\n` +
+            `🔹 Monthly PAYE: ${payeDay}th of each month\n` +
+            `🔹 Annual Tax: ${getMonthName(annualMonth)} ${annualDay}${getDaySuffix(annualDay)}\n\n` +
             `I can remind you 3 days before each deadline via this chat.\n\n` +
             `Which reminders would you like to set up?`,
         buttons: [
@@ -301,6 +324,22 @@ function formatDate(date: Date): string {
         month: 'short', 
         year: 'numeric' 
     });
+}
+
+function getMonthName(month: number): string {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[month - 1] || 'March';
+}
+
+function getDaySuffix(day: number): string {
+    if (day >= 11 && day <= 13) return 'th';
+    switch (day % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+    }
 }
 
 // Export all handlers

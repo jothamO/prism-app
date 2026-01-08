@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useEMTLRate, useVATRate } from '@/hooks/useActiveRules';
 
 interface Report {
     id: string;
@@ -71,6 +72,10 @@ export default function Reports() {
     const [generating, setGenerating] = useState<string | null>(null);
     const [selectedPeriod, setSelectedPeriod] = useState('this_month');
     const [transactions, setTransactions] = useState<any[]>([]);
+
+    // Use dynamic rates from the rules engine
+    const { emtlRate } = useEMTLRate();
+    const { vatRate } = useVATRate();
 
     useEffect(() => {
         fetchTransactions();
@@ -189,9 +194,9 @@ export default function Reports() {
                 if (txn.credit) totalIncome += txn.credit;
                 if (txn.debit) totalExpenses += txn.debit;
                 const flags = txn.nigerian_flags as Record<string, boolean> | null;
-                if (flags?.isEmtl) emtlPaid += 50;
+                if (flags?.isEmtl) emtlPaid += emtlRate.amount; // Dynamic EMTL
                 const taxImpl = txn.tax_implications as Record<string, boolean> | null;
-                if (taxImpl?.vatApplicable && txn.credit) vatPaid += txn.credit * 0.075;
+                if (taxImpl?.vatApplicable && txn.credit) vatPaid += txn.credit * vatRate; // Dynamic VAT
             });
 
             csvContent = 'Metric,Amount\n';
@@ -230,10 +235,12 @@ export default function Reports() {
                 if (txn.credit) totalIncome += txn.credit;
                 if (txn.debit) totalExpenses += txn.debit;
                 const flags = txn.nigerian_flags as Record<string, boolean> | null;
-                if (flags?.isEmtl) emtlPaid += 50;
+                if (flags?.isEmtl) emtlPaid += emtlRate.amount; // Dynamic EMTL
                 const taxImpl = txn.tax_implications as Record<string, boolean> | null;
-                if (taxImpl?.vatApplicable && txn.credit) vatPaid += txn.credit * 0.075;
+                if (taxImpl?.vatApplicable && txn.credit) vatPaid += txn.credit * vatRate; // Dynamic VAT
             });
+
+            const inputVAT = totalExpenses * vatRate; // Dynamic VAT rate
 
             let reportData: any = {};
 
@@ -275,12 +282,13 @@ export default function Reports() {
                         tin: 'Not Provided',
                         outputVAT: vatPaid,
                         outputVATInvoicesCount: transactions.filter(t => t.credit).length,
-                        inputVAT: totalExpenses * 0.075,
+                        inputVAT: inputVAT,
                         inputVATExpensesCount: transactions.filter(t => t.debit).length,
                         creditBroughtForward: 0,
-                        netVAT: vatPaid - (totalExpenses * 0.075),
-                        creditCarriedForward: Math.max(0, (totalExpenses * 0.075) - vatPaid),
-                        status: vatPaid >= totalExpenses * 0.075 ? 'remit' : 'credit',
+                        netVAT: vatPaid - inputVAT,
+                        creditCarriedForward: Math.max(0, inputVAT - vatPaid),
+                        status: vatPaid >= inputVAT ? 'remit' : 'credit',
+                    },
                     },
                 };
             } else {
@@ -312,8 +320,8 @@ export default function Reports() {
                             credits: totalIncome,
                             debits: totalExpenses,
                             outputVAT: vatPaid,
-                            inputVAT: totalExpenses * 0.075,
-                            netVAT: vatPaid - (totalExpenses * 0.075),
+                            inputVAT: inputVAT,
+                            netVAT: vatPaid - inputVAT,
                         },
                         reviewItemsCount: transactions.filter(t => t.classification === 'needs_review').length,
                     },
