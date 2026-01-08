@@ -5,14 +5,14 @@ import {
   FileText,
   Building2,
   Calendar,
-  Clock,
   CheckCircle2,
   XCircle,
   RefreshCw,
   ExternalLink,
   Scale,
   AlertTriangle,
-  Edit,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,9 @@ export default function AdminComplianceDocumentDetail() {
   const [rules, setRules] = useState<ComplianceRule[]>([]);
   const [activeTab, setActiveTab] = useState<"overview" | "provisions" | "rules" | "raw">("overview");
   const [updating, setUpdating] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (id) fetchDocument();
@@ -156,6 +159,89 @@ export default function AdminComplianceDocumentDetail() {
       });
     } finally {
       setUpdating(false);
+    }
+  }
+
+  async function reprocessDocument() {
+    if (!document || !document.raw_text) {
+      toast({
+        title: "Cannot reprocess",
+        description: "No raw text available for this document",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setReprocessing(true);
+    try {
+      // First, delete existing provisions and rules
+      await supabase.from("legal_provisions").delete().eq("document_id", document.id);
+      await supabase.from("compliance_rules").delete().eq("document_id", document.id);
+
+      // Call the edge function to reprocess
+      const { data, error } = await supabase.functions.invoke("process-compliance-document", {
+        body: {
+          documentId: document.id,
+          extractedText: document.raw_text,
+          documentType: document.document_type,
+          title: document.title,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Reprocessing complete",
+        description: `Extracted ${data?.provisionsCount || 0} provisions and ${data?.rulesCount || 0} rules`,
+      });
+
+      // Refresh the document data
+      fetchDocument();
+    } catch (error) {
+      console.error("Error reprocessing document:", error);
+      toast({
+        title: "Reprocessing failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setReprocessing(false);
+    }
+  }
+
+  async function deleteDocument() {
+    if (!document) return;
+
+    setDeleting(true);
+    try {
+      // Delete related provisions first
+      await supabase.from("legal_provisions").delete().eq("document_id", document.id);
+
+      // Delete related rules
+      await supabase.from("compliance_rules").delete().eq("document_id", document.id);
+
+      // Delete the document itself
+      const { error } = await supabase.from("legal_documents").delete().eq("id", document.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Document deleted",
+        description: "The document and all related data have been removed",
+      });
+
+      // Navigate back to documents list
+      navigate("/admin/compliance/documents");
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   }
 
@@ -241,6 +327,15 @@ export default function AdminComplianceDocumentDetail() {
           )}
           <Button
             variant="outline"
+            disabled={reprocessing || !document.raw_text}
+            onClick={reprocessDocument}
+            title={!document.raw_text ? "No raw text available" : "Re-run AI extraction"}
+          >
+            <RotateCcw className={cn("w-4 h-4 mr-2", reprocessing && "animate-spin")} />
+            {reprocessing ? "Reprocessing..." : "Reprocess"}
+          </Button>
+          <Button
+            variant="outline"
             disabled={updating}
             onClick={() => updateStatus("active")}
           >
@@ -255,8 +350,47 @@ export default function AdminComplianceDocumentDetail() {
             <XCircle className="w-4 h-4 mr-2" />
             Archive
           </Button>
+          <Button
+            variant="destructive"
+            disabled={deleting}
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
+          </Button>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-foreground mb-2">Delete Document?</h3>
+            <p className="text-muted-foreground mb-4">
+              This will permanently delete "{document.title}" along with all {provisions.length} provisions
+              and {rules.length} compliance rules. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={deleteDocument} disabled={deleting}>
+                {deleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-border">
