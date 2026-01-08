@@ -1071,6 +1071,13 @@ export type Database = {
             referencedRelation: "compliance_rules"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "code_change_proposals_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "upcoming_tax_rules"
+            referencedColumns: ["id"]
+          },
         ]
       }
       compliance_change_log: {
@@ -1186,6 +1193,13 @@ export type Database = {
             columns: ["rule_id"]
             isOneToOne: false
             referencedRelation: "compliance_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_notifications_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "upcoming_tax_rules"
             referencedColumns: ["id"]
           },
         ]
@@ -2221,6 +2235,39 @@ export type Database = {
           },
         ]
       }
+      notification_history: {
+        Row: {
+          id: string
+          metadata: Json | null
+          notification_key: string
+          notification_type: string
+          recipients_count: number | null
+          reference_date: string | null
+          reference_id: string | null
+          sent_at: string | null
+        }
+        Insert: {
+          id?: string
+          metadata?: Json | null
+          notification_key: string
+          notification_type: string
+          recipients_count?: number | null
+          reference_date?: string | null
+          reference_id?: string | null
+          sent_at?: string | null
+        }
+        Update: {
+          id?: string
+          metadata?: Json | null
+          notification_key?: string
+          notification_type?: string
+          recipients_count?: number | null
+          reference_date?: string | null
+          reference_id?: string | null
+          sent_at?: string | null
+        }
+        Relationships: []
+      }
       onboarding_progress: {
         Row: {
           age_group: string | null
@@ -2924,6 +2971,13 @@ export type Database = {
             referencedRelation: "compliance_rules"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tax_deadlines_source_rule_id_fkey"
+            columns: ["source_rule_id"]
+            isOneToOne: false
+            referencedRelation: "upcoming_tax_rules"
+            referencedColumns: ["id"]
+          },
         ]
       }
       telegram_auth_tokens: {
@@ -3567,38 +3621,116 @@ export type Database = {
           },
         ]
       }
+      webhook_delivery_log: {
+        Row: {
+          attempt_count: number | null
+          created_at: string | null
+          event_type: string
+          id: string
+          payload: Json
+          response_body: string | null
+          response_status: number | null
+          subscription_id: string | null
+          success: boolean | null
+        }
+        Insert: {
+          attempt_count?: number | null
+          created_at?: string | null
+          event_type: string
+          id?: string
+          payload: Json
+          response_body?: string | null
+          response_status?: number | null
+          subscription_id?: string | null
+          success?: boolean | null
+        }
+        Update: {
+          attempt_count?: number | null
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          response_body?: string | null
+          response_status?: number | null
+          subscription_id?: string | null
+          success?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_delivery_log_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_subscriptions: {
+        Row: {
+          business_id: string | null
+          created_at: string | null
+          endpoint_url: string
+          events: string[]
+          failure_count: number | null
+          id: string
+          is_active: boolean | null
+          last_triggered_at: string | null
+          name: string
+          secret_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string | null
+          endpoint_url: string
+          events?: string[]
+          failure_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          name: string
+          secret_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string | null
+          endpoint_url?: string
+          events?: string[]
+          failure_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          name?: string
+          secret_key?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_subscriptions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       active_tax_rules: {
         Row: {
           description: string | null
-          document_id: string | null
           effective_from: string | null
           effective_to: string | null
           id: string | null
+          is_active: boolean | null
           parameters: Json | null
           priority: number | null
-          provision_id: string | null
           rule_code: string | null
           rule_name: string | null
           rule_type: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "compliance_rules_document_id_fkey"
-            columns: ["document_id"]
-            isOneToOne: false
-            referencedRelation: "legal_documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "compliance_rules_provision_id_fkey"
-            columns: ["provision_id"]
-            isOneToOne: false
-            referencedRelation: "legal_provisions"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       transaction_analytics: {
         Row: {
@@ -3630,6 +3762,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      upcoming_tax_rules: {
+        Row: {
+          description: string | null
+          effective_from: string | null
+          effective_to: string | null
+          id: string | null
+          parameters: Json | null
+          priority: number | null
+          rule_code: string | null
+          rule_name: string | null
+          rule_type: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {

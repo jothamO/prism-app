@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getTaxBands, TaxBand } from "../_shared/rules-client.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,15 +10,10 @@ const corsHeaders = {
 /**
  * Nigeria Tax Act 2025 - Section 58 Progressive Tax Rates
  * Fourth Schedule - Personal Income Tax Rates
+ * 
+ * NOTE: Tax bands are now fetched dynamically from the rules engine.
+ * Fallback values are defined in rules-client.ts
  */
-const TAX_BANDS = [
-  { min: 0, max: 800000, rate: 0, label: 'First ₦800,000' },
-  { min: 800000, max: 3000000, rate: 0.15, label: 'Next ₦2,200,000' },
-  { min: 3000000, max: 12000000, rate: 0.18, label: 'Next ₦9,000,000' },
-  { min: 12000000, max: 25000000, rate: 0.21, label: 'Next ₦13,000,000' },
-  { min: 25000000, max: 50000000, rate: 0.23, label: 'Next ₦25,000,000' },
-  { min: 50000000, max: Infinity, rate: 0.25, label: 'Above ₦50,000,000' },
-];
 
 // National Minimum Wage exemption threshold (Section 58)
 // Updated to ₦70,000/month as per 2024 National Minimum Wage Act
@@ -147,15 +143,16 @@ function calculateDeductions(
   return { pension, nhf, nhis, rentRelief, lifeInsurance, housingLoanInterest, businessExpenses, total };
 }
 
-function calculateProgressiveTax(chargeableIncome: number): { breakdown: TaxBandBreakdown[]; totalTax: number } {
+function calculateProgressiveTax(chargeableIncome: number, taxBands: TaxBand[]): { breakdown: TaxBandBreakdown[]; totalTax: number } {
   const breakdown: TaxBandBreakdown[] = [];
   let totalTax = 0;
   let remainingIncome = chargeableIncome;
   
-  for (const band of TAX_BANDS) {
+  for (const band of taxBands) {
     if (remainingIncome <= 0) break;
     
-    const bandWidth = band.max === Infinity ? Infinity : band.max - band.min;
+    const bandMax = band.max === null ? Infinity : band.max;
+    const bandWidth = bandMax === Infinity ? Infinity : bandMax - band.min;
     const taxableInBand = Math.min(remainingIncome, bandWidth);
     const taxInBand = taxableInBand * band.rate;
     
@@ -339,8 +336,11 @@ serve(async (req) => {
       ? Math.max(0, netBusinessIncome - (deductions.total - deductions.businessExpenses)) // Avoid double-counting biz expenses
       : Math.max(0, taxableIncome - deductions.total);
 
+    // Fetch dynamic tax bands from rules engine
+    const taxBands = await getTaxBands();
+
     // Calculate progressive tax
-    const { breakdown, totalTax } = calculateProgressiveTax(chargeableIncome);
+    const { breakdown, totalTax } = calculateProgressiveTax(chargeableIncome, taxBands);
 
     // Calculate final values
     const effectiveRate = grossIncome > 0 ? (totalTax / grossIncome) * 100 : 0;

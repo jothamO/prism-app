@@ -65,8 +65,15 @@ function getSupabaseClient() {
 
 /**
  * Fetch all active rules from database with caching
+ * @param ruleType - Optional filter by rule type
+ * @param asOfDate - Optional date for which to get rules (defaults to current date)
  */
-export async function getActiveRules(ruleType?: string): Promise<TaxRule[]> {
+export async function getActiveRules(ruleType?: string, asOfDate?: Date): Promise<TaxRule[]> {
+  // For non-current dates, bypass cache and query directly
+  if (asOfDate) {
+    return getActiveRulesForDate(ruleType, asOfDate);
+  }
+
   // Check cache first
   if (rulesCache && Date.now() - rulesCache.timestamp < CACHE_TTL) {
     const rules = rulesCache.rules;
@@ -92,6 +99,69 @@ export async function getActiveRules(ruleType?: string): Promise<TaxRule[]> {
     return ruleType ? rules.filter(r => r.rule_type === ruleType) : rules;
   } catch (error) {
     console.error("Failed to fetch active rules:", error);
+    return [];
+  }
+}
+
+/**
+ * Fetch rules active as of a specific date (bypasses materialized view)
+ */
+async function getActiveRulesForDate(ruleType: string | undefined, asOfDate: Date): Promise<TaxRule[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const dateStr = asOfDate.toISOString().split('T')[0];
+    
+    let query = supabase
+      .from("compliance_rules")
+      .select("id, rule_code, rule_name, rule_type, parameters, description, effective_from, effective_to, priority")
+      .eq("is_active", true)
+      .or(`effective_from.is.null,effective_from.lte.${dateStr}`)
+      .or(`effective_to.is.null,effective_to.gte.${dateStr}`)
+      .order("priority");
+    
+    if (ruleType) {
+      query = query.eq("rule_type", ruleType);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error("Error fetching rules for date:", error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Failed to fetch rules for date:", error);
+    return [];
+  }
+}
+
+/**
+ * Fetch upcoming rules (not yet effective)
+ */
+export async function getUpcomingRules(ruleType?: string): Promise<TaxRule[]> {
+  try {
+    const supabase = getSupabaseClient();
+    let query = supabase
+      .from("upcoming_tax_rules")
+      .select("*")
+      .order("effective_from");
+    
+    if (ruleType) {
+      query = query.eq("rule_type", ruleType);
+    }
+    
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error("Error fetching upcoming rules:", error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Failed to fetch upcoming rules:", error);
     return [];
   }
 }
@@ -231,20 +301,21 @@ export async function buildTaxRulesSummary(): Promise<string> {
   const emtl = await getEMTLRate();
   const reliefs = await getReliefs();
   const deadlines = await getDeadlines();
+  const upcoming = await getUpcomingRules();
 
   const bandsText = taxBands
     .map(b => `  - ${b.label}: ${b.rate * 100}%`)
     .join("\n");
 
   const reliefsText = reliefs
-    .map(r => `  - ${r.rule_name}: ${r.parameters.label}`)
+    .map(r => `  - ${r.rule_name}: ${r.parameters.label || r.description || ''}`)
     .join("\n");
 
   const deadlinesText = deadlines
-    .map(d => `  - ${d.rule_name}: ${d.parameters.label}`)
+    .map(d => `  - ${d.rule_name}: ${d.parameters.label || d.description || ''}`)
     .join("\n");
 
-  return `
+  let summary = `
 CURRENT TAX RULES (from Central Rules Engine):
 
 PIT Tax Bands:
@@ -260,4 +331,16 @@ ${reliefsText}
 Filing Deadlines:
 ${deadlinesText}
 `.trim();
+
+  // Add upcoming changes section if there are any
+  if (upcoming.length > 0) {
+    const upcomingText = upcoming
+      .slice(0, 5) // Limit to 5 upcoming rules
+      .map(r => `  - ${r.rule_name} (${r.rule_type}): Effective ${r.effective_from}`)
+      .join("\n");
+    
+    summary += `\n\nUPCOMING CHANGES:\n${upcomingText}`;
+  }
+
+  return summary;
 }
