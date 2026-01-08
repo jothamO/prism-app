@@ -23,9 +23,9 @@ interface LegalDocument {
     id: string;
     title: string;
     document_type: string;
-    official_reference: string | null;
+    document_number: string | null;
     status: string;
-    review_status: string;
+    needs_human_review: boolean | null;
     effective_date: string | null;
     publication_date: string | null;
     regulatory_body_id: string | null;
@@ -127,13 +127,15 @@ export default function AdminComplianceDocuments() {
             let query = supabase
                 .from("legal_documents")
                 .select(`
-          id, title, document_type, official_reference, status, review_status,
+          id, title, document_type, document_number, status, needs_human_review,
           effective_date, publication_date, regulatory_body_id, summary, created_at,
           regulatory_bodies (abbreviation, name)
         `)
                 .order("created_at", { ascending: false });
 
-            if (filterStatus !== "all") {
+            if (filterStatus === "pending_review") {
+                query = query.eq("needs_human_review", true);
+            } else if (filterStatus !== "all") {
                 query = query.eq("status", filterStatus);
             }
             if (filterBody !== "all") {
@@ -302,7 +304,7 @@ export default function AdminComplianceDocuments() {
 
     const filteredDocuments = documents.filter((doc) =>
         doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.official_reference?.toLowerCase().includes(searchQuery.toLowerCase())
+        doc.document_number?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const statusBadgeColor = (status: string) => {
@@ -429,9 +431,11 @@ export default function AdminComplianceDocuments() {
                                         <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", statusBadgeColor(doc.status))}>
                                             {doc.status}
                                         </span>
-                                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", reviewBadgeColor(doc.review_status))}>
-                                            {doc.review_status}
-                                        </span>
+                                        {doc.needs_human_review && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-500">
+                                                Needs Review
+                                            </span>
+                                        )}
                                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                                     </div>
                                 </div>
