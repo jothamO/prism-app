@@ -195,21 +195,24 @@ Return ONLY valid JSON:
 
         // Save provisions
         for (const provision of provisions) {
-            await supabase.from('legal_provisions').insert({
+            const { error: provisionError } = await supabase.from('legal_provisions').insert({
                 document_id: documentId,
                 section_number: provision.sectionNumber,
                 title: provision.title,
-                provision_text: provision.provisionText,
+                content: provision.provisionText,                    // Fixed: was provision_text
                 provision_type: provision.provisionType,
-                applies_to: provision.appliesTo,
-                tax_impact: provision.taxImpact,
-                plain_language_summary: provision.plainLanguageSummary,
+                affected_entities: provision.appliesTo,              // Fixed: was applies_to
+                tax_implications: provision.taxImpact,               // Fixed: was tax_impact
+                ai_interpretation: provision.plainLanguageSummary,   // Fixed: was plain_language_summary
             });
+            if (provisionError) {
+                console.error('[process-compliance-document] Provision insert error:', provisionError);
+            }
         }
 
         // Save rules
         for (const rule of rules) {
-            await supabase.from('compliance_rules').insert({
+            const { error: ruleError } = await supabase.from('compliance_rules').insert({
                 document_id: documentId,
                 rule_name: rule.ruleName,
                 rule_type: rule.ruleType,
@@ -221,6 +224,9 @@ Return ONLY valid JSON:
                 },
                 is_active: false, // Activate after human review
             });
+            if (ruleError) {
+                console.error('[process-compliance-document] Rule insert error:', ruleError);
+            }
         }
 
         console.log(`[process-compliance-document] Saved to database`);
