@@ -50,6 +50,19 @@ const DOCUMENT_TYPES = [
     { value: "treaty", label: "International Treaty" },
 ];
 
+// Helper function to get MIME type from file extension
+const getMimeType = (fileName: string): string => {
+    const ext = fileName.toLowerCase().split('.').pop();
+    const mimeTypes: Record<string, string> = {
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'txt': 'text/plain',
+        'md': 'text/markdown'
+    };
+    return mimeTypes[ext || ''] || 'application/octet-stream';
+};
+
 export default function AdminComplianceDocuments() {
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -148,11 +161,15 @@ export default function AdminComplianceDocuments() {
 
         setUploading(true);
         try {
-            // 1. Upload file to Supabase Storage
+            // 1. Upload file to Supabase Storage with explicit content type
+            const contentType = getMimeType(selectedFile.name);
             const fileName = `compliance/${Date.now()}_${selectedFile.name}`;
             const { error: uploadError } = await supabase.storage
                 .from("documents")
-                .upload(fileName, selectedFile);
+                .upload(fileName, selectedFile, {
+                    contentType: contentType,
+                    upsert: false
+                });
 
             if (uploadError) throw uploadError;
 
