@@ -86,6 +86,12 @@ export class InsightsGeneratorService {
             }
         }
 
+        // Insight 7: ATM fee overcharge analysis
+        const atmInsight = await this.checkATMFeeOvercharges(userId, currentMonth);
+        if (atmInsight) {
+            insights.push(atmInsight);
+        }
+
         // Sort by priority and potential savings
         return insights.sort((a, b) => {
             const priorityOrder = { high: 0, medium: 1, low: 2 };
@@ -98,6 +104,89 @@ export class InsightsGeneratorService {
             const savingB = b.potentialSaving || 0;
             return savingB - savingA;
         });
+    }
+
+    /**
+     * Check for ATM fee overcharges based on CBN limits
+     */
+    private async checkATMFeeOvercharges(userId: string, month: string): Promise<Insight | null> {
+        try {
+            // Get ATM charges for the month
+            const { data: charges } = await supabase
+                .from('bank_charges')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('category', 'atm_fee')
+                .gte('detected_at', `${month}-01`)
+                .lte('detected_at', `${month}-31`);
+
+            if (!charges || charges.length === 0) return null;
+
+            // Calculate totals
+            const totalATMFees = charges.reduce((sum, c) => sum + (c.amount || 0), 0);
+            
+            // Check for overcharges in metadata
+            const overcharges = charges.filter(c => {
+                try {
+                    const meta = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+                    return meta?.overcharge === true;
+                } catch {
+                    return false;
+                }
+            });
+
+            const totalOvercharge = overcharges.reduce((sum, c) => {
+                try {
+                    const meta = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+                    return sum + (meta?.overchargeAmount || 0);
+                } catch {
+                    return sum;
+                }
+            }, 0);
+
+            // High priority if overcharges detected
+            if (totalOvercharge > 0) {
+                return {
+                    type: 'compliance',
+                    priority: 'high',
+                    title: `₦${this.formatCurrency(totalOvercharge)} ATM overcharge detected`,
+                    description: `${overcharges.length} ATM transaction(s) exceeded CBN fee limits. ` +
+                        `Total ATM fees: ₦${this.formatCurrency(totalATMFees)}, ` +
+                        `of which ₦${this.formatCurrency(totalOvercharge)} are above the legal maximum.`,
+                    action: 'Report to CBN or request refund from your bank',
+                    potentialSaving: totalOvercharge,
+                    metadata: {
+                        total_atm_fees: totalATMFees,
+                        overcharge_count: overcharges.length,
+                        overcharge_amount: totalOvercharge,
+                        regulation: 'CBN ATM Fee Circular - Effective March 1, 2026'
+                    }
+                };
+            }
+
+            // Low priority summary if significant ATM fees but no overcharges
+            if (totalATMFees > 5000) {
+                const taxSaving = totalATMFees * 0.30; // Potential deduction at 30% rate
+                return {
+                    type: 'tax_saving',
+                    priority: 'low',
+                    title: `ATM fees this month: ₦${this.formatCurrency(totalATMFees)}`,
+                    description: `You paid ₦${this.formatCurrency(totalATMFees)} in ATM fees across ` +
+                        `${charges.length} transaction(s). These are deductible business expenses.`,
+                    action: 'Ensure these are claimed as business deductions',
+                    potentialSaving: taxSaving,
+                    metadata: {
+                        total_atm_fees: totalATMFees,
+                        transaction_count: charges.length
+                    }
+                };
+            }
+
+            return null;
+        } catch (error) {
+            console.error('[InsightsGenerator] ATM fee check error:', error);
+            return null;
+        }
     }
 
     /**

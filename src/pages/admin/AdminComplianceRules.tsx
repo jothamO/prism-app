@@ -9,9 +9,13 @@ import {
   FileText,
   Filter,
   ChevronRight,
+  CheckSquare,
+  Square,
+  XCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,13 +39,16 @@ interface ComplianceRule {
 
 const RULE_TYPES = [
   { value: "all", label: "All Types" },
-  { value: "rate", label: "Rate" },
+  { value: "tax_rate", label: "Tax Rate" },
   { value: "threshold", label: "Threshold" },
+  { value: "threshold_check", label: "Threshold Check" },
   { value: "exemption", label: "Exemption" },
   { value: "deadline", label: "Deadline" },
-  { value: "penalty", label: "Penalty" },
-  { value: "calculation", label: "Calculation" },
-  { value: "reporting", label: "Reporting" },
+  { value: "filing_deadline", label: "Filing Deadline" },
+  { value: "penalty_calculation", label: "Penalty" },
+  { value: "relief", label: "Relief" },
+  { value: "levy", label: "Levy" },
+  { value: "reporting_requirement", label: "Reporting" },
 ];
 
 export default function AdminComplianceRules() {
@@ -52,6 +59,10 @@ export default function AdminComplianceRules() {
   const [filterType, setFilterType] = useState("all");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  
+  // Bulk selection state
+  const [selectedRules, setSelectedRules] = useState<Set<string>>(new Set());
+  const [bulkActivating, setBulkActivating] = useState(false);
 
   useEffect(() => {
     fetchRules();
@@ -106,6 +117,72 @@ export default function AdminComplianceRules() {
       setTogglingId(null);
     }
   }
+
+  // Bulk toggle rules
+  async function bulkToggleRules(activate: boolean) {
+    if (selectedRules.size === 0) return;
+    
+    setBulkActivating(true);
+    try {
+      const { error } = await supabase
+        .from("compliance_rules")
+        .update({ is_active: activate })
+        .in("id", Array.from(selectedRules));
+
+      if (error) throw error;
+
+      // Update local state
+      setRules(rules.map(r => 
+        selectedRules.has(r.id) ? { ...r, is_active: activate } : r
+      ));
+      
+      const count = selectedRules.size;
+      setSelectedRules(new Set());
+
+      toast({
+        title: activate ? "Rules activated" : "Rules deactivated",
+        description: `${count} rule(s) have been ${activate ? "activated" : "deactivated"}`,
+      });
+    } catch (error) {
+      console.error("Error bulk updating rules:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update rules",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkActivating(false);
+    }
+  }
+
+  // Toggle selection for a single rule
+  function toggleSelection(ruleId: string) {
+    const newSelected = new Set(selectedRules);
+    if (newSelected.has(ruleId)) {
+      newSelected.delete(ruleId);
+    } else {
+      newSelected.add(ruleId);
+    }
+    setSelectedRules(newSelected);
+  }
+
+  // Select all visible rules
+  function selectAllVisible() {
+    const newSelected = new Set(selectedRules);
+    filteredRules.forEach(r => newSelected.add(r.id));
+    setSelectedRules(newSelected);
+  }
+
+  // Get unique document IDs for quick selection
+  const uniqueDocuments = [...new Set(rules.filter(r => r.document_id).map(r => ({
+    id: r.document_id!,
+    title: r.document?.title || 'Unknown Document'
+  })))].reduce((acc, doc) => {
+    if (!acc.find(d => d.id === doc.id)) {
+      acc.push(doc);
+    }
+    return acc;
+  }, [] as { id: string; title: string }[]);
 
   const filteredRules = rules.filter((rule) => {
     const matchesSearch = 
@@ -193,10 +270,102 @@ export default function AdminComplianceRules() {
         </select>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedRules.size > 0 && (
+        <div className="flex items-center gap-4 p-4 bg-primary/10 border border-primary/20 rounded-lg">
+          <span className="text-sm font-medium text-foreground">
+            {selectedRules.size} rule(s) selected
+          </span>
+          <Button
+            size="sm"
+            onClick={() => bulkToggleRules(true)}
+            disabled={bulkActivating}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <ToggleRight className="w-4 h-4 mr-2" />
+            Activate All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => bulkToggleRules(false)}
+            disabled={bulkActivating}
+          >
+            <ToggleLeft className="w-4 h-4 mr-2" />
+            Deactivate All
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedRules(new Set())}
+          >
+            <XCircle className="w-4 h-4 mr-2" />
+            Clear Selection
+          </Button>
+        </div>
+      )}
+
+      {/* Quick Select by Document */}
+      {uniqueDocuments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <span className="text-sm text-muted-foreground py-1">Quick select:</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={selectAllVisible}
+          >
+            <CheckSquare className="w-3 h-3 mr-1" />
+            All Visible ({filteredRules.length})
+          </Button>
+          {uniqueDocuments.slice(0, 3).map(doc => {
+            const docRules = rules.filter(r => r.document_id === doc.id);
+            return (
+              <Button
+                key={doc.id}
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newSelected = new Set(selectedRules);
+                  docRules.forEach(r => newSelected.add(r.id));
+                  setSelectedRules(newSelected);
+                }}
+              >
+                {doc.title.substring(0, 20)}... ({docRules.length})
+              </Button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Rules List */}
       <div className="bg-card border border-border rounded-lg">
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border flex items-center justify-between">
           <p className="text-sm text-muted-foreground">{filteredRules.length} rules</p>
+          {filteredRules.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (selectedRules.size === filteredRules.length) {
+                  setSelectedRules(new Set());
+                } else {
+                  selectAllVisible();
+                }
+              }}
+            >
+              {selectedRules.size === filteredRules.length ? (
+                <>
+                  <Square className="w-4 h-4 mr-2" />
+                  Deselect All
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="w-4 h-4 mr-2" />
+                  Select All
+                </>
+              )}
+            </Button>
+          )}
         </div>
         <div className="divide-y divide-border">
           {filteredRules.length === 0 ? (
@@ -205,8 +374,21 @@ export default function AdminComplianceRules() {
             </div>
           ) : (
             filteredRules.map((rule) => (
-              <div key={rule.id} className="p-4 hover:bg-accent/30 transition-colors">
-                <div className="flex items-start justify-between">
+              <div 
+                key={rule.id} 
+                className={cn(
+                  "p-4 hover:bg-accent/30 transition-colors",
+                  selectedRules.has(rule.id) && "bg-primary/5"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Checkbox */}
+                  <Checkbox
+                    checked={selectedRules.has(rule.id)}
+                    onCheckedChange={() => toggleSelection(rule.id)}
+                    className="mt-1"
+                  />
+                  
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <Scale className="w-4 h-4 text-muted-foreground" />
@@ -222,7 +404,9 @@ export default function AdminComplianceRules() {
                       <span className="px-2 py-0.5 bg-muted rounded">{rule.rule_type}</span>
                       {rule.priority != null && <span>Priority: {rule.priority}</span>}
                       {rule.effective_from && (
-                        <span>From: {new Date(rule.effective_from).toLocaleDateString()}</span>
+                        <span className="text-amber-600">
+                          Effective: {new Date(rule.effective_from).toLocaleDateString()}
+                        </span>
                       )}
                       {rule.document && (
                         <Link
