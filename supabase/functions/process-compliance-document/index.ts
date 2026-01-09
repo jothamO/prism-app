@@ -32,9 +32,17 @@ interface ExtractedProvision {
 // Valid provision types in database
 const VALID_PROVISION_TYPES = ['definition', 'obligation', 'exemption', 'rate', 'penalty', 'procedure', 'deadline', 'relief', 'power', 'general'] as const;
 
+// Valid rule types in database
+const VALID_RULE_TYPES = [
+    'tax_rate', 'levy', 'threshold', 'relief', 'deadline', 'exemption',
+    'filing_deadline', 'payment_deadline', 'rate_application', 'threshold_check',
+    'exemption_eligibility', 'penalty_calculation', 'documentation_requirement',
+    'registration_requirement', 'reporting_requirement'
+] as const;
+
 interface ComplianceRule {
     ruleName: string;
-    ruleType: 'tax_rate' | 'threshold' | 'exemption' | 'filing_deadline' | 'penalty';
+    ruleType: string; // Will be validated before insert
     conditions: Record<string, unknown>;
     outcome: Record<string, unknown>;
     appliesToTransactions: boolean;
@@ -130,6 +138,23 @@ For each key provision, create a rule that PRISM can use to:
 - Determine if exemptions apply
 - Check filing deadlines
 - Apply penalties
+
+CRITICAL: ruleType MUST be exactly one of these values:
+- tax_rate: For fee amounts, rates, percentages
+- levy: For charges/levies applied
+- threshold: For limits, caps, minimum/maximum values
+- relief: For reductions or waivers
+- deadline: For implementation dates
+- exemption: For exclusions from fees/rules
+- filing_deadline: For filing-related deadlines
+- payment_deadline: For payment due dates
+- rate_application: For how rates are applied
+- threshold_check: For conditional threshold logic
+- exemption_eligibility: For exemption conditions
+- penalty_calculation: For penalty formulas
+- documentation_requirement: For required documents
+- registration_requirement: For registration obligations
+- reporting_requirement: For reporting obligations
 
 Return ONLY valid JSON array:
 [
@@ -234,12 +259,17 @@ Return ONLY valid JSON:
             }
         }
 
-        // Save rules
+        // Save rules with validated rule_type
         for (const rule of rules) {
+            // Validate rule_type, default to 'tax_rate' if invalid
+            const ruleType = VALID_RULE_TYPES.includes(rule.ruleType as typeof VALID_RULE_TYPES[number])
+                ? rule.ruleType
+                : 'tax_rate';
+
             const { error: ruleError } = await supabase.from('compliance_rules').insert({
                 document_id: documentId,
                 rule_name: rule.ruleName,
-                rule_type: rule.ruleType,
+                rule_type: ruleType, // Use validated type
                 conditions: rule.conditions,
                 actions: rule.outcome,
                 parameters: {
