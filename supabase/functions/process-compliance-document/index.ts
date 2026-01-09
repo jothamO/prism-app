@@ -49,6 +49,23 @@ interface ComplianceRule {
     appliesToFiling: boolean;
 }
 
+interface PRISMImpactItem {
+    category: 'code_changes' | 'database_updates' | 'user_notification' | 'tax_calendar' | 'education_center' | 'no_action';
+    description: string;
+    priority: 'high' | 'medium' | 'low';
+    completed?: boolean;
+}
+
+interface PRISMImpactAnalysis {
+    summary: string;
+    prism_changes_required: PRISMImpactItem[];
+    tax_calendar_updates: { deadline: string; description: string; created?: boolean }[];
+    education_center_updates: { topic: string; suggested: boolean; created?: boolean }[];
+    user_notifications: { required: boolean; message: string };
+    ai_confidence: number;
+    ai_generated_at: string;
+}
+
 interface ProcessingResult {
     summary: string;
     keyProvisions: string[];
@@ -58,6 +75,8 @@ interface ProcessingResult {
     rules: ComplianceRule[];
     needsReview: boolean;
     reviewReasons: string[];
+    prismImpact?: PRISMImpactAnalysis;
+    criticality?: string;
 }
 
 serve(async (req) => {
@@ -294,7 +313,101 @@ Return ONLY valid JSON:
             }
         }
 
-        console.log(`[process-compliance-document] Saved to database`);
+        console.log(`[process-compliance-document] Saved provisions and rules`);
+
+        // Step 5: Generate PRISM Impact Analysis
+        console.log(`[process-compliance-document] Generating PRISM impact analysis...`);
+        
+        const impactPrompt = `Analyze how this Nigerian tax regulation affects the PRISM tax assistant platform.
+
+DOCUMENT: ${title}
+TYPE: ${documentType}
+PROVISIONS EXTRACTED: ${provisions.length}
+RULES GENERATED: ${rules.length}
+
+KEY PROVISIONS:
+${provisions.slice(0, 5).map(p => `- ${p.sectionNumber}: ${p.plainLanguageSummary}`).join('\n')}
+
+KEY RULES:
+${rules.slice(0, 5).map(r => `- ${r.ruleName} (${r.ruleType})`).join('\n')}
+
+Determine:
+1. Criticality level (pick one):
+   - 'breaking_change': Requires immediate PRISM code/database updates to function correctly
+   - 'rate_update': Tax rates, fees, or amounts have changed
+   - 'new_requirement': New compliance obligation for taxpayers
+   - 'procedural_update': Process or procedure changes only
+   - 'advisory': Informational only, no action needed
+
+2. What changes are needed in PRISM:
+   - code_changes: Updates to calculations, classifiers, edge functions
+   - database_updates: New rules, rates, thresholds in database
+   - user_notification: Should users be notified about this change?
+   - tax_calendar: Are there new deadlines to add to tax calendar?
+   - education_center: Should new educational articles be created?
+   - no_action: No changes needed
+
+Return ONLY valid JSON:
+{
+  "criticality": "rate_update",
+  "summary": "Clear explanation of how this affects PRISM and its users...",
+  "prism_changes_required": [
+    {"category": "code_changes", "description": "Update VAT calculator to use new rate", "priority": "high"},
+    {"category": "database_updates", "description": "Add new VAT rate rule effective from date", "priority": "high"}
+  ],
+  "tax_calendar_updates": [
+    {"deadline": "2026-04-01", "description": "New VAT rate effective date"}
+  ],
+  "education_center_updates": [
+    {"topic": "Understanding the new VAT changes", "suggested": true}
+  ],
+  "user_notifications": {
+    "required": true,
+    "message": "VAT rate has changed from X% to Y% effective date Z"
+  },
+  "ai_confidence": 0.85
+}`;
+
+        const impactResult = await callClaudeJSON<{
+            criticality: string;
+            summary: string;
+            prism_changes_required: PRISMImpactItem[];
+            tax_calendar_updates: { deadline: string; description: string }[];
+            education_center_updates: { topic: string; suggested: boolean }[];
+            user_notifications: { required: boolean; message: string };
+            ai_confidence: number;
+        }>(
+            'You are a PRISM platform architect analyzing regulatory impact.',
+            impactPrompt,
+            { model: CLAUDE_MODELS.SONNET, maxTokens: 4000 }
+        );
+
+        const validCriticalities = ['breaking_change', 'rate_update', 'new_requirement', 'procedural_update', 'advisory'];
+        const criticality = impactResult?.criticality && validCriticalities.includes(impactResult.criticality)
+            ? impactResult.criticality
+            : 'procedural_update';
+
+        const prismImpactAnalysis: PRISMImpactAnalysis = {
+            summary: impactResult?.summary || 'Impact analysis pending review',
+            prism_changes_required: impactResult?.prism_changes_required || [],
+            tax_calendar_updates: impactResult?.tax_calendar_updates || [],
+            education_center_updates: impactResult?.education_center_updates || [],
+            user_notifications: impactResult?.user_notifications || { required: false, message: '' },
+            ai_confidence: impactResult?.ai_confidence || 0.5,
+            ai_generated_at: new Date().toISOString(),
+        };
+
+        // Update document with PRISM impact analysis
+        await supabase
+            .from('legal_documents')
+            .update({
+                prism_impact_analysis: prismImpactAnalysis,
+                criticality: criticality,
+                impact_reviewed: false,
+            })
+            .eq('id', documentId);
+
+        console.log(`[process-compliance-document] PRISM impact analysis saved, criticality: ${criticality}`);
 
         const result: ProcessingResult = {
             summary: classification.summary || 'Processing complete',
@@ -305,6 +418,8 @@ Return ONLY valid JSON:
             rules,
             needsReview: classification.needsReview ?? true,
             reviewReasons: classification.reviewReasons || [],
+            prismImpact: prismImpactAnalysis,
+            criticality,
         };
 
         return new Response(
