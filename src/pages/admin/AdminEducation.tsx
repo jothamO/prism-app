@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Plus,
   Pencil,
@@ -111,6 +112,8 @@ export default function AdminEducation() {
     linked_provision_ids: [] as string[],
   });
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Check for prefill params from Summary tab
   useEffect(() => {
@@ -223,16 +226,20 @@ export default function AdminEducation() {
     setSaving(false);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this article?")) return;
-
-    const { error } = await supabase.from("education_articles").delete().eq("id", id);
+  async function executeDelete() {
+    if (!deleteConfirmId) return;
+    setDeleting(true);
+    
+    const { error } = await supabase.from("education_articles").delete().eq("id", deleteConfirmId);
     if (error) {
       toast({ title: "Error deleting article", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Article deleted" });
       fetchArticles();
     }
+    
+    setDeleting(false);
+    setDeleteConfirmId(null);
   }
 
   async function togglePublish(article: EducationArticle) {
@@ -448,9 +455,11 @@ export default function AdminEducation() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(article.id)}
+                          onClick={() => setDeleteConfirmId(article.id)}
                           className="text-destructive hover:text-destructive"
                         >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -614,6 +623,18 @@ export default function AdminEducation() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+        title="Delete Article"
+        description="Are you sure you want to delete this article? This action cannot be undone."
+        confirmText="Delete"
+        variant="destructive"
+        loading={deleting}
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

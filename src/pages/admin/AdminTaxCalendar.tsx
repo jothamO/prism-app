@@ -31,6 +31,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Plus,
   Pencil,
@@ -104,6 +105,8 @@ export default function AdminTaxCalendar() {
     linked_provision_ids: [] as string[],
   });
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Check for prefill params from Summary tab
   useEffect(() => {
@@ -234,16 +237,20 @@ export default function AdminTaxCalendar() {
     setSaving(false);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this deadline?")) return;
-
-    const { error } = await supabase.from("tax_deadlines").delete().eq("id", id);
+  async function executeDelete() {
+    if (!deleteConfirmId) return;
+    setDeleting(true);
+    
+    const { error } = await supabase.from("tax_deadlines").delete().eq("id", deleteConfirmId);
     if (error) {
       toast({ title: "Error deleting deadline", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Deadline deleted" });
       fetchDeadlines();
     }
+    
+    setDeleting(false);
+    setDeleteConfirmId(null);
   }
 
   async function toggleActive(deadline: TaxDeadline) {
@@ -468,7 +475,7 @@ export default function AdminTaxCalendar() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(deadline.id)}
+                          onClick={() => setDeleteConfirmId(deadline.id)}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -712,6 +719,18 @@ export default function AdminTaxCalendar() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+        title="Delete Deadline"
+        description="Are you sure you want to delete this deadline? This action cannot be undone."
+        confirmText="Delete"
+        variant="destructive"
+        loading={deleting}
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { Settings, User, Bell, Shield, Sliders, Save, Eye, EyeOff, RefreshCw, Check } from "lucide-react";
+import { Settings, User, Bell, Shield, Sliders, Save, Eye, EyeOff, RefreshCw, Check, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { TestModePinDialog } from "@/components/admin/TestModePinDialog";
 
 type Tab = "profile" | "notifications" | "security" | "general";
 
@@ -21,6 +23,8 @@ interface SystemSettings {
   welcome_message_telegram: string;
   welcome_message_whatsapp: string;
   onboarding_mode: 'strict' | 'ai';
+  test_mode_enabled: boolean;
+  test_mode_enabled_at: string | null;
 }
 
 interface Profile {
@@ -440,6 +444,7 @@ function GeneralTab() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
   const [settings, setSettings] = useState<SystemSettings>({
     filing_reminder_days: 7,
     auto_verification_enabled: true,
@@ -447,6 +452,8 @@ function GeneralTab() {
     welcome_message_telegram: "",
     welcome_message_whatsapp: "",
     onboarding_mode: 'strict',
+    test_mode_enabled: false,
+    test_mode_enabled_at: null,
   });
 
   useEffect(() => {
@@ -471,12 +478,47 @@ function GeneralTab() {
           welcome_message_telegram: data.welcome_message_telegram ?? "",
           welcome_message_whatsapp: data.welcome_message_whatsapp ?? "",
           onboarding_mode: data.onboarding_mode ?? 'strict',
+          test_mode_enabled: data.test_mode_enabled ?? false,
+          test_mode_enabled_at: data.test_mode_enabled_at ?? null,
         });
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function toggleTestMode() {
+    setSaving(true);
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      const newValue = !settings.test_mode_enabled;
+      
+      const { error } = await supabase
+        .from("system_settings")
+        .update({
+          test_mode_enabled: newValue,
+          test_mode_enabled_at: newValue ? new Date().toISOString() : null,
+          test_mode_enabled_by: newValue ? user.user?.id : null,
+          updated_at: new Date().toISOString(),
+          updated_by: user.user?.id,
+        })
+        .not("id", "is", null);
+
+      if (error) throw error;
+      
+      setSettings({ ...settings, test_mode_enabled: newValue, test_mode_enabled_at: newValue ? new Date().toISOString() : null });
+      toast({ 
+        title: newValue ? "Test Mode Enabled" : "Test Mode Disabled",
+        description: newValue ? "New users will require admin approval" : "Normal signup flow restored"
+      });
+      setShowPinDialog(false);
+    } catch (error) {
+      console.error("Error toggling test mode:", error);
+      toast({ title: "Error", description: "Failed to toggle test mode", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -631,6 +673,47 @@ function GeneralTab() {
           </div>
         </div>
 
+        {/* Test Mode Section */}
+        <div className="pt-4 border-t border-border">
+          <h4 className="text-sm font-medium text-muted-foreground mb-4">System Mode</h4>
+          <div className="bg-background rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-foreground font-medium flex items-center gap-2">
+                  Test Mode
+                  {settings.test_mode_enabled && (
+                    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                      ACTIVE
+                    </Badge>
+                  )}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, new users require admin approval. Subscriptions are hidden.
+                </p>
+                {settings.test_mode_enabled && settings.test_mode_enabled_at && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enabled since: {new Date(settings.test_mode_enabled_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setShowPinDialog(true)}
+                className={cn(
+                  "w-12 h-6 rounded-full transition-colors relative",
+                  settings.test_mode_enabled ? "bg-amber-500" : "bg-muted"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-1 w-4 h-4 bg-white rounded-full transition-transform",
+                    settings.test_mode_enabled ? "translate-x-7" : "translate-x-1"
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="pt-4">
           <button
             onClick={saveSettings}
@@ -642,6 +725,15 @@ function GeneralTab() {
           </button>
         </div>
       </div>
+
+      {/* Test Mode PIN Dialog */}
+      <TestModePinDialog
+        open={showPinDialog}
+        onOpenChange={setShowPinDialog}
+        currentMode={settings.test_mode_enabled}
+        onConfirm={toggleTestMode}
+        loading={saving}
+      />
     </div>
   );
 }
