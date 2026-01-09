@@ -460,8 +460,6 @@ export default function AdminEducation() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
