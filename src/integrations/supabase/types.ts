@@ -1968,6 +1968,7 @@ export type Database = {
           affected_taxpayers: string[] | null
           ai_summary: string | null
           created_at: string | null
+          criticality: string | null
           document_number: string | null
           document_type: string
           effective_date: string | null
@@ -1975,9 +1976,12 @@ export type Database = {
           expiry_date: string | null
           file_url: string | null
           id: string
+          impact_reviewed: boolean | null
+          impact_reviewed_at: string | null
           key_provisions: string[] | null
           metadata: Json | null
           needs_human_review: boolean | null
+          prism_impact_analysis: Json | null
           publication_date: string | null
           raw_text: string | null
           regulatory_body_id: string | null
@@ -1995,6 +1999,7 @@ export type Database = {
           affected_taxpayers?: string[] | null
           ai_summary?: string | null
           created_at?: string | null
+          criticality?: string | null
           document_number?: string | null
           document_type: string
           effective_date?: string | null
@@ -2002,9 +2007,12 @@ export type Database = {
           expiry_date?: string | null
           file_url?: string | null
           id?: string
+          impact_reviewed?: boolean | null
+          impact_reviewed_at?: string | null
           key_provisions?: string[] | null
           metadata?: Json | null
           needs_human_review?: boolean | null
+          prism_impact_analysis?: Json | null
           publication_date?: string | null
           raw_text?: string | null
           regulatory_body_id?: string | null
@@ -2022,6 +2030,7 @@ export type Database = {
           affected_taxpayers?: string[] | null
           ai_summary?: string | null
           created_at?: string | null
+          criticality?: string | null
           document_number?: string | null
           document_type?: string
           effective_date?: string | null
@@ -2029,9 +2038,12 @@ export type Database = {
           expiry_date?: string | null
           file_url?: string | null
           id?: string
+          impact_reviewed?: boolean | null
+          impact_reviewed_at?: string | null
           key_provisions?: string[] | null
           metadata?: Json | null
           needs_human_review?: boolean | null
+          prism_impact_analysis?: Json | null
           publication_date?: string | null
           raw_text?: string | null
           regulatory_body_id?: string | null

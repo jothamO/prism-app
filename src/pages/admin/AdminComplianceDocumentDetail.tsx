@@ -13,11 +13,30 @@ import {
   AlertTriangle,
   Trash2,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import PRISMImpactSummaryTab from "@/components/admin/PRISMImpactSummaryTab";
+
+interface PRISMImpactAnalysis {
+  summary: string;
+  prism_changes_required: {
+    category: string;
+    description: string;
+    priority: string;
+    completed?: boolean;
+  }[];
+  tax_calendar_updates: { deadline: string; description: string; created?: boolean }[];
+  education_center_updates: { topic: string; suggested: boolean; created?: boolean }[];
+  user_notifications: { required: boolean; message: string };
+  ai_confidence: number;
+  ai_generated_at: string;
+}
+
+type Criticality = 'breaking_change' | 'rate_update' | 'new_requirement' | 'procedural_update' | 'advisory';
 
 interface LegalDocument {
   id: string;
@@ -43,6 +62,10 @@ interface LegalDocument {
   created_at: string;
   updated_at: string | null;
   regulatory_bodies?: { abbreviation: string; name: string };
+  prism_impact_analysis: PRISMImpactAnalysis | null;
+  criticality: Criticality | null;
+  impact_reviewed: boolean | null;
+  impact_reviewed_at: string | null;
 }
 
 interface Provision {
@@ -77,7 +100,7 @@ export default function AdminComplianceDocumentDetail() {
   const [document, setDocument] = useState<LegalDocument | null>(null);
   const [provisions, setProvisions] = useState<Provision[]>([]);
   const [rules, setRules] = useState<ComplianceRule[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "provisions" | "rules" | "raw">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "summary" | "provisions" | "rules" | "raw">("overview");
   const [updating, setUpdating] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -101,7 +124,14 @@ export default function AdminComplianceDocumentDetail() {
         .single();
 
       if (docError) throw docError;
-      setDocument(doc as LegalDocument);
+      
+      // Type assertion for JSONB fields
+      const typedDoc = {
+        ...doc,
+        prism_impact_analysis: doc.prism_impact_analysis as PRISMImpactAnalysis | null,
+        criticality: doc.criticality as Criticality | null,
+      };
+      setDocument(typedDoc as LegalDocument);
 
       // Fetch provisions
       const { data: provs } = await supabase
@@ -395,17 +425,18 @@ export default function AdminComplianceDocumentDetail() {
       {/* Tabs */}
       <div className="border-b border-border">
         <nav className="flex gap-4">
-          {(["overview", "provisions", "rules", "raw"] as const).map((tab) => (
+          {(["overview", "summary", "provisions", "rules", "raw"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize",
+                "px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize flex items-center gap-2",
                 activeTab === tab
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
+              {tab === "summary" && <Sparkles className="w-3 h-3" />}
               {tab === "raw" ? "Raw Text" : tab}
               {tab === "provisions" && ` (${provisions.length})`}
               {tab === "rules" && ` (${rules.length})`}
@@ -507,6 +538,20 @@ export default function AdminComplianceDocumentDetail() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "summary" && (
+          <PRISMImpactSummaryTab
+            documentId={document.id}
+            documentTitle={document.title}
+            rawText={document.raw_text}
+            documentType={document.document_type}
+            prismImpactAnalysis={document.prism_impact_analysis}
+            criticality={document.criticality}
+            impactReviewed={document.impact_reviewed || false}
+            impactReviewedAt={document.impact_reviewed_at}
+            onRefresh={fetchDocument}
+          />
         )}
 
         {activeTab === "provisions" && (
