@@ -175,28 +175,40 @@ export default function AdminMLHealth() {
     }
   };
 
-  const triggerManualTraining = async () => {
+  const triggerManualTraining = async (mode: 'immediate' | 'force' | 'dry-run' = 'immediate') => {
     setTriggeringTraining(true);
     try {
-      // In a real implementation, this would trigger an edge function
-      // For now, show a toast with a link to logs
-      toast({
-        title: "Training Triggered",
-        description: "Model retraining has been queued.",
-        action: (
-          <button
-            onClick={() => navigate('/admin/logs')}
-            className="flex items-center gap-1 text-xs text-primary hover:underline"
-          >
-            View Logs <ExternalLink className="w-3 h-3" />
-          </button>
-        ),
+      const { data, error } = await supabase.functions.invoke('trigger-ml-training', {
+        body: { mode }
       });
+
+      if (error) throw error;
+
+      if (data.success) {
+        if (mode === 'dry-run') {
+          toast({
+            title: "Training Preview",
+            description: data.message,
+          });
+        } else {
+          toast({
+            title: "Training Complete",
+            description: `Model ${data.version} deployed with ${data.accuracy}% accuracy`,
+          });
+          fetchMLHealth(); // Refresh dashboard
+        }
+      } else {
+        toast({
+          title: "Training Skipped",
+          description: data.reason || data.error,
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Training trigger error:", error);
       toast({
         title: "Error",
-        description: "Failed to trigger training",
+        description: error instanceof Error ? error.message : "Failed to trigger training",
         variant: "destructive",
       });
     } finally {
@@ -491,24 +503,50 @@ export default function AdminMLHealth() {
             Training Actions
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center gap-4">
-          <button
-            onClick={triggerManualTraining}
-            disabled={triggeringTraining || pipelineStatus.untrainedCount === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {triggeringTraining ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <Brain className="w-4 h-4" />
-            )}
-            Trigger Manual Training
-          </button>
-          <p className="text-sm text-muted-foreground">
-            {pipelineStatus.untrainedCount > 0
-              ? `${pipelineStatus.untrainedCount} feedback records ready for training`
-              : 'No untrained feedback available'}
-          </p>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => triggerManualTraining('immediate')}
+              disabled={triggeringTraining || pipelineStatus.untrainedCount < 100}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {triggeringTraining ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Brain className="w-4 h-4" />
+              )}
+              Train Now
+            </button>
+            
+            <button
+              onClick={() => triggerManualTraining('force')}
+              disabled={triggeringTraining || pipelineStatus.untrainedCount === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Force Train
+            </button>
+            
+            <button
+              onClick={() => triggerManualTraining('dry-run')}
+              disabled={triggeringTraining}
+              className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors disabled:opacity-50"
+            >
+              <Activity className="w-4 h-4" />
+              Preview
+            </button>
+          </div>
+          
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p><strong>Train Now:</strong> Requires ≥100 samples, deploys if accuracy ≥80%</p>
+            <p><strong>Force Train:</strong> Trains with any sample count, deploys regardless of accuracy</p>
+            <p><strong>Preview:</strong> Shows training readiness without executing</p>
+            <p className="mt-2">
+              {pipelineStatus.untrainedCount >= 100
+                ? `✅ ${pipelineStatus.untrainedCount} samples ready for training`
+                : `⚠️ Need ${100 - pipelineStatus.untrainedCount} more samples (have ${pipelineStatus.untrainedCount})`}
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
