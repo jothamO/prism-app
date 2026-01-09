@@ -217,6 +217,16 @@ Return ONLY valid JSON:
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         );
 
+        // Fetch document's effective_date to pass to rules
+        const { data: docData } = await supabase
+            .from('legal_documents')
+            .select('effective_date')
+            .eq('id', documentId)
+            .single();
+        
+        const documentEffectiveDate = docData?.effective_date || null;
+        console.log(`[process-compliance-document] Document effective date: ${documentEffectiveDate}`);
+
         // Update legal document with summary info and processing status
         await supabase
             .from('legal_documents')
@@ -272,6 +282,7 @@ Return ONLY valid JSON:
                 rule_type: ruleType, // Use validated type
                 conditions: rule.conditions,
                 actions: rule.outcome,
+                effective_from: documentEffectiveDate, // Set from document's effective_date
                 parameters: {
                     appliesToTransactions: rule.appliesToTransactions,
                     appliesToFiling: rule.appliesToFiling,
