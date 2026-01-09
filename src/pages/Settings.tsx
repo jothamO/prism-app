@@ -77,7 +77,7 @@ export default function Settings() {
             const { data: userData } = await supabase
                 .from('users')
                 .select('full_name, email, telegram_id, notification_preferences')
-                .eq('auth_id', user.id)
+                .eq('auth_user_id', user.id)
                 .single();
 
             if (userData) {
@@ -118,7 +118,7 @@ export default function Settings() {
                 .update({
                     notification_preferences: settings,
                 })
-                .eq('auth_id', user.id);
+                .eq('auth_user_id', user.id);
 
             if (error) throw error;
 
