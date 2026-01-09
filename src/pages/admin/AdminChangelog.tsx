@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -75,6 +76,9 @@ export default function AdminChangelog() {
   const [showNewRelease, setShowNewRelease] = useState(false);
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ChangelogEntry | null>(null);
+  const [deleteReleaseId, setDeleteReleaseId] = useState<string | null>(null);
+  const [deleteEntryData, setDeleteEntryData] = useState<{ id: string; releaseId: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const { data: releases, isLoading } = useReleases(true);
   const { data: selectedRelease } = useRelease(selectedReleaseId);
@@ -174,24 +178,32 @@ export default function AdminChangelog() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this release?")) return;
+  const handleDelete = async () => {
+    if (!deleteReleaseId) return;
+    setDeleteLoading(true);
     try {
-      await deleteRelease.mutateAsync(id);
-      if (selectedReleaseId === id) setSelectedReleaseId(null);
+      await deleteRelease.mutateAsync(deleteReleaseId);
+      if (selectedReleaseId === deleteReleaseId) setSelectedReleaseId(null);
       toast({ title: "Release deleted successfully" });
     } catch (error) {
       toast({ title: "Failed to delete release", variant: "destructive" });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteReleaseId(null);
     }
   };
 
-  const handleDeleteEntry = async (id: string, releaseId: string) => {
-    if (!confirm("Delete this entry?")) return;
+  const handleDeleteEntry = async () => {
+    if (!deleteEntryData) return;
+    setDeleteLoading(true);
     try {
-      await deleteEntry.mutateAsync({ id, release_id: releaseId });
+      await deleteEntry.mutateAsync({ id: deleteEntryData.id, release_id: deleteEntryData.releaseId });
       toast({ title: "Entry deleted" });
     } catch (error) {
       toast({ title: "Failed to delete entry", variant: "destructive" });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteEntryData(null);
     }
   };
 
@@ -445,7 +457,7 @@ export default function AdminChangelog() {
                       size="sm"
                       variant="outline"
                       className="text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(release.id)}
+                      onClick={() => setDeleteReleaseId(release.id)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -511,7 +523,7 @@ export default function AdminChangelog() {
                             size="sm"
                             variant="ghost"
                             className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteEntry(entry.id, release.id)}
+                            onClick={() => setDeleteEntryData({ id: entry.id, releaseId: release.id })}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -711,6 +723,30 @@ export default function AdminChangelog() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Release Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteReleaseId}
+        onOpenChange={(open) => !open && setDeleteReleaseId(null)}
+        title="Delete Release"
+        description="Are you sure you want to delete this release? All entries in this release will also be deleted."
+        confirmText="Delete Release"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={handleDelete}
+      />
+
+      {/* Delete Entry Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!deleteEntryData}
+        onOpenChange={(open) => !open && setDeleteEntryData(null)}
+        title="Delete Entry"
+        description="Are you sure you want to delete this changelog entry?"
+        confirmText="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={handleDeleteEntry}
+      />
     </div>
   );
 }

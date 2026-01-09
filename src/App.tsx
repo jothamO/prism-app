@@ -57,6 +57,7 @@ import AdminChangelog from "./pages/admin/AdminChangelog";
 import AdminEducation from "./pages/admin/AdminEducation";
 import AdminTaxCalendar from "./pages/admin/AdminTaxCalendar";
 import AcceptInvite from "./pages/AcceptInvite";
+import AwaitingApproval from "./pages/AwaitingApproval";
 
 function App() {
   return (
@@ -76,6 +77,7 @@ function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/invite/:token" element={<AcceptInvite />} />
+            <Route path="/awaiting-approval" element={<AwaitingApproval />} />
 
             {/* Protected User Routes */}
             <Route

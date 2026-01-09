@@ -1423,6 +1423,45 @@ export type Database = {
         }
         Relationships: []
       }
+      deleted_items: {
+        Row: {
+          deleted_at: string
+          deleted_by: string | null
+          expires_at: string
+          id: string
+          item_data: Json
+          item_id: string
+          item_type: string
+          restored: boolean | null
+          restored_at: string | null
+          restored_by: string | null
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string | null
+          expires_at: string
+          id?: string
+          item_data: Json
+          item_id: string
+          item_type: string
+          restored?: boolean | null
+          restored_at?: string | null
+          restored_by?: string | null
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string | null
+          expires_at?: string
+          id?: string
+          item_data?: Json
+          item_id?: string
+          item_type?: string
+          restored?: boolean | null
+          restored_at?: string | null
+          restored_by?: string | null
+        }
+        Relationships: []
+      }
       document_processing_jobs: {
         Row: {
           attempts: number | null
@@ -2498,6 +2537,9 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
           avatar_url: string | null
           created_at: string | null
           email: string | null
@@ -2506,6 +2548,9 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null
@@ -2514,6 +2559,9 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null
@@ -2955,6 +3003,9 @@ export type Database = {
           id: string
           onboarding_mode: string | null
           telegram_enabled: boolean | null
+          test_mode_enabled: boolean | null
+          test_mode_enabled_at: string | null
+          test_mode_enabled_by: string | null
           updated_at: string | null
           updated_by: string | null
           welcome_message_telegram: string | null
@@ -2968,6 +3019,9 @@ export type Database = {
           id?: string
           onboarding_mode?: string | null
           telegram_enabled?: boolean | null
+          test_mode_enabled?: boolean | null
+          test_mode_enabled_at?: string | null
+          test_mode_enabled_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
           welcome_message_telegram?: string | null
@@ -2981,6 +3035,9 @@ export type Database = {
           id?: string
           onboarding_mode?: string | null
           telegram_enabled?: boolean | null
+          test_mode_enabled?: boolean | null
+          test_mode_enabled_at?: string | null
+          test_mode_enabled_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
           welcome_message_telegram?: string | null
