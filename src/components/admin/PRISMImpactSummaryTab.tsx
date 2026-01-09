@@ -357,7 +357,10 @@ export default function PRISMImpactSummaryTab({
                   <p className="text-xs text-muted-foreground">Deadline: {item.deadline}</p>
                 </div>
                 <Button variant="outline" size="sm" asChild>
-                  <a href="/admin/calendar" className="flex items-center gap-1">
+                  <a 
+                    href={`/admin/tax-calendar?prefill=true&title=${encodeURIComponent(item.description)}&date=${encodeURIComponent(item.deadline)}&description=${encodeURIComponent(item.description)}`}
+                    className="flex items-center gap-1"
+                  >
                     <ExternalLink className="w-3 h-3" />
                     Add
                   </a>
@@ -380,7 +383,10 @@ export default function PRISMImpactSummaryTab({
               <div key={idx} className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
                 <p className="text-sm text-foreground">{item.topic}</p>
                 <Button variant="outline" size="sm" asChild>
-                  <a href="/admin/education" className="flex items-center gap-1">
+                  <a 
+                    href={`/admin/education?prefill=true&topic=${encodeURIComponent(item.topic)}`}
+                    className="flex items-center gap-1"
+                  >
                     <ExternalLink className="w-3 h-3" />
                     Create
                   </a>

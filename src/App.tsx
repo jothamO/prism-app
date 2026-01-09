@@ -54,6 +54,8 @@ import AdminComplianceRules from "./pages/admin/AdminComplianceRules";
 import AdminComplianceChangelog from "./pages/admin/AdminComplianceChangelog";
 import AdminCodeProposals from "./pages/admin/AdminCodeProposals";
 import AdminChangelog from "./pages/admin/AdminChangelog";
+import AdminEducation from "./pages/admin/AdminEducation";
+import AdminTaxCalendar from "./pages/admin/AdminTaxCalendar";
 import AcceptInvite from "./pages/AcceptInvite";
 
 function App() {
@@ -202,6 +204,8 @@ function App() {
               <Route path="compliance/rules" element={<AdminComplianceRules />} />
               <Route path="compliance/changelog" element={<AdminComplianceChangelog />} />
               <Route path="compliance/proposals" element={<AdminCodeProposals />} />
+              <Route path="education" element={<AdminEducation />} />
+              <Route path="tax-calendar" element={<AdminTaxCalendar />} />
               <Route path="settings" element={<AdminSettings />} />
             </Route>
 

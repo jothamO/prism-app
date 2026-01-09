@@ -28,7 +28,9 @@ import {
   ScrollText,
   Scale,
   Home,
-  Code
+  Code,
+  BookOpen,
+  Calendar,
 } from "lucide-react";
 
 interface NavGroup {
@@ -133,6 +135,8 @@ export default function AdminLayout() {
       items: [
         { name: "Chatbots", path: "/admin/chatbots", icon: Bot },
         { name: "Messaging", path: "/admin/messaging", icon: MessageSquare },
+        { name: "Education", path: "/admin/education", icon: BookOpen },
+        { name: "Tax Calendar", path: "/admin/tax-calendar", icon: Calendar },
       ]
     },
     {

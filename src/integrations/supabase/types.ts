@@ -1499,9 +1499,12 @@ export type Database = {
           category: string
           content: string
           created_at: string | null
+          created_by: string | null
           description: string | null
           id: string
           is_published: boolean | null
+          last_edited_by: string | null
+          linked_provision_ids: string[] | null
           needs_review: boolean | null
           read_time: string | null
           review_notes: string | null
@@ -1516,9 +1519,12 @@ export type Database = {
           category: string
           content: string
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
           is_published?: boolean | null
+          last_edited_by?: string | null
+          linked_provision_ids?: string[] | null
           needs_review?: boolean | null
           read_time?: string | null
           review_notes?: string | null
@@ -1533,9 +1539,12 @@ export type Database = {
           category?: string
           content?: string
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
           id?: string
           is_published?: boolean | null
+          last_edited_by?: string | null
+          linked_provision_ids?: string[] | null
           needs_review?: boolean | null
           read_time?: string | null
           review_notes?: string | null
@@ -2983,12 +2992,15 @@ export type Database = {
       tax_deadlines: {
         Row: {
           created_at: string | null
+          created_by: string | null
           day_of_month: number | null
           deadline_type: string
           description: string | null
           id: string
           is_active: boolean | null
+          linked_provision_ids: string[] | null
           month_of_year: number | null
+          notification_config: Json | null
           recurrence: string | null
           source_rule_id: string | null
           specific_date: string | null
@@ -2997,12 +3009,15 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           day_of_month?: number | null
           deadline_type: string
           description?: string | null
           id?: string
           is_active?: boolean | null
+          linked_provision_ids?: string[] | null
           month_of_year?: number | null
+          notification_config?: Json | null
           recurrence?: string | null
           source_rule_id?: string | null
           specific_date?: string | null
@@ -3011,12 +3026,15 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           day_of_month?: number | null
           deadline_type?: string
           description?: string | null
           id?: string
           is_active?: boolean | null
+          linked_provision_ids?: string[] | null
           month_of_year?: number | null
+          notification_config?: Json | null
           recurrence?: string | null
           source_rule_id?: string | null
           specific_date?: string | null
@@ -3870,6 +3888,18 @@ export type Database = {
           date: string
         }[]
       }
+      get_upcoming_deadlines: {
+        Args: { days_ahead?: number; deadline_limit?: number }
+        Returns: {
+          deadline_date: string
+          deadline_type: string
+          description: string
+          id: string
+          notification_config: Json
+          recurrence: string
+          title: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3909,6 +3939,19 @@ export type Database = {
           provision_type: string
           section_number: string
           similarity: number
+          title: string
+        }[]
+      }
+      search_education_articles: {
+        Args: { result_limit?: number; search_query: string }
+        Returns: {
+          category: string
+          content: string
+          description: string
+          id: string
+          rank: number
+          read_time: string
+          slug: string
           title: string
         }[]
       }
