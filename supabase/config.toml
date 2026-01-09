@@ -137,3 +137,6 @@ verify_jwt = false
 
 [functions.generate-changelog-md]
 verify_jwt = false
+
+[functions.trigger-ml-training]
+verify_jwt = false
