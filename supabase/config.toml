@@ -122,3 +122,18 @@ verify_jwt = false
 
 [functions.send-compliance-notifications]
 verify_jwt = false
+
+[functions.generate-code-proposals]
+verify_jwt = false
+
+[functions.scheduled-compliance-notifications]
+verify_jwt = false
+
+[functions.dispatch-webhooks]
+verify_jwt = false
+
+[functions.create-github-release]
+verify_jwt = false
+
+[functions.generate-changelog-md]
+verify_jwt = false
