@@ -204,10 +204,7 @@ export default function AdminComplianceDocumentDetail() {
 
     setReprocessing(true);
     try {
-      // First, delete existing provisions and rules
-      await supabase.from("legal_provisions").delete().eq("document_id", document.id);
-      await supabase.from("compliance_rules").delete().eq("document_id", document.id);
-
+      // Edge function now handles cleanup internally (idempotent)
       // Call the edge function to reprocess
       const { data, error } = await supabase.functions.invoke("process-compliance-document", {
         body: {
