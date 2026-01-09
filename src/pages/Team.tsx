@@ -81,7 +81,7 @@ export default function Team() {
             const { data: userData } = await supabase
                 .from('users')
                 .select('id')
-                .eq('auth_id', user.id)
+                .eq('auth_user_id', user.id)
                 .single();
 
             if (!userData) {
