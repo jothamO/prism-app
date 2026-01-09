@@ -236,6 +236,28 @@ Return ONLY valid JSON:
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         );
 
+        // Clean up existing provisions and rules before inserting new ones
+        // This makes the function idempotent - safe to call multiple times
+        console.log(`[process-compliance-document] Cleaning up existing provisions/rules for document ${documentId}`);
+
+        const { error: deleteProvisionsError } = await supabase
+            .from('legal_provisions')
+            .delete()
+            .eq('document_id', documentId);
+
+        if (deleteProvisionsError) {
+            console.error('[process-compliance-document] Error deleting provisions:', deleteProvisionsError);
+        }
+
+        const { error: deleteRulesError } = await supabase
+            .from('compliance_rules')
+            .delete()
+            .eq('document_id', documentId);
+
+        if (deleteRulesError) {
+            console.error('[process-compliance-document] Error deleting rules:', deleteRulesError);
+        }
+
         // Fetch document's effective_date to pass to rules
         const { data: docData } = await supabase
             .from('legal_documents')
