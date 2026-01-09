@@ -20,6 +20,7 @@ export interface TaxRule {
   rule_name: string;
   rule_type: string;
   parameters: Record<string, any>;
+  actions?: Record<string, any>;
   description: string;
   effective_from: string | null;
   effective_to: string | null;
@@ -334,12 +335,41 @@ ${deadlinesText}
 
   // Add upcoming changes section if there are any
   if (upcoming.length > 0) {
-    const upcomingText = upcoming
-      .slice(0, 5) // Limit to 5 upcoming rules
-      .map(r => `  - ${r.rule_name} (${r.rule_type}): Effective ${r.effective_from}`)
-      .join("\n");
+    const upcomingDetails = upcoming
+      .slice(0, 10) // Limit to 10 upcoming rules
+      .map(r => {
+        let details = `  - ${r.rule_name} (${r.rule_type}): Effective ${r.effective_from}`;
+        
+        // Include key action details for fees and thresholds
+        if (r.actions) {
+          if (r.actions.charge_per_unit !== undefined && r.actions.unit_amount !== undefined) {
+            details += `\n      Fee: ₦${r.actions.charge_per_unit} per ₦${Number(r.actions.unit_amount).toLocaleString()} unit`;
+          }
+          if (r.actions.base_fee !== undefined) {
+            details += `\n      Base Fee: ₦${r.actions.base_fee}`;
+          }
+          if (r.actions.maximum_fee !== undefined) {
+            details += `\n      Maximum: ₦${Number(r.actions.maximum_fee).toLocaleString()}`;
+          }
+          if (r.actions.rate !== undefined) {
+            details += `\n      Rate: ${(r.actions.rate * 100).toFixed(1)}%`;
+          }
+          if (r.actions.message) {
+            details += `\n      Note: ${r.actions.message}`;
+          }
+        }
+        
+        // Also check parameters for additional context
+        if (r.parameters) {
+          if (r.parameters.label) {
+            details += `\n      ${r.parameters.label}`;
+          }
+        }
+        
+        return details;
+      }).join("\n");
     
-    summary += `\n\nUPCOMING CHANGES:\n${upcomingText}`;
+    summary += `\n\nUPCOMING REGULATORY CHANGES:\n${upcomingDetails}`;
   }
 
   return summary;

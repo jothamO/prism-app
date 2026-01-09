@@ -3722,6 +3722,7 @@ export type Database = {
     Views: {
       active_tax_rules: {
         Row: {
+          actions: Json | null
           description: string | null
           effective_from: string | null
           effective_to: string | null
@@ -3768,6 +3769,7 @@ export type Database = {
       }
       upcoming_tax_rules: {
         Row: {
+          actions: Json | null
           description: string | null
           effective_from: string | null
           effective_to: string | null
