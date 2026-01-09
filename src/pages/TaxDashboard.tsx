@@ -42,6 +42,39 @@ interface MonthlyData {
     vat: number;
 }
 
+// Historical tax bands by year (Nigeria Tax Act 2024 vs 2025/2026)
+const TAX_BANDS_BY_YEAR: Record<number, { exemption: number; bands: { threshold: number; rate: number }[] }> = {
+    2024: {
+        exemption: 300000,
+        bands: [
+            { threshold: 300000, rate: 0.07 },
+            { threshold: 800000, rate: 0.11 },
+            { threshold: 2400000, rate: 0.15 },
+            { threshold: 4000000, rate: 0.19 },
+            { threshold: Infinity, rate: 0.24 },
+        ],
+    },
+    2025: {
+        exemption: 300000,
+        bands: [
+            { threshold: 300000, rate: 0.07 },
+            { threshold: 800000, rate: 0.11 },
+            { threshold: 2400000, rate: 0.15 },
+            { threshold: 4000000, rate: 0.19 },
+            { threshold: Infinity, rate: 0.24 },
+        ],
+    },
+    2026: {
+        exemption: 800000,
+        bands: [
+            { threshold: 2200000, rate: 0.15 },
+            { threshold: 4800000, rate: 0.19 },
+            { threshold: 10400000, rate: 0.21 },
+            { threshold: Infinity, rate: 0.24 },
+        ],
+    },
+};
+
 export default function TaxDashboard() {
     const navigate = useNavigate();
     const { toast } = useToast();
@@ -60,6 +93,11 @@ export default function TaxDashboard() {
     });
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
     const [selectedPeriod, setSelectedPeriod] = useState<'month' | 'quarter' | 'year'>('month');
+    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
+    // Get applicable tax bands for the selected year
+    const currentTaxBands = TAX_BANDS_BY_YEAR[selectedYear] || TAX_BANDS_BY_YEAR[2026];
+    const isHistoricalMode = selectedYear < 2026;
 
     // Use dynamic rates from the rules engine
     const { emtlRate } = useEMTLRate();
@@ -67,7 +105,7 @@ export default function TaxDashboard() {
 
     useEffect(() => {
         fetchTaxData();
-    }, [selectedPeriod, emtlRate, vatRate]);
+    }, [selectedPeriod, selectedYear, emtlRate, vatRate]);
 
     const fetchTaxData = async () => {
         setLoading(true);
@@ -102,9 +140,15 @@ export default function TaxDashboard() {
             }
 
             // Date floor: Nigeria Tax Act 2025 effective Jan 1, 2026
-            const dateFloor = new Date('2026-01-01');
-            if (startDate < dateFloor) {
-                startDate = dateFloor;
+            // For historical mode, allow 2024/2025 data
+            if (!isHistoricalMode) {
+                const dateFloor = new Date('2026-01-01');
+                if (startDate < dateFloor) {
+                    startDate = dateFloor;
+                }
+            } else {
+                // Historical mode: use selected year
+                startDate = new Date(selectedYear, 0, 1);
             }
 
             // Fetch transactions
@@ -281,19 +325,69 @@ export default function TaxDashboard() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Period Selector */}
-                <div className="flex gap-2 mb-6">
-                    {(['month', 'quarter', 'year'] as const).map((period) => (
-                        <Button
-                            key={period}
-                            variant={selectedPeriod === period ? 'default' : 'outline'}
-                            onClick={() => setSelectedPeriod(period)}
-                            size="sm"
+                {/* Period and Year Selectors */}
+                <div className="flex flex-wrap gap-4 mb-6">
+                    <div className="flex gap-2">
+                        {(['month', 'quarter', 'year'] as const).map((period) => (
+                            <Button
+                                key={period}
+                                variant={selectedPeriod === period ? 'default' : 'outline'}
+                                onClick={() => setSelectedPeriod(period)}
+                                size="sm"
+                            >
+                                This {period.charAt(0).toUpperCase() + period.slice(1)}
+                            </Button>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">Tax Year:</span>
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(Number(e.target.value))}
+                            className="px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white"
                         >
-                            This {period.charAt(0).toUpperCase() + period.slice(1)}
-                        </Button>
-                    ))}
+                            <option value={2026}>2026 (New Law)</option>
+                            <option value={2025}>2025 (Old Law)</option>
+                            <option value={2024}>2024 (Old Law)</option>
+                        </select>
+                        {isHistoricalMode && (
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                Historical Mode
+                            </Badge>
+                        )}
+                    </div>
                 </div>
+
+                {/* Tax Bands Info */}
+                {isHistoricalMode && (
+                    <Card className="mb-6 border-yellow-200 bg-yellow-50">
+                        <CardContent className="p-4">
+                            <div className="flex items-center gap-2 text-yellow-800">
+                                <AlertTriangle className="h-4 w-4" />
+                                <span className="font-medium">Historical Tax Year: {selectedYear}</span>
+                            </div>
+                            <p className="text-sm text-yellow-700 mt-1">
+                                First ₦{currentTaxBands.exemption.toLocaleString()} exempt.
+                                PAYE rates: {currentTaxBands.bands.slice(0, 3).map(b => `${(b.rate * 100).toFixed(0)}%`).join(' → ')}
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* 2026 Tax Info */}
+                {!isHistoricalMode && (
+                    <Card className="mb-6 border-green-200 bg-green-50">
+                        <CardContent className="p-4">
+                            <div className="flex items-center gap-2 text-green-800">
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span className="font-medium">Nigeria Tax Act 2025 (Effective Jan 2026)</span>
+                            </div>
+                            <p className="text-sm text-green-700 mt-1">
+                                First ₦800,000 tax-free. New graduated rates: 15% → 19% → 21% → 24%
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Compliance Score Card */}
                 <Card className="mb-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white">
