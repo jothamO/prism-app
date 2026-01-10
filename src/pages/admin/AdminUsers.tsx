@@ -104,6 +104,7 @@ function UserActionMenu({
   const actions = [
     { label: "View Profile", icon: Eye, action: "view" },
     { label: "Send Message", icon: MessageSquare, action: "message" },
+    { label: "Clear Session", icon: RefreshCw, action: "reset-session" },
     { label: "Reset Onboarding", icon: RefreshCw, action: "reset-onboarding" },
     { 
       label: user.status === "suspended" ? "Unblock User" : "Block User", 
@@ -306,7 +307,7 @@ export default function AdminUsers() {
       
       case 'reset-onboarding':
         try {
-          // Reset user's onboarding status
+          // Reset user's onboarding status in users table
           await supabase
             .from('users')
             .update({ 
@@ -321,20 +322,52 @@ export default function AdminUsers() {
             .delete()
             .eq('user_id', user.id);
           
-          // Clear chatbot session
-          await supabase
-            .from('chatbot_sessions')
-            .delete()
-            .eq('user_id', user.id);
+          // Clear chatbot sessions - by auth user id or telegram id
+          if (user.authUserId) {
+            await supabase
+              .from('chatbot_sessions')
+              .delete()
+              .eq('user_id', user.authUserId);
+          }
+          
+          // Also clear by telegram ID if available
+          if (user.telegramId) {
+            await supabase
+              .from('chatbot_sessions')
+              .delete()
+              .eq('user_id', user.telegramId);
+          }
           
           toast({ 
-            title: "Onboarding Reset", 
-            description: `${user.name}'s onboarding has been reset` 
+            title: "Session Reset", 
+            description: `${user.name}'s onboarding and chatbot session have been reset` 
           });
           fetchUsers();
         } catch (error) {
-          console.error("Error resetting onboarding:", error);
-          toast({ title: "Error", description: "Failed to reset onboarding", variant: "destructive" });
+          console.error("Error resetting session:", error);
+          toast({ title: "Error", description: "Failed to reset session", variant: "destructive" });
+        }
+        break;
+      
+      case 'reset-session':
+        try {
+          // Just clear the chatbot session without resetting onboarding
+          const sessionIds = [user.id, user.authUserId, user.telegramId].filter(Boolean);
+          
+          for (const sessionId of sessionIds) {
+            await supabase
+              .from('chatbot_sessions')
+              .delete()
+              .eq('user_id', sessionId as string);
+          }
+          
+          toast({ 
+            title: "Session Cleared", 
+            description: `${user.name}'s chatbot session has been cleared` 
+          });
+        } catch (error) {
+          console.error("Error clearing session:", error);
+          toast({ title: "Error", description: "Failed to clear session", variant: "destructive" });
         }
         break;
       
