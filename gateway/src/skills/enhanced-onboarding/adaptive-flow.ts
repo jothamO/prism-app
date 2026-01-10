@@ -154,6 +154,11 @@ export function getTaxGuidance(profile: ExtractedProfile): string {
         'individual_mixed': '📊 With both employment and business income, you have more tax planning opportunities. Let\'s make sure you\'re optimizing!',
         'sme': '🏢 For your business, I can help with VAT calculations, expense tracking, and compliance deadlines.',
         'corporate': '🏛️ For corporate entities, I can assist with CIT calculations, VAT, and regulatory filings.',
+        'paye': '💼 Your employer handles PAYE deductions. I can help ensure your reliefs are properly applied.',
+        'company_tax': '🏢 I\'ll help you with company income tax calculations and compliance requirements.',
+        'self_assessment': '📝 You\'ll need to file annual self-assessment returns. I\'ll help track income and expenses.',
+        'withholding': '💰 I can help you manage withholding tax obligations on payments.',
+        'exempt': '✨ Great news! Your income appears to be tax-exempt, but let\'s verify to be sure.',
         'unknown': '🤝 Let me learn more about your situation as we go. Just send me documents or ask questions anytime!'
     };
     
@@ -197,6 +202,11 @@ function formatTaxCategory(category: TaxCategory): string {
         'individual_mixed': 'Mixed Income (Employment + Business)',
         'sme': 'Small/Medium Enterprise',
         'corporate': 'Corporate Entity',
+        'paye': 'PAYE Employee',
+        'company_tax': 'Company Tax Payer',
+        'self_assessment': 'Self-Assessment Filer',
+        'withholding': 'Withholding Tax Applicable',
+        'exempt': 'Tax Exempt',
         'unknown': 'To be determined'
     };
     return labels[category];
