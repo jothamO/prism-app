@@ -71,22 +71,24 @@ function calculatePITOnExcess(excess: number): { totalTax: number; bands: any[] 
 }
 
 /**
- * Extract receipt data using Lovable AI (Gemini Flash)
+ * Extract receipt data using Anthropic Claude Sonnet
  */
 async function extractReceiptWithAI(imageBase64: string): Promise<any> {
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  if (!LOVABLE_API_KEY) {
-    throw new Error('LOVABLE_API_KEY is not configured');
+  const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY is not configured');
   }
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 8000,
       messages: [
         {
           role: 'user',
@@ -113,9 +115,11 @@ Rules:
 Return ONLY the JSON, no other text.`,
             },
             {
-              type: 'image_url',
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: 'image/jpeg',
+                data: imageBase64,
               },
             },
           ],
@@ -129,15 +133,15 @@ Return ONLY the JSON, no other text.`,
       throw new Error('Rate limit exceeded, please try again later');
     }
     if (response.status === 402) {
-      throw new Error('Payment required, please add funds to your Lovable AI workspace');
+      throw new Error('Anthropic API payment required');
     }
     const errorText = await response.text();
-    console.error('[OCR] AI gateway error:', response.status, errorText);
+    console.error('[OCR] Anthropic Claude error:', response.status, errorText);
     throw new Error('AI extraction failed');
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
+  const content = data.content?.[0]?.text;
   
   if (!content) {
     throw new Error('No content in AI response');

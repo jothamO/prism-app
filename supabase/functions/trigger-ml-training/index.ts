@@ -26,7 +26,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -93,38 +93,35 @@ serve(async (req) => {
     let modelRules: string[] = [];
     let accuracy = 0;
 
-    if (lovableApiKey && trainSet.length > 0) {
+    if (anthropicApiKey && trainSet.length > 0) {
       try {
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${lovableApiKey}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "x-api-key": anthropicApiKey,
+            "anthropic-version": "2023-06-01"
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
-              {
-                role: "system",
-                content: `You are a Nigerian financial transaction classifier. Analyze these training examples and generate classification rules.
+            model: "claude-opus-4-5-20251101",
+            max_tokens: 8000,
+            system: `You are a Nigerian financial transaction classifier. Analyze these training examples and generate classification rules.
                 
 Categories: business_expense, personal_expense, revenue, transfer, bank_charge, salary, utilities, rent, professional_services, transport, food_beverage, equipment, marketing, insurance, tax_payment, loan_payment, capital_injection, dividend, refund, other
 
-Return a JSON array of rules in format: [{"pattern": "regex or keyword", "category": "category_name", "confidence": 0.0-1.0}]`
-              },
+Return a JSON array of rules in format: [{"pattern": "regex or keyword", "category": "category_name", "confidence": 0.0-1.0}]`,
+            messages: [
               {
                 role: "user",
                 content: `Training data (${trainSet.length} samples):\n${JSON.stringify(trainSet.slice(0, 100), null, 2)}`
               }
-            ],
-            temperature: 0.3,
-            max_tokens: 2000
+            ]
           })
         });
 
         if (response.ok) {
           const aiResponse = await response.json();
-          const content = aiResponse.choices?.[0]?.message?.content || '';
+          const content = aiResponse.content?.[0]?.text || '';
           
           // Extract JSON array from response
           const jsonMatch = content.match(/\[[\s\S]*\]/);

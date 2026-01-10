@@ -69,18 +69,18 @@ Respond in JSON format:
 }`;
 
 export class NLUService {
-    private lovableApiKey = process.env.LOVABLE_API_KEY;
+    private anthropicApiKey = process.env.ANTHROPIC_API_KEY;
 
     /**
-     * Classify user intent using Gemini 3 Flash (via Lovable AI)
+     * Classify user intent using Claude Haiku
      */
     async classifyIntent(userMessage: string, context?: {
         userId?: string;
         recentMessages?: string[];
         conversationState?: string;
     }): Promise<Intent> {
-        if (!this.lovableApiKey) {
-            console.warn('LOVABLE_API_KEY not set, using fallback intent detection');
+        if (!this.anthropicApiKey) {
+            console.warn('ANTHROPIC_API_KEY not set, using fallback intent detection');
             return this.fallbackIntentDetection(userMessage);
         }
 
@@ -99,37 +99,34 @@ ${contextInfo.length ? contextInfo.join('\n') + '\n\n' : ''}User Message: "${use
 
 Classify this message and respond with JSON only.`;
 
-            const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.lovableApiKey}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'x-api-key': this.anthropicApiKey,
+                    'anthropic-version': '2023-06-01'
                 },
                 body: JSON.stringify({
-                    model: 'google/gemini-2.5-flash', // Aligned with Gateway model
+                    model: 'claude-haiku-4-5-20251001',
+                    max_tokens: 8000,
+                    system: 'You are an intent classifier for a Nigerian tax bot. Always respond with valid JSON.',
                     messages: [
-                        {
-                            role: 'system',
-                            content: 'You are an intent classifier for a Nigerian tax bot. Always respond with valid JSON.'
-                        },
                         {
                             role: 'user',
                             content: prompt
                         }
-                    ],
-                    response_format: { type: 'json_object' },
-                    temperature: 0.3 // Lower for consistent classification
+                    ]
                 })
             });
 
             if (!response.ok) {
                 const error = await response.text();
-                console.error('Gemini API error:', response.status, error);
+                console.error('Anthropic Claude API error:', response.status, error);
                 return this.fallbackIntentDetection(userMessage);
             }
 
             const data: any = await response.json();
-            const content = data.choices?.[0]?.message?.content;
+            const content = data.content?.[0]?.text;
 
             if (!content) {
                 console.error('No content in Gemini response');

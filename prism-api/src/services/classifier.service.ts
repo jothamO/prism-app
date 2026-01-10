@@ -214,7 +214,7 @@ export class ClassifierService {
         const prompt = this.getPrompt(txn, nigerianContext);
         const response = await this.claude!.messages.create({
             model: 'claude-sonnet-4-5-20250929',
-            max_tokens: 300,
+            max_tokens: 8000,
             messages: [{ role: 'user', content: prompt }]
         });
         const textContent = response.content[0].type === 'text' ? response.content[0].text : '';

@@ -137,20 +137,20 @@ serve(async (req) => {
         let codeDiff: Record<string, unknown>;
         let description: string;
 
-        if (lovableApiKey) {
-          // Use AI to generate intelligent suggestions
-          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+        if (anthropicApiKey) {
+          // Use Anthropic Claude Opus for intelligent code suggestions
+          const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${lovableApiKey}`,
               "Content-Type": "application/json",
+              "x-api-key": anthropicApiKey,
+              "anthropic-version": "2023-06-01",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a code review assistant for a Nigerian tax compliance system (PRISM).
+              model: "claude-opus-4-5-20251101",
+              max_tokens: 8000,
+              system: `You are a code review assistant for a Nigerian tax compliance system (PRISM).
 Generate a JSON object with code change suggestions when tax rules change.
 Output ONLY valid JSON with this structure:
 {
@@ -165,8 +165,8 @@ Output ONLY valid JSON with this structure:
     }
   ],
   "summary": "brief description of all changes"
-}`
-                },
+}`,
+              messages: [
                 {
                   role: "user",
                   content: `A compliance rule has been activated:
@@ -183,14 +183,13 @@ Area: ${codePattern.description}
 
 Generate code change suggestions to ensure the codebase reflects this rule.`
                 }
-              ],
-              max_tokens: 1500
+              ]
             })
           });
 
           if (aiResponse.ok) {
             const aiData = await aiResponse.json();
-            const content = aiData.choices?.[0]?.message?.content || "";
+            const content = aiData.content?.[0]?.text || "";
             
             // Parse AI response
             try {

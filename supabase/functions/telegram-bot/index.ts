@@ -582,11 +582,12 @@ async function verifyCAC(cac: string) {
   }
 }
 
-// ============= OCR with Lovable AI =============
+// ============= OCR with Anthropic Claude =============
 
 async function extractReceiptData(imageUrl: string) {
-  if (!LOVABLE_API_KEY) {
-    console.error("LOVABLE_API_KEY not configured");
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY not configured");
     return null;
   }
 
@@ -597,21 +598,27 @@ async function extractReceiptData(imageUrl: string) {
     const base64Image = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
     const mimeType = imageResponse.headers.get("content-type") || "image/jpeg";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 8000,
         messages: [
           {
             role: "user",
             content: [
               {
-                type: "image_url",
-                image_url: { url: `data:${mimeType};base64,${base64Image}` },
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: mimeType,
+                  data: base64Image,
+                },
               },
               {
                 type: "text",
@@ -633,12 +640,12 @@ If you cannot extract a field, use null. For amount, extract the total/grand tot
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Lovable AI error:", response.status, errorText);
+      console.error("Anthropic Claude error:", response.status, errorText);
       return null;
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = data.content?.[0]?.text;
 
     if (!content) return null;
 

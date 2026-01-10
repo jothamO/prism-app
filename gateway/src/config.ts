@@ -39,7 +39,7 @@ export const config = {
     anthropic: {
         apiKey: process.env.ANTHROPIC_API_KEY!,
         model: 'claude-sonnet-4-5-20250929',
-        maxTokens: 4000
+        maxTokens: 8000
     },
 
     // Google Cloud Vision (OCR)
