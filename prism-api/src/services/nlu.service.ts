@@ -50,10 +50,15 @@ Identify the user's intent from these options:
    - Suspicious expense categorization detected (Section 191 NTA 2025)
    - Entities: item (string), claimed_category (string)
    - Examples: User trying to tag TV/fridge/personal item as business expense
+
+9. verify_identity
+   - User wants to verify identity documents (NIN, TIN, BVN, CAC)
+   - Entities: id_type (NIN|TIN|BVN|CAC), id_number (string)
+   - Examples: "verify my NIN", "check TIN 12345678901", "validate my CAC RC123456"
    
-9. general_query
+10. general_query
    - General tax questions or other queries
-   - Examples: "what is EMTL", "explain Section 32", "how does PRISM work"
+   - Examples: "what is EMTL", "explain Section 32", "how does PRISM work", "what changes are coming in March"
 
 Respond in JSON format:
 {
@@ -101,7 +106,7 @@ Classify this message and respond with JSON only.`;
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: 'google/gemini-flash-3', // Using Gemini 3 Flash
+                    model: 'google/gemini-2.5-flash', // Aligned with Gateway model
                     messages: [
                         {
                             role: 'system',
@@ -206,6 +211,22 @@ Classify this message and respond with JSON only.`;
             };
         }
 
+        // Identity verification (aligned with Gateway)
+        if (lowerMsg.match(/\b(verify|validate|check)\b.*\b(nin|bvn|tin|cac)/i) ||
+            lowerMsg.match(/\b(nin|bvn|tin|cac)\b.*\b(verify|validate|check)/i)) {
+            return {
+                name: 'verify_identity',
+                confidence: 0.85,
+                entities: {
+                    id_type: /nin/i.test(lowerMsg) ? 'NIN' : 
+                             /bvn/i.test(lowerMsg) ? 'BVN' : 
+                             /tin/i.test(lowerMsg) ? 'TIN' : 
+                             /cac/i.test(lowerMsg) ? 'CAC' : undefined
+                },
+                reasoning: 'Keyword match: identity verification'
+            };
+        }
+
         // Bank connection
         if (lowerMsg.match(/\b(connect|link|add)\b.*\b(bank|account)/i)) {
             return {
@@ -215,8 +236,6 @@ Classify this message and respond with JSON only.`;
                 reasoning: 'Keyword match: bank connection'
             };
         }
-
-        // Default: general query
         return {
             name: 'general_query',
             confidence: 0.5,

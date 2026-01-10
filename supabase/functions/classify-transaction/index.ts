@@ -20,24 +20,31 @@ const corsHeaders = {
 // NIGERIAN TRANSACTION DETECTION
 // ============================================
 
+// ============================================
+// NIGERIAN FLAGS INTERFACE (snake_case for DB compatibility)
+// ============================================
+
 interface NigerianFlags {
-    isUssdTransaction: boolean;
-    isMobileMoney: boolean;
-    mobileMoneyProvider?: string;
-    isPosTransaction: boolean;
-    isForeignCurrency: boolean;
-    foreignCurrency?: string;
-    isNigerianBankCharge: boolean;
-    isEmtl: boolean;
-    isStampDuty: boolean;
-    detectedBankCode?: string;
+    is_ussd_transaction: boolean;
+    is_mobile_money: boolean;
+    mobile_money_provider?: string;
+    is_pos_transaction: boolean;
+    is_foreign_currency: boolean;
+    foreign_currency?: string;
+    is_nigerian_bank_charge: boolean;
+    is_emtl: boolean;
+    is_stamp_duty: boolean;
+    detected_bank_code?: string;
+    // Capital injection detection (aligned with Gateway)
+    is_capital_injection?: boolean;
+    capital_type?: string;
 }
 
 interface TaxImplications {
-    vatApplicable: boolean;
-    whtApplicable: boolean;
-    emtlCharged: boolean;
-    stampDutyCharged: boolean;
+    vat_applicable: boolean;
+    wht_applicable: boolean;
+    emtl_charged: boolean;
+    stamp_duty_charged: boolean;
     deductible: boolean;
 }
 
@@ -54,40 +61,65 @@ const BANK_CHARGE_PATTERNS = [/sms[\s\-_]?alert/i, /vat[\s\-_]?on/i, /commission
 const EMTL_PATTERNS = [/emtl/i, /e\.m\.t\.l/i, /electronic\s?money\s?transfer\s?levy/i, /e-?levy/i, /transfer\s?levy/i];
 const STAMP_DUTY_PATTERNS = [/stamp\s?duty/i, /stmp\s?dty/i, /sd\s?charge/i, /stamping/i];
 
+// Capital injection patterns (from Gateway's capital-detector.ts)
+const CAPITAL_PATTERNS = [
+    /capital\s*(injection|infusion|contribution)/i,
+    /shareholder\s*(loan|funding|contribution)/i,
+    /director'?s?\s*(loan|funding|contribution)/i,
+    /equity\s*(injection|contribution|funding)/i,
+    /investment\s*from\s*(owner|shareholder|director)/i,
+    /owner'?s?\s*(draw|contribution)/i,
+    /personal\s*funds?\s*(transfer|contribution)/i
+];
+
+function detectCapitalInjection(description: string): boolean {
+    return CAPITAL_PATTERNS.some(p => p.test(description));
+}
+
+function detectCapitalType(description: string): string | undefined {
+    if (/shareholder/i.test(description)) return 'shareholder_loan';
+    if (/director/i.test(description)) return 'director_loan';
+    if (/equity/i.test(description)) return 'equity_contribution';
+    if (/personal\s*funds/i.test(description)) return 'personal_contribution';
+    return undefined;
+}
+
 function detectNigerianFlags(description: string, amount?: number): NigerianFlags {
     const desc = description || '';
 
-    let mobileMoneyProvider: string | undefined;
+    let mobile_money_provider: string | undefined;
     for (const [provider, patterns] of Object.entries(MOBILE_MONEY_PROVIDERS)) {
         if (patterns.some(p => p.test(desc))) {
-            mobileMoneyProvider = provider;
+            mobile_money_provider = provider;
             break;
         }
     }
 
-  const isEmtl: boolean = EMTL_PATTERNS.some(p => p.test(desc)) ||
-    Boolean(amount && amount === 50 && /levy|charge/i.test(desc));
+    const is_emtl: boolean = EMTL_PATTERNS.some(p => p.test(desc)) ||
+        Boolean(amount && amount === 50 && /levy|charge/i.test(desc));
 
     return {
-        isUssdTransaction: USSD_PATTERNS.some(p => p.test(desc)),
-        isMobileMoney: !!mobileMoneyProvider,
-        mobileMoneyProvider,
-        isPosTransaction: POS_PATTERNS.some(p => p.test(desc)),
-        isForeignCurrency: /\$|usd|dollar|gbp|eur|euro/i.test(desc),
-        foreignCurrency: /usd|\$/i.test(desc) ? 'USD' : /gbp|£/i.test(desc) ? 'GBP' : /eur|€/i.test(desc) ? 'EUR' : undefined,
-        isNigerianBankCharge: BANK_CHARGE_PATTERNS.some(p => p.test(desc)),
-        isEmtl,
-        isStampDuty: STAMP_DUTY_PATTERNS.some(p => p.test(desc)) || (amount === 50 && /stamp/i.test(desc)),
+        is_ussd_transaction: USSD_PATTERNS.some(p => p.test(desc)),
+        is_mobile_money: !!mobile_money_provider,
+        mobile_money_provider,
+        is_pos_transaction: POS_PATTERNS.some(p => p.test(desc)),
+        is_foreign_currency: /\$|usd|dollar|gbp|eur|euro/i.test(desc),
+        foreign_currency: /usd|\$/i.test(desc) ? 'USD' : /gbp|£/i.test(desc) ? 'GBP' : /eur|€/i.test(desc) ? 'EUR' : undefined,
+        is_nigerian_bank_charge: BANK_CHARGE_PATTERNS.some(p => p.test(desc)),
+        is_emtl,
+        is_stamp_duty: STAMP_DUTY_PATTERNS.some(p => p.test(desc)) || (amount === 50 && /stamp/i.test(desc)),
+        is_capital_injection: detectCapitalInjection(desc),
+        capital_type: detectCapitalType(desc),
     };
 }
 
 function getTaxImplications(flags: NigerianFlags, isCredit: boolean): TaxImplications {
     return {
-        vatApplicable: isCredit && !flags.isEmtl && !flags.isStampDuty && !flags.isNigerianBankCharge,
-        whtApplicable: false,
-        emtlCharged: flags.isEmtl,
-        stampDutyCharged: flags.isStampDuty,
-        deductible: flags.isNigerianBankCharge || flags.isEmtl || flags.isStampDuty,
+        vat_applicable: isCredit && !flags.is_emtl && !flags.is_stamp_duty && !flags.is_nigerian_bank_charge,
+        wht_applicable: false,
+        emtl_charged: flags.is_emtl,
+        stamp_duty_charged: flags.is_stamp_duty,
+        deductible: flags.is_nigerian_bank_charge || flags.is_emtl || flags.is_stamp_duty,
     };
 }
 
@@ -194,20 +226,20 @@ function ruleBasedClassification(
 ): ClassificationResult | null {
     const desc = narration.toLowerCase();
 
-    if (flags.isEmtl) {
+    if (flags.is_emtl) {
         return { classification: 'expense', confidence: 0.98, reason: 'EMTL levy detected (rule-based)', category: 'bank_charges', needsConfirmation: false, tier: 'rule_based' };
     }
-    if (flags.isStampDuty) {
+    if (flags.is_stamp_duty) {
         return { classification: 'expense', confidence: 0.98, reason: 'Stamp duty detected (rule-based)', category: 'government_levy', needsConfirmation: false, tier: 'rule_based' };
     }
-    if (flags.isNigerianBankCharge) {
+    if (flags.is_nigerian_bank_charge) {
         return { classification: 'expense', confidence: 0.95, reason: 'Nigerian bank charge (rule-based)', category: 'bank_charges', needsConfirmation: false, tier: 'rule_based' };
     }
-    if (flags.isPosTransaction) {
+    if (flags.is_pos_transaction) {
         return { classification: isCredit ? 'income' : 'expense', confidence: 0.88, reason: isCredit ? 'POS credit (rule-based)' : 'POS charge (rule-based)', category: isCredit ? 'sales_revenue' : 'operating_expense', needsConfirmation: amount > 500000, tier: 'rule_based' };
     }
-    if (flags.isMobileMoney && isCredit) {
-        return { classification: 'income', confidence: 0.75, reason: `Mobile money via ${flags.mobileMoneyProvider} (rule-based)`, category: 'sales_revenue', needsConfirmation: true, tier: 'rule_based' };
+    if (flags.is_mobile_money && isCredit) {
+        return { classification: 'income', confidence: 0.75, reason: `Mobile money via ${flags.mobile_money_provider} (rule-based)`, category: 'sales_revenue', needsConfirmation: true, tier: 'rule_based' };
     }
 
     const nonRevenueKeywords = ['loan', 'disbursement', 'salary', 'atm', 'withdrawal', 'netflix', 'dstv', 'airtime', 'transfer from self'];
@@ -249,12 +281,13 @@ Transaction:
 - Type: ${isCredit ? 'Credit (money in)' : 'Debit (money out)'}
 
 Nigerian Context:
-- USSD: ${flags.isUssdTransaction ? 'Yes' : 'No'}
-- POS: ${flags.isPosTransaction ? 'Yes' : 'No'}
-- Mobile Money: ${flags.isMobileMoney ? `Yes (${flags.mobileMoneyProvider})` : 'No'}
-- Bank Charge: ${flags.isNigerianBankCharge ? 'Yes' : 'No'}
-- EMTL: ${flags.isEmtl ? 'Yes' : 'No'}
-- Foreign Currency: ${flags.isForeignCurrency ? `Yes (${flags.foreignCurrency})` : 'No'}
+- USSD: ${flags.is_ussd_transaction ? 'Yes' : 'No'}
+- POS: ${flags.is_pos_transaction ? 'Yes' : 'No'}
+- Mobile Money: ${flags.is_mobile_money ? `Yes (${flags.mobile_money_provider})` : 'No'}
+- Bank Charge: ${flags.is_nigerian_bank_charge ? 'Yes' : 'No'}
+- EMTL: ${flags.is_emtl ? 'Yes' : 'No'}
+- Foreign Currency: ${flags.is_foreign_currency ? `Yes (${flags.foreign_currency})` : 'No'}
+- Capital Injection: ${flags.is_capital_injection ? `Yes (${flags.capital_type})` : 'No'}
 
 Classify as ONE of:
 - "income" (customer payment, sales revenue - VAT applies)
@@ -354,22 +387,24 @@ serve(async (req) => {
                     confidence: result.confidence,
                     category: result.category,
                     classification_source: result.tier,
-                    is_ussd_transaction: nigerianFlags.isUssdTransaction,
-                    is_mobile_money: nigerianFlags.isMobileMoney,
-                    mobile_money_provider: nigerianFlags.mobileMoneyProvider,
-                    is_pos_transaction: nigerianFlags.isPosTransaction,
-                    is_foreign_currency: nigerianFlags.isForeignCurrency,
-                    foreign_currency: nigerianFlags.foreignCurrency,
-                    is_nigerian_bank_charge: nigerianFlags.isNigerianBankCharge,
-                    is_emtl: nigerianFlags.isEmtl,
-                    is_stamp_duty: nigerianFlags.isStampDuty,
-                    vat_applicable: taxImplications.vatApplicable,
+                    is_ussd_transaction: nigerianFlags.is_ussd_transaction,
+                    is_mobile_money: nigerianFlags.is_mobile_money,
+                    mobile_money_provider: nigerianFlags.mobile_money_provider,
+                    is_pos_transaction: nigerianFlags.is_pos_transaction,
+                    is_foreign_currency: nigerianFlags.is_foreign_currency,
+                    foreign_currency: nigerianFlags.foreign_currency,
+                    is_nigerian_bank_charge: nigerianFlags.is_nigerian_bank_charge,
+                    is_emtl: nigerianFlags.is_emtl,
+                    is_stamp_duty: nigerianFlags.is_stamp_duty,
+                    is_capital_injection: nigerianFlags.is_capital_injection,
+                    vat_applicable: taxImplications.vat_applicable,
                     is_tax_relevant: taxImplications.deductible,
                     metadata: {
                         classification_reason: result.reason,
                         needs_confirmation: result.needsConfirmation,
                         nigerian_flags: nigerianFlags,
                         tax_implications: taxImplications,
+                        capital_type: nigerianFlags.capital_type,
                         classified_at: new Date().toISOString()
                     }
                 })

@@ -9,7 +9,8 @@ import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
 import type { NLUIntent } from '../../services/nlu.service';
-import { getReliefs, getDeadlines, formatNaira } from '../../services/rules-fetcher';
+import { getReliefs, getDeadlines, formatNaira, buildTaxRulesSummary } from '../../services/rules-fetcher';
+import config from '../../config';
 
 export interface IntentHandlerResult {
     message: string;
@@ -283,7 +284,7 @@ export async function handleGeneralQuery(
 
 /**
  * Handle general query with AI-powered conversation
- * Uses Lovable AI for natural language responses
+ * Uses Anthropic Claude (same as Web chat-assist) for natural language responses
  */
 export async function handleGeneralQueryWithAI(
     message: string,
@@ -292,56 +293,58 @@ export async function handleGeneralQueryWithAI(
     timeOfDay: 'morning' | 'afternoon' | 'evening'
 ): Promise<IntentHandlerResult> {
     const userName = context.metadata?.userName as string;
-    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
+    const ANTHROPIC_API_KEY = config.anthropic.apiKey;
     
     // If no AI key or empty message, fall back to static menu
-    if (!LOVABLE_API_KEY || !message.trim()) {
-        logger.info('[IntentHandlers] No LOVABLE_API_KEY or empty message, using static response');
+    if (!ANTHROPIC_API_KEY || !message.trim()) {
+        logger.info('[IntentHandlers] No ANTHROPIC_API_KEY or empty message, using static response');
         return handleGeneralQuery(intent, context, timeOfDay);
     }
     
     try {
-        // Build Nigerian tax-aware system prompt
-        const systemPrompt = buildConversationalPrompt(context, timeOfDay);
+        // Build Nigerian tax-aware system prompt with dynamic rules from database
+        const systemPrompt = await buildConversationalPromptAsync(context, timeOfDay);
         
-        logger.info('[IntentHandlers] Calling Lovable AI for conversation', { 
+        logger.info('[IntentHandlers] Calling Anthropic Claude for conversation', { 
             messageLength: message.length,
-            userName: userName || 'anonymous'
+            userName: userName || 'anonymous',
+            model: config.anthropic.model
         });
         
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'x-api-key': ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
             },
             body: JSON.stringify({
-                model: 'google/gemini-3-flash-preview',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: message }
-                ]
+                model: config.anthropic.model,
+                max_tokens: 500,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: message }]
             })
         });
         
         if (!response.ok) {
             const errorText = await response.text();
-            logger.error('[IntentHandlers] AI Gateway error', { 
+            logger.error('[IntentHandlers] Anthropic Claude error', { 
                 status: response.status, 
                 error: errorText 
             });
-            throw new Error(`AI Gateway error: ${response.status}`);
+            throw new Error(`Anthropic Claude error: ${response.status}`);
         }
         
-        const aiData = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-        const aiResponse = aiData.choices?.[0]?.message?.content;
+        const aiData = await response.json() as { content?: Array<{ text?: string }> };
+        const aiResponse = aiData.content?.[0]?.text;
         
         if (!aiResponse) {
             throw new Error('Empty AI response');
         }
         
         logger.info('[IntentHandlers] AI response received', { 
-            responseLength: aiResponse.length 
+            responseLength: aiResponse.length,
+            source: 'anthropic_claude'
         });
         
         return {
@@ -352,7 +355,8 @@ export async function handleGeneralQueryWithAI(
             ]],
             metadata: { 
                 intent: 'conversational_ai', 
-                source: 'lovable_ai',
+                source: 'anthropic_claude',
+                model: config.anthropic.model,
                 originalIntent: intent.name,
                 personality: true
             }
@@ -365,14 +369,30 @@ export async function handleGeneralQueryWithAI(
 }
 
 /**
- * Build conversational system prompt for AI
+ * Build conversational system prompt for AI with dynamic rules from database
  */
-function buildConversationalPrompt(
+async function buildConversationalPromptAsync(
     context: SessionContext, 
     timeOfDay: 'morning' | 'afternoon' | 'evening'
-): string {
+): Promise<string> {
     const userName = context.metadata?.userName;
     const entityType = context.metadata?.entityType;
+    
+    // Fetch dynamic tax rules from database (same as Web chat-assist)
+    let taxRulesContext = '';
+    try {
+        taxRulesContext = await buildTaxRulesSummary();
+    } catch (error) {
+        logger.warn('[IntentHandlers] Failed to fetch tax rules, using fallback', error);
+        taxRulesContext = `
+KNOWLEDGE (Nigeria Tax Act 2025 - Fallback):
+- Tax bands: ₦0-800k (0%), ₦800k-3M (15%), ₦3M-12M (18%), ₦12M-25M (21%), ₦25M-50M (23%), 50M+ (25%)
+- VAT: 7.5%
+- EMTL: ₦50 per transfer ≥₦10,000
+- CRA: Higher of ₦200k or 1% of gross income, plus 20% of gross income
+- Reliefs: Pension (8% of basic), NHF (2.5%), NHIS (actual), Children (₦2,500/child, max 4)
+- Filing deadlines: VAT by 21st monthly, PAYE by 10th monthly, Annual by March 31st`;
+    }
     
     return `You are PRISM, a friendly Nigerian tax assistant chatbot. 
 
@@ -394,13 +414,7 @@ CONTEXT:
 ${userName ? `- User: ${userName}` : '- Anonymous user'}
 ${entityType ? `- Entity type: ${entityType}` : ''}
 
-KNOWLEDGE (Nigeria Tax Act 2025):
-- Tax bands: ₦0-800k (0%), ₦800k-3M (15%), ₦3M-12M (18%), ₦12M-25M (21%), ₦25M-50M (23%), 50M+ (25%)
-- VAT: 7.5%
-- EMTL (Electronic Money Transfer Levy): ₦50 per transfer ≥₦10,000
-- CRA: Higher of ₦200k or 1% of gross income, plus 20% of gross income
-- Reliefs: Pension (8% of basic), NHF (2.5%), NHIS (actual), Children (₦2,500/child, max 4)
-- Filing deadlines: VAT by 21st monthly, PAYE by 10th monthly, Annual by March 31st
+${taxRulesContext}
 
 FORMATTING:
 - Use markdown for structure (bold for emphasis, bullets for lists)
