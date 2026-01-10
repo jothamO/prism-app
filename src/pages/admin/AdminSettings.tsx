@@ -28,6 +28,7 @@ interface SystemSettings {
   test_mode_enabled: boolean;
   test_mode_enabled_at: string | null;
   gateway_enabled: boolean;
+  processing_mode: 'gateway' | 'edge_functions';
 }
 
 interface Profile {
@@ -460,6 +461,7 @@ function GeneralTab() {
     test_mode_enabled: false,
     test_mode_enabled_at: null,
     gateway_enabled: true,
+    processing_mode: 'gateway',
   });
 
   useEffect(() => {
@@ -487,6 +489,7 @@ function GeneralTab() {
           test_mode_enabled: data.test_mode_enabled ?? false,
           test_mode_enabled_at: data.test_mode_enabled_at ?? null,
           gateway_enabled: data.gateway_enabled ?? true,
+          processing_mode: data.processing_mode ?? 'gateway',
         });
       }
     } catch (error) {
@@ -653,6 +656,53 @@ function GeneralTab() {
             </div>
           </div>
         </div>
+
+        {/* Processing Mode Section */}
+        <div className="pt-4 border-t border-border">
+          <h4 className="text-sm font-medium text-muted-foreground mb-4">Message Processing</h4>
+          <div className="bg-background rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-foreground font-medium">Processing Backend</p>
+                <p className="text-sm text-muted-foreground">
+                  {settings.processing_mode === 'gateway' 
+                    ? 'Messages processed by Railway Gateway (recommended)' 
+                    : 'Messages processed by Edge Functions'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSettings({ ...settings, processing_mode: 'gateway' })}
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2",
+                  settings.processing_mode === 'gateway'
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                )}
+              >
+                <Wifi className="w-4 h-4" />
+                Gateway
+              </button>
+              <button
+                onClick={() => setSettings({ ...settings, processing_mode: 'edge_functions' })}
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2",
+                  settings.processing_mode === 'edge_functions'
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                )}
+              >
+                <Radio className="w-4 h-4" />
+                Edge Functions
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Gateway mode provides full NLU processing, AI conversations, and document analysis. Edge Functions mode is a simpler fallback.
+            </p>
+          </div>
+        </div>
+
         {/* Bot Welcome Messages */}
         <div className="pt-4 border-t border-border">
           <h4 className="text-sm font-medium text-muted-foreground mb-4">Bot Welcome Messages</h4>

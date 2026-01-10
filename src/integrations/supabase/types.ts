@@ -3005,6 +3005,7 @@ export type Database = {
           gateway_enabled_by: string | null
           id: string
           onboarding_mode: string | null
+          processing_mode: string
           telegram_enabled: boolean | null
           test_mode_enabled: boolean | null
           test_mode_enabled_at: string | null
@@ -3024,6 +3025,7 @@ export type Database = {
           gateway_enabled_by?: string | null
           id?: string
           onboarding_mode?: string | null
+          processing_mode?: string
           telegram_enabled?: boolean | null
           test_mode_enabled?: boolean | null
           test_mode_enabled_at?: string | null
@@ -3043,6 +3045,7 @@ export type Database = {
           gateway_enabled_by?: string | null
           id?: string
           onboarding_mode?: string | null
+          processing_mode?: string
           telegram_enabled?: boolean | null
           test_mode_enabled?: boolean | null
           test_mode_enabled_at?: string | null

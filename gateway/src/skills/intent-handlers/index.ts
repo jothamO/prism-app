@@ -25,19 +25,25 @@ export async function handleTransactionSummary(
     context: SessionContext
 ): Promise<IntentHandlerResult> {
     const period = intent.entities.period as string || 'current_month';
-    
-    // Format period for display
     const periodDisplay = formatPeriod(period);
+    const userName = (context.metadata?.userName as string)?.split(' ')[0];
+    
+    // Nigerian-friendly message with personality
+    const greeting = userName ? `${userName}, ` : '';
     
     return {
         message: `📊 *Transaction Summary - ${periodDisplay}*\n\n` +
-            `I'd be happy to show you your transaction summary!\n\n` +
-            `To get started, please upload a bank statement (PDF or image) and I'll analyze your transactions for ${periodDisplay}.`,
+            `${greeting}oya let's see what your money has been up to ${periodDisplay.toLowerCase()}! 💰\n\n` +
+            `Upload a bank statement and I'll break down every kobo:\n` +
+            `✅ Income vs expenses\n` +
+            `✅ Tax-deductible items\n` +
+            `✅ Potential savings\n\n` +
+            `Just send me the file and I'll handle the rest!`,
         buttons: [[
             { text: '📤 Upload Statement', callback_data: 'upload_statement' },
             { text: '📅 Change Period', callback_data: 'change_period' }
         ]],
-        metadata: { intent: 'get_transaction_summary', period }
+        metadata: { intent: 'get_transaction_summary', period, personality: true }
     };
 }
 
@@ -54,36 +60,41 @@ export async function handleTaxReliefInfo(
     const dbReliefs = await getReliefs();
     
     // Build relief info from database with fallback
-    const reliefInfo: Record<string, { title: string; description: string; limit: string; reference: string }> = {
+    const reliefInfo: Record<string, { title: string; description: string; limit: string; reference: string; tip: string }> = {
         pension: {
             title: 'Pension Contribution Relief',
-            description: 'Contributions to approved pension schemes are tax-deductible.',
+            description: 'Your pension contributions are tax-free! This is one of the best ways to reduce your tax bill.',
             limit: dbReliefs.find(r => r.rule_code === 'RELIEF_PENSION')?.parameters?.label || 'Up to 8% of basic salary',
-            reference: 'Section 69 NTA 2025'
+            reference: 'Section 69 NTA 2025',
+            tip: '💡 Pro tip: Max out your pension contributions before year-end to save more!'
         },
         nhf: {
             title: 'National Housing Fund',
-            description: '2.5% contribution to NHF is tax-deductible.',
+            description: 'NHF helps you save for housing AND reduce your taxes. Double win!',
             limit: dbReliefs.find(r => r.rule_code === 'RELIEF_NHF')?.parameters?.label || '2.5% of basic salary',
-            reference: 'NHF Act'
+            reference: 'NHF Act',
+            tip: '💡 Your NHF contributions also make you eligible for housing loans at lower rates.'
         },
         nhis: {
             title: 'Health Insurance',
-            description: 'Contributions to NHIS or approved health insurance are deductible.',
+            description: 'Health insurance premiums reduce your taxable income. Stay healthy, pay less tax!',
             limit: dbReliefs.find(r => r.rule_code === 'RELIEF_NHIS')?.parameters?.label || 'Actual contribution',
-            reference: 'Section 71 NTA 2025'
+            reference: 'Section 71 NTA 2025',
+            tip: '💡 Include family health coverage - those premiums count too!'
         },
         housing: {
             title: 'Housing/Rent Relief',
-            description: 'Rent paid for residential accommodation (if no employer-provided housing).',
+            description: 'If you pay rent and your employer doesn\'t provide housing, you get a relief.',
             limit: 'Up to 20% of earned income',
-            reference: 'Section 70 NTA 2025'
+            reference: 'Section 70 NTA 2025',
+            tip: '💡 Keep your rent receipts - you\'ll need them for verification.'
         },
         children: {
             title: 'Children Education Allowance',
-            description: 'Allowance for dependent children in approved educational institutions.',
+            description: 'Got kids in school? You get a tax break for each child!',
             limit: dbReliefs.find(r => r.rule_code === 'RELIEF_CHILDREN')?.parameters?.label || '₦2,500 per child (max 4)',
-            reference: 'Section 68 NTA 2025'
+            reference: 'Section 68 NTA 2025',
+            tip: '💡 This applies to children in approved educational institutions.'
         }
     };
     
@@ -92,14 +103,15 @@ export async function handleTaxReliefInfo(
         return {
             message: `💡 *${info.title}*\n\n` +
                 `${info.description}\n\n` +
-                `📊 *Limit:* ${info.limit}\n` +
-                `📖 *Reference:* ${info.reference}\n\n` +
-                `Would you like to calculate your tax with this relief applied?`,
+                `📊 *How much:* ${info.limit}\n` +
+                `📖 *Legal backing:* ${info.reference}\n\n` +
+                `${info.tip}\n\n` +
+                `Want me to calculate your tax with this relief?`,
             buttons: [[
                 { text: '🧮 Calculate Tax', callback_data: `calc_with_${reliefType}` },
                 { text: '📋 Other Reliefs', callback_data: 'list_reliefs' }
             ]],
-            metadata: { intent: 'get_tax_relief_info', reliefType }
+            metadata: { intent: 'get_tax_relief_info', reliefType, personality: true }
         };
     }
     
@@ -112,14 +124,14 @@ export async function handleTaxReliefInfo(
         return `${emoji} *${r.rule_name}* - ${r.parameters?.label || 'See details'}`;
     }).join('\n');
     
-    // General relief overview
+    // General relief overview with personality
     return {
-        message: `💡 *Available Tax Reliefs (NTA 2025)*\n\n` +
-            `Nigeria Tax Act 2025 provides several reliefs to reduce your tax liability:\n\n` +
-            `🏦 *Consolidated Relief Allowance (CRA)*\n` +
-            `   Higher of ₦200,000 or 1% of gross income + 20% of gross\n\n` +
-            `${reliefsList || '👴 *Pension* - 8% of basic salary\n🏠 *NHF* - 2.5% of basic salary\n🏥 *NHIS* - Health insurance contributions\n📚 *Children* - ₦2,500/child (max 4)\n🏡 *Rent* - Up to 20% of earned income'}\n\n` +
-            `Which relief would you like to learn more about?`,
+        message: `💡 *Tax Reliefs You Can Claim*\n\n` +
+            `Good news! The law allows several ways to reduce your tax. Here's what you might be missing:\n\n` +
+            `🏦 *Consolidated Relief (CRA)*\n` +
+            `Everyone gets this one! Higher of ₦200k or 1% of gross + 20% of gross\n\n` +
+            `${reliefsList || '👴 *Pension* - 8% of basic (tax-free!)\n🏠 *NHF* - 2.5% for housing\n🏥 *Health* - Insurance premiums\n📚 *Children* - ₦2,500/child (max 4)\n🏡 *Rent* - Up to 20% of income'}\n\n` +
+            `Tap any relief to learn more 👇`,
         buttons: [
             [
                 { text: '👴 Pension', callback_data: 'relief_pension' },
@@ -130,7 +142,7 @@ export async function handleTaxReliefInfo(
                 { text: '🏡 Rent', callback_data: 'relief_housing' }
             ]
         ],
-        metadata: { intent: 'get_tax_relief_info' }
+        metadata: { intent: 'get_tax_relief_info', personality: true }
     };
 }
 
@@ -167,14 +179,22 @@ export async function handleSetReminder(
     const annualMonth = annualDeadline?.parameters?.month || 3;
     const annualDay = annualDeadline?.parameters?.day || 31;
     
+    // Personalized urgency message
+    const urgencyMessage = daysToVAT <= 7 
+        ? `⚠️ *Heads up!* VAT is due in ${daysToVAT} days o!\n\n`
+        : daysToVAT <= 14
+        ? `📢 VAT due in ${daysToVAT} days - still got time, but don't sleep on it!\n\n`
+        : '';
+    
     return {
         message: `📅 *Tax Filing Reminders*\n\n` +
-            `📋 *Upcoming Deadlines:*\n\n` +
-            `🔹 VAT Return: ${formatDate(nextVATDue)} (${daysToVAT} days)\n` +
-            `🔹 Monthly PAYE: ${payeDay}th of each month\n` +
-            `🔹 Annual Tax: ${getMonthName(annualMonth)} ${annualDay}${getDaySuffix(annualDay)}\n\n` +
-            `I can remind you 3 days before each deadline via this chat.\n\n` +
-            `Which reminders would you like to set up?`,
+            `${urgencyMessage}` +
+            `Here are your upcoming deadlines:\n\n` +
+            `🔹 *VAT Return:* ${formatDate(nextVATDue)} (${daysToVAT} days)\n` +
+            `🔹 *Monthly PAYE:* ${payeDay}th of each month\n` +
+            `🔹 *Annual Tax:* ${getMonthName(annualMonth)} ${annualDay}${getDaySuffix(annualDay)}\n\n` +
+            `I can remind you 3 days before each deadline so you never get caught off guard. 🛡️\n\n` +
+            `Which reminders should I set up for you?`,
         buttons: [
             [
                 { text: '📊 VAT Reminders', callback_data: 'remind_vat' },
@@ -182,10 +202,10 @@ export async function handleSetReminder(
             ],
             [
                 { text: '📅 All Reminders', callback_data: 'remind_all' },
-                { text: '❌ No Thanks', callback_data: 'no_reminders' }
+                { text: '❌ Not Now', callback_data: 'no_reminders' }
             ]
         ],
-        metadata: { intent: 'set_reminder', nextVATDue: nextVATDue.toISOString() }
+        metadata: { intent: 'set_reminder', nextVATDue: nextVATDue.toISOString(), personality: true }
     };
 }
 
@@ -200,13 +220,14 @@ export async function handleConnectBank(
     
     return {
         message: `🏦 *Connect Your Bank Account*\n\n` +
-            `Linking your bank allows PRISM to:\n` +
-            `✅ Automatically import transactions\n` +
-            `✅ Categorize income and expenses\n` +
-            `✅ Detect VAT-liable transactions\n` +
-            `✅ Generate filing reports\n\n` +
-            `🔒 We use Mono for secure, read-only access to your transactions. We never see your login credentials.\n\n` +
-            `${bankName ? `You mentioned ${bankName}. ` : ''}Select your bank to connect:`,
+            `This is where the magic happens! 🪄\n\n` +
+            `When you link your bank, I can:\n` +
+            `✅ Pull your transactions automatically\n` +
+            `✅ Classify income vs expenses\n` +
+            `✅ Spot VAT-liable items\n` +
+            `✅ Generate filing reports in seconds\n\n` +
+            `🔒 *About security:* We use Mono for secure, read-only access. I can only see transactions - no transfers, no modifications. Your login details never touch our servers.\n\n` +
+            `${bankName ? `You mentioned ${bankName}. Let's connect it! ` : ''}Which bank would you like to connect?`,
         buttons: [
             [
                 { text: '🏦 GTBank', callback_data: 'bank_gtb' },
@@ -220,12 +241,12 @@ export async function handleConnectBank(
                 { text: '📋 Other Banks', callback_data: 'bank_other' }
             ]
         ],
-        metadata: { intent: 'connect_bank', bankName }
+        metadata: { intent: 'connect_bank', bankName, personality: true }
     };
 }
 
 /**
- * Handle general query with context-aware response
+ * Handle general query with context-aware response (static fallback)
  */
 export async function handleGeneralQuery(
     intent: NLUIntent,
@@ -237,18 +258,15 @@ export async function handleGeneralQuery(
     
     return {
         message: `${greeting}\n\n` +
-            `I can help you with:\n\n` +
-            `📊 *Tax Calculations:*\n` +
-            `• \`vat 50000 electronics\` - Calculate VAT\n` +
-            `• \`tax 10000000\` - Income tax calculation\n` +
-            `• \`salary 350000\` - PAYE calculation\n\n` +
-            `🆔 *Identity Verification:*\n` +
-            `• \`verify NIN 12345678901\` - Verify NIN\n` +
-            `• \`verify CAC RC123456\` - Verify company\n\n` +
-            `📄 *Document Processing:*\n` +
-            `• Upload a bank statement (PDF/image)\n` +
-            `• Upload receipts for expense tracking\n\n` +
-            `What would you like to do today?`,
+            `I'm ready to help with your tax matters! Here's what I can do:\n\n` +
+            `💰 *Quick Calculations*\n` +
+            `• \`tax 5000000\` - See your income tax breakdown\n` +
+            `• \`vat 50000 electronics\` - Calculate VAT instantly\n\n` +
+            `📄 *Document Processing*\n` +
+            `Just upload a bank statement or receipt and I'll handle the rest!\n\n` +
+            `🆔 *ID Verification*\n` +
+            `• \`verify NIN 12345678901\`\n\n` +
+            `Or just ask me anything about Nigerian taxes - I'm here to help! 🙌`,
         buttons: [
             [
                 { text: '🧮 Calculate Tax', callback_data: 'calc_tax' },
@@ -259,8 +277,146 @@ export async function handleGeneralQuery(
                 { text: '❓ Help', callback_data: 'help' }
             ]
         ],
-        metadata: { intent: 'general_query' }
+        metadata: { intent: 'general_query', personality: true }
     };
+}
+
+/**
+ * Handle general query with AI-powered conversation
+ * Uses Lovable AI for natural language responses
+ */
+export async function handleGeneralQueryWithAI(
+    message: string,
+    intent: NLUIntent,
+    context: SessionContext,
+    timeOfDay: 'morning' | 'afternoon' | 'evening'
+): Promise<IntentHandlerResult> {
+    const userName = context.metadata?.userName as string;
+    const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
+    
+    // If no AI key or empty message, fall back to static menu
+    if (!LOVABLE_API_KEY || !message.trim()) {
+        logger.info('[IntentHandlers] No LOVABLE_API_KEY or empty message, using static response');
+        return handleGeneralQuery(intent, context, timeOfDay);
+    }
+    
+    try {
+        // Build Nigerian tax-aware system prompt
+        const systemPrompt = buildConversationalPrompt(context, timeOfDay);
+        
+        logger.info('[IntentHandlers] Calling Lovable AI for conversation', { 
+            messageLength: message.length,
+            userName: userName || 'anonymous'
+        });
+        
+        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'google/gemini-3-flash-preview',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: message }
+                ]
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            logger.error('[IntentHandlers] AI Gateway error', { 
+                status: response.status, 
+                error: errorText 
+            });
+            throw new Error(`AI Gateway error: ${response.status}`);
+        }
+        
+        const aiData = await response.json();
+        const aiResponse = aiData.choices?.[0]?.message?.content;
+        
+        if (!aiResponse) {
+            throw new Error('Empty AI response');
+        }
+        
+        logger.info('[IntentHandlers] AI response received', { 
+            responseLength: aiResponse.length 
+        });
+        
+        return {
+            message: aiResponse,
+            buttons: [[
+                { text: '🧮 Calculate Tax', callback_data: 'calc_tax' },
+                { text: '📤 Upload Doc', callback_data: 'upload_doc' }
+            ]],
+            metadata: { 
+                intent: 'conversational_ai', 
+                source: 'lovable_ai',
+                originalIntent: intent.name,
+                personality: true
+            }
+        };
+    } catch (error) {
+        logger.error('[IntentHandlers] AI conversation failed:', error);
+        // Fallback to static menu with personality
+        return handleGeneralQuery(intent, context, timeOfDay);
+    }
+}
+
+/**
+ * Build conversational system prompt for AI
+ */
+function buildConversationalPrompt(
+    context: SessionContext, 
+    timeOfDay: 'morning' | 'afternoon' | 'evening'
+): string {
+    const userName = context.metadata?.userName;
+    const entityType = context.metadata?.entityType;
+    
+    return `You are PRISM, a friendly Nigerian tax assistant chatbot. 
+
+PERSONALITY:
+- Warm and conversational like a knowledgeable friend who happens to be great at tax
+- Use Nigerian context naturally (Naira, FIRS, local examples like generator fuel, danfo fare)
+- Celebrate wins, empathize with challenges ("I know NEPA wahala makes fuel expenses high!")
+- Be clear and direct, avoid jargon
+- Occasionally use Nigerian expressions naturally:
+  * "o" for gentle emphasis ("make sure you file on time o")
+  * "sha" for "anyway/though" ("I'll help you sha")
+  * "oya" for "let's go/come on"
+  * "wahala" for trouble/problem
+  * "na so" for "that's right"
+- Keep it conversational, not every message needs pidgin
+
+CONTEXT:
+- Time: ${timeOfDay}
+${userName ? `- User: ${userName}` : '- Anonymous user'}
+${entityType ? `- Entity type: ${entityType}` : ''}
+
+KNOWLEDGE (Nigeria Tax Act 2025):
+- Tax bands: ₦0-800k (0%), ₦800k-3M (15%), ₦3M-12M (18%), ₦12M-25M (21%), ₦25M-50M (23%), 50M+ (25%)
+- VAT: 7.5%
+- EMTL (Electronic Money Transfer Levy): ₦50 per transfer ≥₦10,000
+- CRA: Higher of ₦200k or 1% of gross income, plus 20% of gross income
+- Reliefs: Pension (8% of basic), NHF (2.5%), NHIS (actual), Children (₦2,500/child, max 4)
+- Filing deadlines: VAT by 21st monthly, PAYE by 10th monthly, Annual by March 31st
+
+FORMATTING:
+- Use markdown for structure (bold for emphasis, bullets for lists)
+- Keep responses focused (2-3 short paragraphs max)
+- Use ₦ symbol for amounts
+- If doing calculations, show brief math
+- End with a helpful next action or question
+
+WHAT NOT TO DO:
+- Don't be robotic or formal
+- Don't give long lectures
+- Don't use every Nigerian expression in one message
+- Don't say "as an AI" or similar
+- Don't make up laws or rates
+
+Answer the user's question naturally and helpfully.`;
 }
 
 /**
@@ -290,11 +446,11 @@ export async function handleAmbiguousIntent(
         }));
     
     return {
-        message: `I want to make sure I help you with the right thing. What would you like to do?`,
+        message: `I want to make sure I help you with the right thing! 🎯\n\nWhat would you like to do?`,
         buttons: buttons.length > 0 
             ? [buttons.slice(0, 2), buttons.slice(2, 4)].filter(row => row.length > 0)
             : [[{ text: '❓ Show Help', callback_data: 'help' }]],
-        metadata: { intent: 'ambiguous', originalMessage: message }
+        metadata: { intent: 'ambiguous', originalMessage: message, personality: true }
     };
 }
 
@@ -349,5 +505,6 @@ export const intentHandlers = {
     handleSetReminder,
     handleConnectBank,
     handleGeneralQuery,
+    handleGeneralQueryWithAI,
     handleAmbiguousIntent
 };
