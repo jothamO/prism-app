@@ -436,7 +436,7 @@ export class ProfileLearnerService {
         let maxSource: IncomeSource = 'unknown';
         let maxAmount = 0;
         for (const [source, amt] of Object.entries(totals)) {
-            if (amt > maxAmount) {
+            if (amt !== undefined && amt > maxAmount) {
                 maxAmount = amt;
                 maxSource = source as IncomeSource;
             }
