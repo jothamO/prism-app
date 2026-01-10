@@ -42,6 +42,10 @@ export const config = {
         maxTokens: 8000
     },
 
+    // Personality Mode: 'ai' for Claude-powered, 'template' for static templates
+    // Set to 'ai' by default for warm, conversational messages matching Web Chat
+    personalityMode: (process.env.PERSONALITY_MODE || 'ai') as 'ai' | 'template',
+
     // Google Cloud Vision (OCR)
     vision: {
         credentials: process.env.GOOGLE_CLOUD_CREDENTIALS || '',

@@ -10,6 +10,7 @@ import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
 import { supabase } from '../../config';
 import { PersonalityFormatter } from '../../utils/personality';
+import { generateOnboardingWelcome, getTimeOfDay as getAITimeOfDay } from '../../utils/ai-personality';
 import { extractOnboardingResponse, ONBOARDING_OPTIONS } from './ai-extractor';
 import { extractUserProfile, ExtractedProfile, TaxCategory, IncomeSource } from './profile-extractor';
 import { getNextQuestion, getCompletionMessage, formatQuestion, getTaxGuidance, shouldSkipQuestion } from './adaptive-flow';
@@ -342,13 +343,20 @@ export class EnhancedOnboardingSkill {
         }
 
         if (!entityType) {
-            // First time - show welcome and entity type question
+            // First time - show welcome and entity type question with AI personality
             const timeOfDay = this.getTimeOfDay();
-            const greeting = PersonalityFormatter.greet(context.metadata?.userName, timeOfDay);
+            const userName = context.metadata?.userName as string | undefined;
+            
+            // Use AI-powered welcome for warm, personalized greeting
+            const aiWelcome = await generateOnboardingWelcome({
+                userName,
+                timeOfDay,
+                messageType: 'onboarding'
+            });
+            
+            logger.info('[EnhancedOnboarding] AI welcome generated', { userName, timeOfDay, length: aiWelcome.length });
 
-            const welcomeMessage = `${greeting}
-
-Welcome to PRISM! 🇳🇬 I'm your personal tax assistant, built for Nigerians.
+            const welcomeMessage = `${aiWelcome}
 
 ${PersonalityFormatter.onboardingQuestion(
     "First, tell me about yourself:",
@@ -370,7 +378,8 @@ ${PersonalityFormatter.onboardingQuestion(
                     step: 'entity_type',
                     awaitingOnboarding: true,
                     onboardingProgress: progress,
-                    aiMode
+                    aiMode,
+                    aiGenerated: true
                 }
             };
         }
