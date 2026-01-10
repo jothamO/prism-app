@@ -6,82 +6,113 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Test classification cases from AdminVATTesting
+// Simplified categories - ML only classifies WHAT it is, VAT treatment is rule-based
+// Categories: food, medical, education, agriculture, export, rent, financial, insurance, 
+//             transport, services, equipment, materials, utilities, supplies, other
 const CLASSIFICATION_TEST_CASES = [
-  { description: "Rice (50kg bag)", aiCategory: "food_standard", correctCategory: "food_zero_rated", amount: 45000, correctionType: "full_override" },
-  { description: "Laptop computer", aiCategory: "electronics", correctCategory: "electronics", amount: 850000, correctionType: "confirmation" },
-  { description: "Medical equipment", aiCategory: "equipment", correctCategory: "medical_zero_rated", amount: 1200000, correctionType: "full_override" },
-  { description: "Office rent payment", aiCategory: "rent_standard", correctCategory: "rent_exempt", amount: 500000, correctionType: "partial_edit" },
+  // Food items (VAT treatment determined by SupplyClassificationService)
+  { description: "Rice (50kg bag)", aiCategory: "supplies", correctCategory: "food", amount: 45000, correctionType: "full_override" },
+  { description: "Wheat flour (bulk)", aiCategory: "supplies", correctCategory: "food", amount: 120000, correctionType: "full_override" },
+  { description: "Yam tubers (wholesale)", aiCategory: "produce", correctCategory: "food", amount: 95000, correctionType: "full_override" },
+  { description: "Palm oil (drums)", aiCategory: "supplies", correctCategory: "food", amount: 78000, correctionType: "full_override" },
+  { description: "Frozen fish (bulk)", aiCategory: "supplies", correctCategory: "food", amount: 145000, correctionType: "full_override" },
+  { description: "Cassava flour", aiCategory: "produce", correctCategory: "food", amount: 35000, correctionType: "full_override" },
+  { description: "Maize grains", aiCategory: "produce", correctCategory: "food", amount: 65000, correctionType: "full_override" },
+  { description: "Baby formula", aiCategory: "supplies", correctCategory: "food", amount: 18500, correctionType: "full_override" },
+  
+  // Medical items
+  { description: "Medical equipment", aiCategory: "equipment", correctCategory: "medical", amount: 1200000, correctionType: "full_override" },
+  { description: "Pharmaceutical supplies", aiCategory: "supplies", correctCategory: "medical", amount: 89000, correctionType: "confirmation" },
+  
+  // Education
+  { description: "Textbooks for school", aiCategory: "books", correctCategory: "education", amount: 25000, correctionType: "full_override" },
+  { description: "Training workshop", aiCategory: "services", correctCategory: "education", amount: 120000, correctionType: "partial_edit" },
+  
+  // Agriculture
+  { description: "Agricultural fertilizer", aiCategory: "supplies", correctCategory: "agriculture", amount: 220000, correctionType: "full_override" },
+  { description: "Cattle feed (bulk)", aiCategory: "livestock", correctCategory: "agriculture", amount: 180000, correctionType: "full_override" },
+  
+  // Export
+  { description: "Export goods to UK", aiCategory: "sales", correctCategory: "export", amount: 2500000, correctionType: "full_override" },
+  
+  // Rent (exempt)
+  { description: "Office rent payment", aiCategory: "rent_standard", correctCategory: "rent", amount: 500000, correctionType: "partial_edit" },
+  
+  // Financial (exempt)
+  { description: "Bank transfer charges", aiCategory: "fees", correctCategory: "financial", amount: 50, correctionType: "partial_edit" },
+  
+  // Insurance (exempt)
+  { description: "Insurance premium", aiCategory: "other", correctCategory: "insurance", amount: 150000, correctionType: "partial_edit" },
+  
+  // Transport
+  { description: "Diesel for transport", aiCategory: "fuel", correctCategory: "transport", amount: 48000, correctionType: "confirmation" },
+  { description: "Vehicle maintenance", aiCategory: "maintenance", correctCategory: "transport", amount: 85000, correctionType: "partial_edit" },
+  { description: "Travel expenses", aiCategory: "other", correctCategory: "transport", amount: 120000, correctionType: "confirmation" },
+  
+  // Services (standard VAT)
   { description: "Consulting services", aiCategory: "services", correctCategory: "services", amount: 350000, correctionType: "confirmation" },
-  { description: "Textbooks for school", aiCategory: "books", correctCategory: "education_zero_rated", amount: 25000, correctionType: "full_override" },
-  { description: "Bank transfer charges", aiCategory: "fees", correctCategory: "financial_exempt", amount: 50, correctionType: "partial_edit" },
-  { description: "Cement and building blocks", aiCategory: "materials", correctCategory: "materials", amount: 180000, correctionType: "confirmation" },
-  { description: "Labor payment - construction", aiCategory: "services", correctCategory: "labor_services", amount: 75000, correctionType: "partial_edit" },
-  { description: "Fuel purchase - generator", aiCategory: "fuel", correctCategory: "fuel", amount: 35000, correctionType: "confirmation" },
-  { description: "Export goods to UK", aiCategory: "sales", correctCategory: "export_zero_rated", amount: 2500000, correctionType: "full_override" },
-  { description: "Website development", aiCategory: "technology", correctCategory: "professional_services", amount: 450000, correctionType: "partial_edit" },
-  { description: "Wheat flour (bulk)", aiCategory: "food_standard", correctCategory: "food_zero_rated", amount: 120000, correctionType: "full_override" },
-  { description: "Pharmaceutical supplies", aiCategory: "medical", correctCategory: "medical_zero_rated", amount: 89000, correctionType: "confirmation" },
-  { description: "Office furniture", aiCategory: "furniture", correctCategory: "furniture", amount: 280000, correctionType: "confirmation" },
-  { description: "Legal consultation fees", aiCategory: "services", correctCategory: "professional_services", amount: 200000, correctionType: "partial_edit" },
-  { description: "Imported machinery", aiCategory: "equipment", correctCategory: "capital_equipment", amount: 5500000, correctionType: "confirmation" },
-  { description: "Yam tubers (wholesale)", aiCategory: "food", correctCategory: "food_zero_rated", amount: 95000, correctionType: "full_override" },
-  { description: "Insurance premium", aiCategory: "insurance", correctCategory: "insurance_exempt", amount: 150000, correctionType: "partial_edit" },
-  { description: "Diesel for transport", aiCategory: "fuel", correctCategory: "transport_fuel", amount: 48000, correctionType: "confirmation" },
+  { description: "Website development", aiCategory: "technology", correctCategory: "services", amount: 450000, correctionType: "partial_edit" },
+  { description: "Legal consultation fees", aiCategory: "professional", correctCategory: "services", amount: 200000, correctionType: "partial_edit" },
+  { description: "Audit services", aiCategory: "professional", correctCategory: "services", amount: 500000, correctionType: "confirmation" },
   { description: "Printing services", aiCategory: "services", correctCategory: "services", amount: 35000, correctionType: "confirmation" },
-  { description: "Baby formula", aiCategory: "food", correctCategory: "baby_products_zero_rated", amount: 18500, correctionType: "full_override" },
-  { description: "Agricultural fertilizer", aiCategory: "supplies", correctCategory: "agricultural_zero_rated", amount: 220000, correctionType: "full_override" },
+  { description: "Security services", aiCategory: "services", correctCategory: "services", amount: 150000, correctionType: "confirmation" },
+  { description: "Plumbing repairs", aiCategory: "maintenance", correctCategory: "services", amount: 35000, correctionType: "confirmation" },
+  
+  // Equipment (standard VAT)
+  { description: "Laptop computer", aiCategory: "electronics", correctCategory: "equipment", amount: 850000, correctionType: "confirmation" },
   { description: "Generator purchase", aiCategory: "equipment", correctCategory: "equipment", amount: 750000, correctionType: "confirmation" },
-  { description: "Staff uniforms", aiCategory: "clothing", correctCategory: "uniforms", amount: 45000, correctionType: "partial_edit" },
-  { description: "Electricity bill", aiCategory: "utilities", correctCategory: "utilities", amount: 85000, correctionType: "confirmation" },
-  { description: "Training workshop", aiCategory: "services", correctCategory: "education_services", amount: 120000, correctionType: "partial_edit" },
-  { description: "Plumbing repairs", aiCategory: "maintenance", correctCategory: "maintenance_services", amount: 35000, correctionType: "confirmation" },
-  { description: "Cleaning supplies", aiCategory: "supplies", correctCategory: "supplies", amount: 12000, correctionType: "confirmation" },
-  { description: "Internet subscription", aiCategory: "services", correctCategory: "telecommunications", amount: 25000, correctionType: "partial_edit" },
-  { description: "Cattle feed (bulk)", aiCategory: "livestock", correctCategory: "agricultural_zero_rated", amount: 180000, correctionType: "full_override" },
-  { description: "Maize grains", aiCategory: "food", correctCategory: "food_zero_rated", amount: 65000, correctionType: "full_override" },
-  { description: "Accounting software", aiCategory: "software", correctCategory: "software", amount: 95000, correctionType: "confirmation" },
-  { description: "Security services", aiCategory: "services", correctCategory: "security_services", amount: 150000, correctionType: "confirmation" },
-  { description: "Marketing campaign", aiCategory: "advertising", correctCategory: "advertising", amount: 300000, correctionType: "confirmation" },
-  { description: "Vehicle maintenance", aiCategory: "transport", correctCategory: "vehicle_maintenance", amount: 85000, correctionType: "partial_edit" },
-  { description: "Palm oil (drums)", aiCategory: "food", correctCategory: "food_zero_rated", amount: 78000, correctionType: "full_override" },
-  { description: "Stationery supplies", aiCategory: "office", correctCategory: "office_supplies", amount: 15000, correctionType: "confirmation" },
-  { description: "Courier services", aiCategory: "logistics", correctCategory: "logistics", amount: 8500, correctionType: "confirmation" },
-  { description: "Equipment rental", aiCategory: "rental", correctCategory: "equipment_rental", amount: 200000, correctionType: "partial_edit" },
-  { description: "Frozen fish (bulk)", aiCategory: "food", correctCategory: "food_zero_rated", amount: 145000, correctionType: "full_override" },
-  { description: "Audit services", aiCategory: "professional", correctCategory: "professional_services", amount: 500000, correctionType: "confirmation" },
+  { description: "Office furniture", aiCategory: "furniture", correctCategory: "equipment", amount: 280000, correctionType: "confirmation" },
+  { description: "Imported machinery", aiCategory: "equipment", correctCategory: "equipment", amount: 5500000, correctionType: "confirmation" },
+  
+  // Materials (standard VAT)
+  { description: "Cement and building blocks", aiCategory: "construction", correctCategory: "materials", amount: 180000, correctionType: "confirmation" },
   { description: "Building materials", aiCategory: "construction", correctCategory: "materials", amount: 420000, correctionType: "confirmation" },
-  { description: "Water treatment chemicals", aiCategory: "chemicals", correctCategory: "water_treatment", amount: 55000, correctionType: "partial_edit" },
+  { description: "Packaging materials", aiCategory: "supplies", correctCategory: "materials", amount: 28000, correctionType: "confirmation" },
+  
+  // Utilities (standard VAT)
+  { description: "Electricity bill", aiCategory: "utilities", correctCategory: "utilities", amount: 85000, correctionType: "confirmation" },
+  { description: "Internet subscription", aiCategory: "telecoms", correctCategory: "utilities", amount: 25000, correctionType: "partial_edit" },
+  { description: "Mobile phone airtime", aiCategory: "telecoms", correctCategory: "utilities", amount: 50000, correctionType: "confirmation" },
+  
+  // Supplies (standard VAT)
+  { description: "Cleaning supplies", aiCategory: "supplies", correctCategory: "supplies", amount: 12000, correctionType: "confirmation" },
+  { description: "Stationery supplies", aiCategory: "office", correctCategory: "supplies", amount: 15000, correctionType: "confirmation" },
+  { description: "Staff uniforms", aiCategory: "clothing", correctCategory: "supplies", amount: 45000, correctionType: "partial_edit" },
+  
+  // Other
+  { description: "Marketing campaign", aiCategory: "advertising", correctCategory: "marketing", amount: 300000, correctionType: "confirmation" },
+  { description: "Courier services", aiCategory: "logistics", correctCategory: "logistics", amount: 8500, correctionType: "confirmation" },
+  { description: "Fuel purchase - generator", aiCategory: "fuel", correctCategory: "fuel", amount: 35000, correctionType: "confirmation" },
+  { description: "Labor payment - construction", aiCategory: "services", correctCategory: "labor", amount: 75000, correctionType: "partial_edit" },
+  { description: "Accounting software", aiCategory: "software", correctCategory: "software", amount: 95000, correctionType: "confirmation" },
+  { description: "Equipment rental", aiCategory: "rental", correctCategory: "rental", amount: 200000, correctionType: "partial_edit" },
+  { description: "Water treatment chemicals", aiCategory: "chemicals", correctCategory: "chemicals", amount: 55000, correctionType: "partial_edit" },
   { description: "Salary advance repayment", aiCategory: "other", correctCategory: "non_taxable", amount: 100000, correctionType: "full_override" },
-  { description: "Office renovation", aiCategory: "construction", correctCategory: "capital_improvement", amount: 1500000, correctionType: "partial_edit" },
-  { description: "Cassava flour", aiCategory: "food", correctCategory: "food_zero_rated", amount: 35000, correctionType: "full_override" },
-  { description: "Mobile phone airtime", aiCategory: "telecoms", correctCategory: "telecommunications", amount: 50000, correctionType: "confirmation" },
-  { description: "Packaging materials", aiCategory: "supplies", correctCategory: "packaging", amount: 28000, correctionType: "confirmation" },
-  { description: "Travel expenses", aiCategory: "transport", correctCategory: "travel", amount: 120000, correctionType: "confirmation" },
+  { description: "Office renovation", aiCategory: "construction", correctCategory: "capital", amount: 1500000, correctionType: "partial_edit" },
 ];
 
-// Business pattern templates
+// Simplified pattern templates - just item types, no VAT suffix
 const PATTERN_TEMPLATES = [
-  { pattern: "rice", category: "food_zero_rated" },
-  { pattern: "laptop", category: "electronics" },
-  { pattern: "medical", category: "medical_zero_rated" },
-  { pattern: "consulting", category: "professional_services" },
-  { pattern: "fuel", category: "transport_fuel" },
+  { pattern: "rice", category: "food" },
+  { pattern: "laptop", category: "equipment" },
+  { pattern: "medical", category: "medical" },
+  { pattern: "consulting", category: "services" },
+  { pattern: "fuel", category: "fuel" },
   { pattern: "electricity", category: "utilities" },
   { pattern: "cement", category: "materials" },
-  { pattern: "bank charge", category: "financial_exempt" },
-  { pattern: "textbook", category: "education_zero_rated" },
-  { pattern: "export", category: "export_zero_rated" },
-  { pattern: "fertilizer", category: "agricultural_zero_rated" },
-  { pattern: "insurance", category: "insurance_exempt" },
-  { pattern: "office rent", category: "rent_exempt" },
-  { pattern: "legal fees", category: "professional_services" },
+  { pattern: "bank charge", category: "financial" },
+  { pattern: "textbook", category: "education" },
+  { pattern: "export", category: "export" },
+  { pattern: "fertilizer", category: "agriculture" },
+  { pattern: "insurance", category: "insurance" },
+  { pattern: "office rent", category: "rent" },
+  { pattern: "legal fees", category: "services" },
   { pattern: "diesel", category: "fuel" },
-  { pattern: "wheat flour", category: "food_zero_rated" },
-  { pattern: "yam", category: "food_zero_rated" },
-  { pattern: "internet", category: "telecommunications" },
+  { pattern: "wheat flour", category: "food" },
+  { pattern: "yam", category: "food" },
+  { pattern: "internet", category: "utilities" },
   { pattern: "generator", category: "equipment" },
-  { pattern: "maintenance", category: "maintenance_services" },
+  { pattern: "maintenance", category: "services" },
 ];
 
 serve(async (req) => {

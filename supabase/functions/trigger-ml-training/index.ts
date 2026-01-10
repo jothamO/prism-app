@@ -75,11 +75,35 @@ serve(async (req) => {
     // Force mode or threshold met - proceed with training
     console.log(`Starting ML training with ${untrainedCount} samples (mode: ${mode})`);
 
-    // Prepare training data
+    // Normalize category - strip VAT suffixes for cleaner training
+    const normalizeCategory = (cat: string): string => {
+      if (!cat) return 'unknown';
+      // Remove VAT-related suffixes
+      return cat
+        .replace(/_zero_rated$/, '')
+        .replace(/_exempt$/, '')
+        .replace(/_standard$/, '')
+        // Normalize common variations
+        .replace(/^professional_services$/, 'services')
+        .replace(/^labor_services$/, 'labor')
+        .replace(/^maintenance_services$/, 'services')
+        .replace(/^education_services$/, 'education')
+        .replace(/^security_services$/, 'services')
+        .replace(/^transport_fuel$/, 'fuel')
+        .replace(/^vehicle_maintenance$/, 'transport')
+        .replace(/^capital_equipment$/, 'equipment')
+        .replace(/^capital_improvement$/, 'capital')
+        .replace(/^baby_products$/, 'food')
+        .replace(/^agricultural$/, 'agriculture')
+        .replace(/^telecommunications$/, 'utilities')
+        .replace(/^office_supplies$/, 'supplies');
+    };
+
+    // Prepare training data with normalized categories
     const trainingData = (feedbackData as FeedbackRecord[]).map(fb => ({
       input: fb.item_description,
-      expected: fb.user_correction?.category || fb.user_correction?.classification || 'unknown',
-      predicted: fb.ai_prediction?.category || fb.ai_prediction?.classification || 'unknown',
+      expected: normalizeCategory(fb.user_correction?.category || fb.user_correction?.classification || 'unknown'),
+      predicted: normalizeCategory(fb.ai_prediction?.category || fb.ai_prediction?.classification || 'unknown'),
       type: fb.correction_type
     }));
 
@@ -106,8 +130,29 @@ serve(async (req) => {
             model: "claude-opus-4-5-20251101",
             max_tokens: 8000,
             system: `You are a Nigerian financial transaction classifier. Analyze these training examples and generate classification rules.
-                
-Categories: business_expense, personal_expense, revenue, transfer, bank_charge, salary, utilities, rent, professional_services, transport, food_beverage, equipment, marketing, insurance, tax_payment, loan_payment, capital_injection, dividend, refund, other
+
+IMPORTANT: Classify items by WHAT they are, NOT by VAT treatment. VAT treatment is determined separately by tax rules.
+
+Simplified Categories (use ONLY these):
+- food: Basic food items (rice, flour, fish, vegetables, cooking oil)
+- medical: Medicine, pharmaceuticals, medical equipment
+- education: Textbooks, training, educational materials
+- agriculture: Fertilizer, seeds, animal feed, farming equipment
+- export: Goods/services sold to foreign customers
+- rent: Property rental payments
+- financial: Bank charges, transaction fees, loan payments
+- insurance: Insurance premiums and related
+- transport: Fuel, vehicle maintenance, travel
+- services: Professional services, consulting, repairs
+- equipment: Computers, machinery, furniture
+- materials: Building materials, construction supplies
+- utilities: Electricity, internet, phone bills
+- supplies: Office supplies, cleaning supplies
+- marketing: Advertising, promotional materials
+- software: Software licenses, subscriptions
+- labor: Labor/contractor payments
+- capital: Major capital expenditures, renovations
+- other: Items that don't fit other categories
 
 Return a JSON array of rules in format: [{"pattern": "regex or keyword", "category": "category_name", "confidence": 0.0-1.0}]`,
             messages: [

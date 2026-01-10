@@ -16,6 +16,47 @@ export interface VATClassification {
     reason?: string;
 }
 
+/**
+ * Get VAT treatment for a simplified item category
+ * This bridges ML classification (what IS it) with VAT rules (how is it taxed)
+ */
+export function getCategoryVATTreatment(category: string): VATClassification {
+    const normalized = category.toLowerCase().trim();
+    
+    // Zero-rated categories (0% VAT, can claim input)
+    const zeroRated = ['food', 'medical', 'education', 'agriculture', 'export'];
+    if (zeroRated.includes(normalized)) {
+        return {
+            category: 'zero-rated',
+            rate: 0,
+            canClaimInputVAT: true,
+            actReference: 'Section 187 & Thirteenth Schedule',
+            reason: `${normalized} is zero-rated under Tax Act 2025`
+        };
+    }
+    
+    // Exempt categories (0% VAT, cannot claim input)
+    const exempt = ['rent', 'financial', 'insurance', 'transport'];
+    if (exempt.includes(normalized)) {
+        return {
+            category: 'exempt',
+            rate: 0,
+            canClaimInputVAT: false,
+            actReference: 'Section 186',
+            reason: `${normalized} is exempt under Tax Act 2025`
+        };
+    }
+    
+    // Standard rate for everything else (7.5% VAT)
+    return {
+        category: 'standard',
+        rate: 0.075,
+        canClaimInputVAT: true,
+        actReference: 'Section 148',
+        reason: 'Standard VAT rate applies'
+    };
+}
+
 export class SupplyClassificationService {
     /**
      * Classify a supply for VAT purposes
@@ -59,10 +100,14 @@ export class SupplyClassificationService {
      * Section 187 & Thirteenth Schedule
      */
     private isZeroRated(item: string, category?: string): boolean {
-        // Category-based classification (fastest)
+        // Category-based classification (fastest) - using simplified categories
         if (category) {
             const zeroRatedCategories = ['food', 'medical', 'education', 'export', 'agriculture'];
-            if (zeroRatedCategories.includes(category.toLowerCase())) {
+            const normalizedCat = category.toLowerCase()
+                .replace(/_zero_rated$/, '')
+                .replace(/_exempt$/, '')
+                .replace(/_standard$/, '');
+            if (zeroRatedCategories.includes(normalizedCat)) {
                 return true;
             }
         }
@@ -131,10 +176,14 @@ export class SupplyClassificationService {
      * Section 186
      */
     private isExempt(item: string, category?: string): boolean {
-        // Category-based classification
+        // Category-based classification - using simplified categories
         if (category) {
             const exemptCategories = ['rent', 'land', 'financial', 'transport', 'insurance'];
-            if (exemptCategories.includes(category.toLowerCase())) {
+            const normalizedCat = category.toLowerCase()
+                .replace(/_zero_rated$/, '')
+                .replace(/_exempt$/, '')
+                .replace(/_standard$/, '');
+            if (exemptCategories.includes(normalizedCat)) {
                 return true;
             }
         }
