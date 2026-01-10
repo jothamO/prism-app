@@ -2238,6 +2238,7 @@ export type Database = {
           f1_score: number | null
           id: string
           is_active: boolean | null
+          model_config: Json | null
           model_name: string
           model_type: string | null
           precision_score: number | null
@@ -2247,6 +2248,7 @@ export type Database = {
           status: string | null
           trained_at: string | null
           training_data_count: number | null
+          training_metadata: Json | null
           version: string
         }
         Insert: {
@@ -2256,6 +2258,7 @@ export type Database = {
           f1_score?: number | null
           id?: string
           is_active?: boolean | null
+          model_config?: Json | null
           model_name: string
           model_type?: string | null
           precision_score?: number | null
@@ -2265,6 +2268,7 @@ export type Database = {
           status?: string | null
           trained_at?: string | null
           training_data_count?: number | null
+          training_metadata?: Json | null
           version: string
         }
         Update: {
@@ -2274,6 +2278,7 @@ export type Database = {
           f1_score?: number | null
           id?: string
           is_active?: boolean | null
+          model_config?: Json | null
           model_name?: string
           model_type?: string | null
           precision_score?: number | null
@@ -2283,6 +2288,7 @@ export type Database = {
           status?: string | null
           trained_at?: string | null
           training_data_count?: number | null
+          training_metadata?: Json | null
           version?: string
         }
         Relationships: []
