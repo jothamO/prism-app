@@ -779,7 +779,7 @@ I'll send you weekly updates if anything relevant comes up.
                 `${progress.data.entityType} user`
             );
 
-            if (extraction.selectedValue) {
+            if (extraction && extraction.selectedValue) {
                 stage = extraction.selectedValue as OnboardingState['data']['businessStage'];
                 logger.info('[EnhancedOnboarding] AI extraction', {
                     step: 'business_stage',
@@ -934,7 +934,7 @@ I'll send you weekly updates if anything relevant comes up.
                 `${progress.data.entityType} user`
             );
 
-            if (extraction.selectedValue) {
+            if (extraction && extraction.selectedValue) {
                 setup = extraction.selectedValue as OnboardingState['data']['accountSetup'];
                 logger.info('[EnhancedOnboarding] AI extraction', {
                     step: 'account_setup',
@@ -1096,7 +1096,7 @@ I'll send you weekly updates if anything relevant comes up.
                 `${progress.data.entityType} user at ${progress.data.businessStage} stage`
             );
 
-            if (extraction.selectedValue) {
+            if (extraction && extraction.selectedValue) {
                 source = extraction.selectedValue as OnboardingState['data']['capitalSource'];
                 logger.info('[EnhancedOnboarding] AI extraction', {
                     step: 'capital_support',
@@ -1230,7 +1230,7 @@ I'll send you weekly updates if anything relevant comes up.
                 `${progress.data.entityType} user completing onboarding`
             );
 
-            if (extraction.selectedValue) {
+            if (extraction && extraction.selectedValue) {
                 frequency = extraction.selectedValue as OnboardingState['data']['insightFrequency'];
                 logger.info('[EnhancedOnboarding] AI extraction', {
                     step: 'preferences',

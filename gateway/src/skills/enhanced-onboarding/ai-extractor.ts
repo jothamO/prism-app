@@ -41,6 +41,7 @@ export function extractOnboardingResponse(
         questionText.toLowerCase().includes('capital') ? 'capital_source' :
         questionText.toLowerCase().includes('insight') ? 'insight_frequency' :
         questionText.toLowerCase().includes('freelance') ? 'freelancer_account' :
+        questionText.toLowerCase().includes('register') ? 'registered_business' :
         'response';
     const lower = message.toLowerCase().trim();
     const fieldOptions = options || ONBOARDING_OPTIONS[expectedField as keyof typeof ONBOARDING_OPTIONS] || [];
