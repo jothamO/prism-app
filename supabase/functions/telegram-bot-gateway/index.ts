@@ -22,8 +22,8 @@ if (!TELEGRAM_BOT_TOKEN || !RAW_GATEWAY_URL) {
 }
 
 // Ensure URL has protocol prefix
-const RAILWAY_GATEWAY_URL = RAW_GATEWAY_URL.startsWith("http") 
-    ? RAW_GATEWAY_URL 
+const RAILWAY_GATEWAY_URL = RAW_GATEWAY_URL.startsWith("http")
+    ? RAW_GATEWAY_URL
     : `https://${RAW_GATEWAY_URL}`;
 
 // Initialize Supabase client for storage
@@ -84,58 +84,58 @@ async function getFileInfo(fileId: string): Promise<{ file_path: string; file_si
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_id: fileId }),
     });
-    
+
     const result = await response.json();
     if (!result.ok) {
         console.error("[Telegram] Failed to get file info:", result);
         return null;
     }
-    
+
     return result.result;
 }
 
 async function downloadTelegramFile(filePath: string): Promise<ArrayBuffer> {
     const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${filePath}`;
     const response = await fetch(fileUrl);
-    
+
     if (!response.ok) {
         throw new Error(`Failed to download file: ${response.status}`);
     }
-    
+
     return response.arrayBuffer();
 }
 
 async function uploadToStorage(
-    userId: string, 
-    fileBuffer: ArrayBuffer, 
-    fileName: string, 
+    userId: string,
+    fileBuffer: ArrayBuffer,
+    fileName: string,
     mimeType: string
 ): Promise<string> {
     const storagePath = `${userId}/${Date.now()}_${fileName}`;
-    
+
     const { data, error } = await supabase.storage
         .from('bank-statements')
         .upload(storagePath, fileBuffer, {
             contentType: mimeType,
             upsert: false
         });
-    
+
     if (error) {
         console.error("[Storage] Upload failed:", error);
         throw new Error(`Storage upload failed: ${error.message}`);
     }
-    
+
     // Get signed URL for the file (1 hour expiry)
     const { data: urlData } = await supabase.storage
         .from('bank-statements')
         .createSignedUrl(storagePath, 3600);
-    
+
     return urlData?.signedUrl || storagePath;
 }
 
 function getDocumentType(mimeType: string, fileName: string): 'bank_statement' | 'invoice' | 'receipt' {
     const lowerName = fileName.toLowerCase();
-    
+
     if (lowerName.includes('invoice') || lowerName.includes('inv')) {
         return 'invoice';
     }
@@ -161,8 +161,8 @@ interface GatewayMetadata {
 }
 
 async function forwardToGateway(
-    userId: string, 
-    message: string, 
+    userId: string,
+    message: string,
     messageId: number | string,
     metadata?: Partial<GatewayMetadata>
 ) {
@@ -203,63 +203,63 @@ async function forwardToGateway(
 // ============= Document Handler =============
 
 async function handleDocument(
-    chatId: number, 
-    telegramId: string, 
-    document: any, 
+    chatId: number,
+    telegramId: string,
+    document: any,
     messageId: number
 ): Promise<void> {
     const { file_id, file_name, mime_type, file_size } = document;
-    
+
     console.log(`[Telegram] Document received: ${file_name} (${mime_type}, ${file_size} bytes)`);
-    
+
     // Validate file type
     if (!SUPPORTED_MIME_TYPES.includes(mime_type)) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
             `❌ Unsupported file type: ${mime_type}\n\n` +
             `Please upload a PDF or image file (PNG, JPEG, WEBP).`
         );
         return;
     }
-    
+
     // Check file size (20MB limit)
     if (file_size > 20 * 1024 * 1024) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
             `❌ File too large (${(file_size / 1024 / 1024).toFixed(1)}MB)\n\n` +
             `Maximum file size is 20MB.`
         );
         return;
     }
-    
+
     // Show typing indicator
     await sendChatAction(chatId, "upload_document");
-    
+
     // Acknowledge receipt
-    await sendMessage(chatId, 
+    await sendMessage(chatId,
         `📄 Received: <b>${file_name}</b>\n\n` +
         `Downloading and preparing for analysis...`
     );
-    
+
     try {
         // Get file path from Telegram
         const fileInfo = await getFileInfo(file_id);
         if (!fileInfo) {
             throw new Error("Could not get file info from Telegram");
         }
-        
+
         console.log(`[Telegram] File path: ${fileInfo.file_path}`);
-        
+
         // Download file from Telegram
         await sendChatAction(chatId, "typing");
         const fileBuffer = await downloadTelegramFile(fileInfo.file_path);
         console.log(`[Telegram] Downloaded ${fileBuffer.byteLength} bytes`);
-        
+
         // Upload to Supabase storage
         const documentUrl = await uploadToStorage(telegramId, fileBuffer, file_name, mime_type);
         console.log(`[Telegram] Uploaded to storage: ${documentUrl.substring(0, 50)}...`);
-        
+
         // Determine document type from filename
         const documentType = getDocumentType(mime_type, file_name);
-        
+
         // Forward to Gateway with document metadata
         const gatewayResponse = await forwardToGateway(
             telegramId,
@@ -271,13 +271,13 @@ async function handleDocument(
                 fileName: file_name
             }
         );
-        
+
         // Send Gateway response back to user
         await sendMessage(chatId, gatewayResponse.message, gatewayResponse.buttons);
-        
+
     } catch (error) {
         console.error("[Document Handler] Error:", error);
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
             `❌ Failed to process document.\n\n` +
             `Error: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
             `Please try again or send a different file.`
@@ -288,39 +288,39 @@ async function handleDocument(
 // ============= Photo Handler =============
 
 async function handlePhoto(
-    chatId: number, 
-    telegramId: string, 
-    photos: any[], 
+    chatId: number,
+    telegramId: string,
+    photos: any[],
     messageId: number
 ): Promise<void> {
     // Get the largest photo (last in array)
     const photo = photos[photos.length - 1];
     const { file_id, file_size } = photo;
-    
+
     console.log(`[Telegram] Photo received: ${file_size} bytes`);
-    
+
     // Show typing indicator
     await sendChatAction(chatId, "typing");
-    
-    await sendMessage(chatId, 
+
+    await sendMessage(chatId,
         `📷 Photo received!\n\n` +
         `Downloading and preparing for analysis...`
     );
-    
+
     try {
         // Get file path from Telegram
         const fileInfo = await getFileInfo(file_id);
         if (!fileInfo) {
             throw new Error("Could not get file info from Telegram");
         }
-        
+
         // Download file
         const fileBuffer = await downloadTelegramFile(fileInfo.file_path);
         const fileName = `photo_${Date.now()}.jpg`;
-        
+
         // Upload to storage
         const documentUrl = await uploadToStorage(telegramId, fileBuffer, fileName, 'image/jpeg');
-        
+
         // Forward to Gateway
         const gatewayResponse = await forwardToGateway(
             telegramId,
@@ -332,12 +332,12 @@ async function handlePhoto(
                 fileName
             }
         );
-        
+
         await sendMessage(chatId, gatewayResponse.message, gatewayResponse.buttons);
-        
+
     } catch (error) {
         console.error("[Photo Handler] Error:", error);
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
             `❌ Failed to process photo.\n\n` +
             `Error: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
             `Please try again.`
@@ -418,7 +418,7 @@ serve(async (req) => {
             if (text.startsWith('/start ')) {
                 const token = text.replace('/start ', '').trim();
                 console.log(`[Telegram] Token verification attempt: ${token.substring(0, 8)}...`);
-                
+
                 // Verify token
                 const { data: authToken, error: tokenError } = await supabase
                     .from('telegram_auth_tokens')
@@ -430,7 +430,7 @@ serve(async (req) => {
 
                 if (tokenError || !authToken) {
                     console.log(`[Telegram] Invalid or expired token: ${tokenError?.message}`);
-                    await sendMessage(chatId, 
+                    await sendMessage(chatId,
                         `❌ <b>Invalid or expired link</b>\n\n` +
                         `This registration link is no longer valid.\n\n` +
                         `Please register again at: https://prism.tax`,
@@ -449,7 +449,7 @@ serve(async (req) => {
                     .single();
 
                 if (!userData) {
-                    await sendMessage(chatId, 
+                    await sendMessage(chatId,
                         `❌ User profile not found. Please contact support.`
                     );
                     return new Response(JSON.stringify({ ok: true }), {
@@ -460,7 +460,7 @@ serve(async (req) => {
                 // Link Telegram account to user
                 const { error: updateError } = await supabase
                     .from('users')
-                    .update({ 
+                    .update({
                         telegram_id: telegramId,
                         telegram_username: message.from?.username || null,
                         first_name: message.from?.first_name || null,
@@ -471,7 +471,7 @@ serve(async (req) => {
 
                 if (updateError) {
                     console.error('[Telegram] Failed to link account:', updateError);
-                    await sendMessage(chatId, 
+                    await sendMessage(chatId,
                         `❌ Failed to link your account. Please try again.`
                     );
                     return new Response(JSON.stringify({ ok: true }), {
@@ -529,7 +529,7 @@ serve(async (req) => {
             }
 
             // ============= REGULAR MESSAGE HANDLING =============
-            
+
             // Check if user exists and needs onboarding
             const { data: existingUser } = await supabase
                 .from('users')
@@ -540,9 +540,13 @@ serve(async (req) => {
             const isNewUser = !existingUser;
             const needsOnboarding = isNewUser || !existingUser?.onboarding_completed;
 
-            // If user not linked via web registration, redirect them
-            if (isNewUser || needsOnboarding) {
-                // Check for simple /start without token
+            // Helper function to check if message is a greeting
+            const isGreeting = /^(hi|hello|hey|morning|afternoon|evening|wetin|good\s*(morning|afternoon|evening))/i.test(text.toLowerCase());
+            const isStartOrGreeting = text === '/start' || isGreeting;
+
+            // For unregistered users: only show registration prompt for /start or greetings
+            // Let substantive questions through to Gateway for AI handling
+            if ((isNewUser || needsOnboarding) && isStartOrGreeting) {
                 if (text === '/start') {
                     await sendMessage(chatId,
                         `👋 <b>Welcome to PRISM Tax Assistant!</b>\n\n` +
@@ -551,21 +555,20 @@ serve(async (req) => {
                         `🌐 <b>Register at:</b> https://prism.tax`,
                         [[{ text: '🔗 Register Now', callback_data: 'open_registration' }]]
                     );
-                    return new Response(JSON.stringify({ ok: true }), {
-                        headers: { ...corsHeaders, "Content-Type": "application/json" },
-                    });
+                } else {
+                    await sendMessage(chatId,
+                        `👋 Hello! To unlock all features, please register at https://prism.tax\n\n` +
+                        `But feel free to ask me tax questions in the meantime!`,
+                        [[{ text: '🔗 Register', callback_data: 'open_registration' }]]
+                    );
                 }
-                
-                // For other messages from unregistered users
-                await sendMessage(chatId,
-                    `⚠️ You haven't completed registration yet.\n\n` +
-                    `Please register at https://prism.tax to link your account.`,
-                    [[{ text: '🔗 Register', callback_data: 'open_registration' }]]
-                );
                 return new Response(JSON.stringify({ ok: true }), {
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
             }
+
+            // For substantive questions from any user, forward to Gateway
+            // Pass user state so Gateway can personalize response
 
             // Fetch onboarding mode from system settings
             const { data: systemSettings } = await supabase
@@ -573,15 +576,15 @@ serve(async (req) => {
                 .select('onboarding_mode')
                 .limit(1)
                 .single();
-            
+
             // Convert string mode to boolean for Gateway compatibility
             const aiMode = systemSettings?.onboarding_mode === 'ai';
             console.log(`[Telegram] Onboarding mode: ${systemSettings?.onboarding_mode} -> aiMode: ${aiMode}`);
 
-            // Forward to Gateway for registered users
+            // Forward to Gateway - pass actual user state so Gateway can personalize
             const gatewayResponse = await forwardToGateway(telegramId, text, message.message_id, {
-                needsOnboarding: false,
-                isNewUser: false,
+                needsOnboarding,
+                isNewUser,
                 userName: message.from?.first_name,
                 aiMode
             });

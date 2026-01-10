@@ -28,10 +28,10 @@ export async function handleTransactionSummary(
     const period = intent.entities.period as string || 'current_month';
     const periodDisplay = formatPeriod(period);
     const userName = (context.metadata?.userName as string)?.split(' ')[0];
-    
+
     // Nigerian-friendly message with personality
     const greeting = userName ? `${userName}, ` : '';
-    
+
     return {
         message: `📊 *Transaction Summary - ${periodDisplay}*\n\n` +
             `${greeting}oya let's see what your money has been up to ${periodDisplay.toLowerCase()}! 💰\n\n` +
@@ -56,10 +56,10 @@ export async function handleTaxReliefInfo(
     context: SessionContext
 ): Promise<IntentHandlerResult> {
     const reliefType = intent.entities.relief_type as string;
-    
+
     // Fetch reliefs from database
     const dbReliefs = await getReliefs();
-    
+
     // Build relief info from database with fallback
     const reliefInfo: Record<string, { title: string; description: string; limit: string; reference: string; tip: string }> = {
         pension: {
@@ -98,7 +98,7 @@ export async function handleTaxReliefInfo(
             tip: '💡 This applies to children in approved educational institutions.'
         }
     };
-    
+
     if (reliefType && reliefInfo[reliefType]) {
         const info = reliefInfo[reliefType];
         return {
@@ -115,16 +115,16 @@ export async function handleTaxReliefInfo(
             metadata: { intent: 'get_tax_relief_info', reliefType, personality: true }
         };
     }
-    
+
     // Build dynamic relief list from database
     const reliefsList = dbReliefs.map(r => {
         const emoji = r.rule_code.includes('PENSION') ? '👴' :
-                     r.rule_code.includes('NHF') ? '🏠' :
-                     r.rule_code.includes('NHIS') ? '🏥' :
-                     r.rule_code.includes('CHILDREN') ? '📚' : '💰';
+            r.rule_code.includes('NHF') ? '🏠' :
+                r.rule_code.includes('NHIS') ? '🏥' :
+                    r.rule_code.includes('CHILDREN') ? '📚' : '💰';
         return `${emoji} *${r.rule_name}* - ${r.parameters?.label || 'See details'}`;
     }).join('\n');
-    
+
     // General relief overview with personality
     return {
         message: `💡 *Tax Reliefs You Can Claim*\n\n` +
@@ -156,37 +156,37 @@ export async function handleSetReminder(
 ): Promise<IntentHandlerResult> {
     const reminderType = intent.entities.reminder_type as string;
     const taxType = intent.entities.tax_type as string;
-    
+
     // Fetch deadlines from database
     const dbDeadlines = await getDeadlines();
-    
+
     // Get upcoming deadlines
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
+
     // Calculate next VAT due from DB or fallback
     const vatDeadline = dbDeadlines.find(d => d.rule_code === 'DEADLINE_VAT');
     const vatDay = vatDeadline?.parameters?.day || 21;
     const nextVATDue = new Date(currentYear, currentMonth + 1, vatDay);
     const daysToVAT = Math.ceil((nextVATDue.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     // Calculate PAYE deadline
     const payeDeadline = dbDeadlines.find(d => d.rule_code === 'DEADLINE_PAYE');
     const payeDay = payeDeadline?.parameters?.day || 10;
-    
+
     // Calculate annual deadline
     const annualDeadline = dbDeadlines.find(d => d.rule_code === 'DEADLINE_ANNUAL');
     const annualMonth = annualDeadline?.parameters?.month || 3;
     const annualDay = annualDeadline?.parameters?.day || 31;
-    
+
     // Personalized urgency message
-    const urgencyMessage = daysToVAT <= 7 
+    const urgencyMessage = daysToVAT <= 7
         ? `⚠️ *Heads up!* VAT is due in ${daysToVAT} days o!\n\n`
         : daysToVAT <= 14
-        ? `📢 VAT due in ${daysToVAT} days - still got time, but don't sleep on it!\n\n`
-        : '';
-    
+            ? `📢 VAT due in ${daysToVAT} days - still got time, but don't sleep on it!\n\n`
+            : '';
+
     return {
         message: `📅 *Tax Filing Reminders*\n\n` +
             `${urgencyMessage}` +
@@ -218,7 +218,7 @@ export async function handleConnectBank(
     context: SessionContext
 ): Promise<IntentHandlerResult> {
     const bankName = intent.entities.bank_name as string;
-    
+
     return {
         message: `🏦 *Connect Your Bank Account*\n\n` +
             `This is where the magic happens! 🪄\n\n` +
@@ -256,7 +256,7 @@ export async function handleGeneralQuery(
 ): Promise<IntentHandlerResult> {
     const userName = context.metadata?.userName as string;
     const greeting = PersonalityFormatter.greet(userName, timeOfDay);
-    
+
     return {
         message: `${greeting}\n\n` +
             `I'm ready to help with your tax matters! Here's what I can do:\n\n` +
@@ -294,23 +294,23 @@ export async function handleGeneralQueryWithAI(
 ): Promise<IntentHandlerResult> {
     const userName = context.metadata?.userName as string;
     const ANTHROPIC_API_KEY = config.anthropic.apiKey;
-    
+
     // If no AI key or empty message, fall back to static menu
     if (!ANTHROPIC_API_KEY || !message.trim()) {
         logger.info('[IntentHandlers] No ANTHROPIC_API_KEY or empty message, using static response');
         return handleGeneralQuery(intent, context, timeOfDay);
     }
-    
+
     try {
         // Build Nigerian tax-aware system prompt with dynamic rules from database
         const systemPrompt = await buildConversationalPromptAsync(context, timeOfDay);
-        
-        logger.info('[IntentHandlers] Calling Anthropic Claude for conversation', { 
+
+        logger.info('[IntentHandlers] Calling Anthropic Claude for conversation', {
             messageLength: message.length,
             userName: userName || 'anonymous',
             model: config.anthropic.model
         });
-        
+
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -320,41 +320,41 @@ export async function handleGeneralQueryWithAI(
             },
             body: JSON.stringify({
                 model: config.anthropic.model,
-                max_tokens: 500,
+                max_tokens: config.anthropic.maxTokens,
                 system: systemPrompt,
                 messages: [{ role: 'user', content: message }]
             })
         });
-        
+
         if (!response.ok) {
             const errorText = await response.text();
-            logger.error('[IntentHandlers] Anthropic Claude error', { 
-                status: response.status, 
-                error: errorText 
+            logger.error('[IntentHandlers] Anthropic Claude error', {
+                status: response.status,
+                error: errorText
             });
             throw new Error(`Anthropic Claude error: ${response.status}`);
         }
-        
+
         const aiData = await response.json() as { content?: Array<{ text?: string }> };
         const aiResponse = aiData.content?.[0]?.text;
-        
+
         if (!aiResponse) {
             throw new Error('Empty AI response');
         }
-        
-        logger.info('[IntentHandlers] AI response received', { 
+
+        logger.info('[IntentHandlers] AI response received', {
             responseLength: aiResponse.length,
             source: 'anthropic_claude'
         });
-        
+
         return {
             message: aiResponse,
             buttons: [[
                 { text: '🧮 Calculate Tax', callback_data: 'calc_tax' },
                 { text: '📤 Upload Doc', callback_data: 'upload_doc' }
             ]],
-            metadata: { 
-                intent: 'conversational_ai', 
+            metadata: {
+                intent: 'conversational_ai',
                 source: 'anthropic_claude',
                 model: config.anthropic.model,
                 originalIntent: intent.name,
@@ -372,12 +372,12 @@ export async function handleGeneralQueryWithAI(
  * Build conversational system prompt for AI with dynamic rules from database
  */
 async function buildConversationalPromptAsync(
-    context: SessionContext, 
+    context: SessionContext,
     timeOfDay: 'morning' | 'afternoon' | 'evening'
 ): Promise<string> {
     const userName = context.metadata?.userName;
     const entityType = context.metadata?.entityType;
-    
+
     // Fetch dynamic tax rules from database (same as Web chat-assist)
     let taxRulesContext = '';
     try {
@@ -393,7 +393,7 @@ KNOWLEDGE (Nigeria Tax Act 2025 - Fallback):
 - Reliefs: Pension (8% of basic), NHF (2.5%), NHIS (actual), Children (₦2,500/child, max 4)
 - Filing deadlines: VAT by 21st monthly, PAYE by 10th monthly, Annual by March 31st`;
     }
-    
+
     return `You are PRISM, a friendly Nigerian tax assistant chatbot. 
 
 PERSONALITY:
@@ -450,7 +450,7 @@ export async function handleAmbiguousIntent(
         verify_identity: '🆔 Verify ID',
         connect_bank: '🏦 Connect Bank'
     };
-    
+
     const buttons = possibleIntents
         .filter(i => intentLabels[i.name])
         .slice(0, 4)
@@ -458,10 +458,10 @@ export async function handleAmbiguousIntent(
             text: intentLabels[i.name],
             callback_data: `clarify_${i.name}`
         }));
-    
+
     return {
         message: `I want to make sure I help you with the right thing! 🎯\n\nWhat would you like to do?`,
-        buttons: buttons.length > 0 
+        buttons: buttons.length > 0
             ? [buttons.slice(0, 2), buttons.slice(2, 4)].filter(row => row.length > 0)
             : [[{ text: '❓ Show Help', callback_data: 'help' }]],
         metadata: { intent: 'ambiguous', originalMessage: message, personality: true }
@@ -477,28 +477,28 @@ function formatPeriod(period: string): string {
         'current_year': 'This Year',
         'last_year': 'Last Year'
     };
-    
+
     // Check if it's a month name
-    const months = ['january', 'february', 'march', 'april', 'may', 'june', 
-                    'july', 'august', 'september', 'october', 'november', 'december'];
+    const months = ['january', 'february', 'march', 'april', 'may', 'june',
+        'july', 'august', 'september', 'october', 'november', 'december'];
     if (months.includes(period.toLowerCase())) {
         return period.charAt(0).toUpperCase() + period.slice(1);
     }
-    
+
     return periodMap[period] || period;
 }
 
 function formatDate(date: Date): string {
-    return date.toLocaleDateString('en-NG', { 
-        day: 'numeric', 
-        month: 'short', 
-        year: 'numeric' 
+    return date.toLocaleDateString('en-NG', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
     });
 }
 
 function getMonthName(month: number): string {
     const months = ['January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December'];
+        'July', 'August', 'September', 'October', 'November', 'December'];
     return months[month - 1] || 'March';
 }
 

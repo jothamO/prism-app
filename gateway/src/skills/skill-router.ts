@@ -97,16 +97,17 @@ export class SkillRouter {
                 return await this.getWelcomeBackMessageAI(context);
             }
 
-            // New user or needs onboarding → Start onboarding flow
-            if (isOnboardingRequired || isStartRequest || 
-                (isGreeting && isOnboardingRequired)) {
-                logger.info('[Router] Routing to onboarding', { 
-                    userId, 
+            // New user or needs onboarding AND sends greeting/start → Start onboarding flow
+            // But if they send a substantive question, let NLU handle it
+            const isOnboardingTrigger = isStartCommand || isGreeting || isStartRequest;
+            if (isOnboardingRequired && isOnboardingTrigger) {
+                logger.info('[Router] Routing to onboarding', {
+                    userId,
                     isNewUser,
                     needsOnboarding,
                     awaitingOnboarding,
                     aiMode: context.metadata?.aiMode,
-                    trigger: isOnboardingRequired ? 'required' : 'greeting'
+                    trigger: isStartCommand ? 'start' : isGreeting ? 'greeting' : 'start_request'
                 });
                 return await enhancedOnboardingSkill.handle(message, context);
             }
@@ -183,9 +184,9 @@ export class SkillRouter {
             }
 
             // ===== DEFAULT: AI-powered conversational response =====
-            logger.info('[Router] Using AI conversation handler', { 
-                userId, 
-                intent: nluResult?.intent?.name 
+            logger.info('[Router] Using AI conversation handler', {
+                userId,
+                intent: nluResult?.intent?.name
             });
 
             const timeOfDay = this.getTimeOfDay();
@@ -404,8 +405,8 @@ export class SkillRouter {
                 // Use AI-powered conversation for general queries
                 const result = await intentHandlers.handleGeneralQueryWithAI(
                     message, // FIX: Pass the actual user message (was empty string)
-                    intent, 
-                    context, 
+                    intent,
+                    context,
                     timeOfDay
                 );
                 return {
@@ -454,7 +455,7 @@ export class SkillRouter {
     private async getWelcomeBackMessageAI(context: SessionContext): Promise<Static<typeof MessageResponseSchema>> {
         const userName = (context.metadata?.userName as string)?.split(' ')[0]; // First name only
         const timeOfDay = this.getTimeOfDay();
-        
+
         // Use AI-powered welcome message for warm, personalized greeting
         const aiGreeting = await generateWelcomeMessage({
             userName,
@@ -462,9 +463,9 @@ export class SkillRouter {
             messageType: 'welcome',
             entityType: context.metadata?.entityType as 'business' | 'individual' | 'self_employed' | 'student' | 'retiree' | 'corper'
         });
-        
+
         logger.info('[Router] AI welcome generated', { userName, timeOfDay, length: aiGreeting.length });
-        
+
         return {
             message: `${aiGreeting}\n\n` +
                 `Just send me:\n` +
@@ -490,7 +491,7 @@ export class SkillRouter {
         const userName = (context.metadata?.userName as string)?.split(' ')[0]; // First name only
         const timeOfDay = this.getTimeOfDay();
         const greeting = PersonalityFormatter.greet(userName, timeOfDay);
-        
+
         // Randomized, Nigerian-style conversational messages
         const messages = [
             `${greeting}\n\nReady to crush some tax admin? 💪`,
@@ -500,9 +501,9 @@ export class SkillRouter {
             `${greeting}\n\nWelcome back! Your books are calling. 📊`,
             `${greeting}\n\nE don tey! What are we tackling today?`,
         ];
-        
+
         const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-        
+
         return {
             message: `${randomMessage}\n\n` +
                 `Just send me:\n` +
