@@ -80,25 +80,32 @@ export class SkillRouter {
                 return await taxCalculationSkill.handle(message, context);
             }
 
-            // ===== PRIORITY 3: Onboarding (BEFORE identity verification) =====
-            // Onboarding: "/start", new user, or natural language triggers
+            // ===== PRIORITY 3: Check if user needs onboarding =====
+            const needsOnboarding = context.metadata?.needsOnboarding === true;
+            const isNewUser = context.metadata?.isNewUser === true;
+            const awaitingOnboarding = context.metadata?.awaitingOnboarding === true;
+            const isOnboardingRequired = needsOnboarding || isNewUser || awaitingOnboarding;
+
+            const isStartCommand = this.matchesPattern(lowerMessage, /^\/?start$/i);
             const isGreeting = this.matchesPattern(lowerMessage, /^(hi|hello|hey|morning|afternoon|evening|wetin|good\s*(morning|afternoon|evening))/i);
             const isStartRequest = this.matchesPattern(lowerMessage, /(get started|want to start|getting started|wan start|begin|let'?s\s+go)/i);
-            const isOnboardingTrigger = context.metadata?.needsOnboarding ||
-                context.metadata?.isNewUser ||
-                context.metadata?.awaitingOnboarding ||
-                this.matchesPattern(lowerMessage, /^\/?(?:start|onboard|setup|begin)$/i) ||
-                isStartRequest;
 
-            // Route to onboarding if triggered OR if greeting + new/needs onboarding
-            if (isOnboardingTrigger || 
-                (isGreeting && (context.metadata?.isNewUser || context.metadata?.needsOnboarding))) {
+            // Returning user sends /start → Welcome back (not onboarding)
+            if (isStartCommand && !isOnboardingRequired) {
+                logger.info('[Router] Returning user - welcome back', { userId });
+                return this.getWelcomeBackMessage(context);
+            }
+
+            // New user or needs onboarding → Start onboarding flow
+            if (isOnboardingRequired || isStartRequest || 
+                (isGreeting && isOnboardingRequired)) {
                 logger.info('[Router] Routing to onboarding', { 
                     userId, 
-                    isNewUser: context.metadata?.isNewUser,
-                    needsOnboarding: context.metadata?.needsOnboarding,
+                    isNewUser,
+                    needsOnboarding,
+                    awaitingOnboarding,
                     aiMode: context.metadata?.aiMode,
-                    trigger: isOnboardingTrigger ? 'direct' : 'greeting'
+                    trigger: isOnboardingRequired ? 'required' : 'greeting'
                 });
                 return await enhancedOnboardingSkill.handle(message, context);
             }
@@ -174,11 +181,16 @@ export class SkillRouter {
                 };
             }
 
-            // ===== DEFAULT: Conversational response with personality =====
-            logger.info('[Router] No match, using conversational response', { userId });
+            // ===== DEFAULT: AI-powered conversational response =====
+            logger.info('[Router] Using AI conversation handler', { 
+                userId, 
+                intent: nluResult?.intent?.name 
+            });
+
             const timeOfDay = this.getTimeOfDay();
-            const result = await intentHandlers.handleGeneralQuery(
-                { name: 'general_query', confidence: 0.5, entities: {} },
+            const result = await intentHandlers.handleGeneralQueryWithAI(
+                message,
+                nluResult?.intent || { name: 'general_query', confidence: 0.5, entities: {} },
                 context,
                 timeOfDay
             );
@@ -187,12 +199,13 @@ export class SkillRouter {
                 message: result.message,
                 buttons: result.buttons,
                 metadata: {
-                    skill: 'conversational',
+                    skill: 'conversational-ai',
                     nlu: nluResult ? {
                         intent: nluResult.intent.name,
                         confidence: nluResult.intent.confidence,
                         source: nluResult.source
-                    } : undefined
+                    } : undefined,
+                    ...result.metadata
                 }
             };
         } catch (error) {
@@ -387,7 +400,13 @@ export class SkillRouter {
 
             case 'general_query':
             default: {
-                const result = await intentHandlers.handleGeneralQuery(intent, context, timeOfDay);
+                // Use AI-powered conversation for general queries
+                const result = await intentHandlers.handleGeneralQueryWithAI(
+                    '', // Message already processed by NLU
+                    intent, 
+                    context, 
+                    timeOfDay
+                );
                 return {
                     message: result.message,
                     buttons: result.buttons,
@@ -429,52 +448,67 @@ export class SkillRouter {
     }
 
     /**
+     * Get welcome back message for returning users (with PRISM personality)
+     */
+    private getWelcomeBackMessage(context: SessionContext): Static<typeof MessageResponseSchema> {
+        const userName = (context.metadata?.userName as string)?.split(' ')[0]; // First name only
+        const timeOfDay = this.getTimeOfDay();
+        const greeting = PersonalityFormatter.greet(userName, timeOfDay);
+        
+        // Randomized, Nigerian-style conversational messages
+        const messages = [
+            `${greeting}\n\nReady to crush some tax admin? 💪`,
+            `${greeting}\n\nOya, what can I help you sort out today?`,
+            `${greeting}\n\nBack for more tax magic? Let's go! 🚀`,
+            `${greeting}\n\nMissed you! What's on your mind?`,
+            `${greeting}\n\nWelcome back! Your books are calling. 📊`,
+            `${greeting}\n\nE don tey! What are we tackling today?`,
+        ];
+        
+        const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+        
+        return {
+            message: `${randomMessage}\n\n` +
+                `Just send me:\n` +
+                `📄 A bank statement or receipt\n` +
+                `💰 "Calculate my tax" with your income\n` +
+                `🧾 "VAT on 50K electronics"\n\n` +
+                `Or just tell me what's on your mind - I dey here!`,
+            buttons: [[
+                { text: '📊 Calculate Tax', callback_data: 'calc_tax' },
+                { text: '📄 Upload Document', callback_data: 'upload_doc' }
+            ], [
+                { text: '💡 Tax Reliefs', callback_data: 'view_reliefs' },
+                { text: '❓ Help', callback_data: 'help' }
+            ]],
+            metadata: { skill: 'welcome-back', personality: true }
+        };
+    }
+
+    /**
      * Get help message
      */
     private getHelpMessage(): Static<typeof MessageResponseSchema> {
         return {
-            message: `🤖 PRISM Tax Assistant - Help
-
-**Available Features:**
-
-📊 **Tax Calculations**
-• \`vat [amount] [description]\` - Calculate VAT (7.5%)
-• \`tax [amount]\` - Income tax calculation
-• \`salary [amount]\` - PAYE calculation
-• \`pension [amount]\` - Pension income (tax exempt)
-• \`freelance [income] expenses [amount]\` - Business income
-
-🆔 **Identity Verification**
-• \`verify NIN [number]\` - National ID
-• \`verify TIN [number]\` - Tax ID
-• \`verify CAC [RC/BN number]\` - Company registration
-
-📄 **Bank Statement Processing**
-Upload a bank statement (PDF/image) to:
-• Extract and classify transactions
-• Detect USSD, OPay, PalmPay payments
-• Identify compliance issues
-• Calculate VAT position
-
-📸 **Receipt Processing**
-Upload receipt photos to:
-• Extract vendor and amount
-• Categorize expenses
-• Track VAT input
-
-💡 **Natural Language Queries**
-Just ask me in plain English:
-• "How much tax did I pay last month?"
-• "What deductions can I claim?"
-• "Remind me about VAT filing"
-
-**Quick Commands:**
-• "help" - Show this message
-• Upload file - Process document
-• "status" - Check processing status
-
-Need assistance? Reply with your question!`,
-            metadata: { skill: 'help' }
+            message: `🤖 *Hey there! I'm PRISM* - your friendly Nigerian tax assistant!\n\n` +
+                `Here's what I can help you with:\n\n` +
+                `📊 *Tax Calculations*\n` +
+                `Just tell me your income and I'll calculate everything - PAYE, reliefs, the works!\n` +
+                `Try: \`tax 5000000\` or \`salary 350000\`\n\n` +
+                `🧾 *VAT Made Easy*\n` +
+                `\`vat 50000 electronics\` - I'll break it down for you\n\n` +
+                `📄 *Document Magic*\n` +
+                `Upload a bank statement or receipt and watch me work! 🪄\n` +
+                `I'll classify transactions, spot tax issues, and find savings.\n\n` +
+                `🆔 *ID Verification*\n` +
+                `\`verify NIN 12345678901\` - NIN, TIN, CAC - I verify them all\n\n` +
+                `💬 *Or Just Chat!*\n` +
+                `Ask me anything about Nigerian taxes. E.g:\n` +
+                `• "What reliefs can I claim?"\n` +
+                `• "How does VAT work?"\n` +
+                `• "Remind me about filing deadlines"\n\n` +
+                `Wetin you wan do today? 🙌`,
+            metadata: { skill: 'help', personality: true }
         };
     }
 }
