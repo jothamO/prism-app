@@ -23,6 +23,7 @@ import { intentHandlers } from './intent-handlers';
 
 // Import personality layer
 import { PersonalityFormatter } from '../utils/personality';
+import { generateWelcomeMessage, getTimeOfDay as getAITimeOfDay } from '../utils/ai-personality';
 
 // NLU confidence threshold for routing
 const NLU_CONFIDENCE_THRESHOLD = 0.6;
@@ -92,8 +93,8 @@ export class SkillRouter {
 
             // Returning user sends /start → Welcome back (not onboarding)
             if (isStartCommand && !isOnboardingRequired) {
-                logger.info('[Router] Returning user - welcome back', { userId });
-                return this.getWelcomeBackMessage(context);
+                logger.info('[Router] Returning user - welcome back with AI', { userId });
+                return await this.getWelcomeBackMessageAI(context);
             }
 
             // New user or needs onboarding → Start onboarding flow
@@ -448,7 +449,42 @@ export class SkillRouter {
     }
 
     /**
-     * Get welcome back message for returning users (with PRISM personality)
+     * Get welcome back message for returning users (with AI-powered PRISM personality)
+     */
+    private async getWelcomeBackMessageAI(context: SessionContext): Promise<Static<typeof MessageResponseSchema>> {
+        const userName = (context.metadata?.userName as string)?.split(' ')[0]; // First name only
+        const timeOfDay = this.getTimeOfDay();
+        
+        // Use AI-powered welcome message for warm, personalized greeting
+        const aiGreeting = await generateWelcomeMessage({
+            userName,
+            timeOfDay,
+            messageType: 'welcome',
+            entityType: context.metadata?.entityType as 'business' | 'individual' | 'self_employed' | 'student' | 'retiree' | 'corper'
+        });
+        
+        logger.info('[Router] AI welcome generated', { userName, timeOfDay, length: aiGreeting.length });
+        
+        return {
+            message: `${aiGreeting}\n\n` +
+                `Just send me:\n` +
+                `📄 A bank statement or receipt\n` +
+                `💰 "Calculate my tax" with your income\n` +
+                `🧾 "VAT on 50K electronics"\n\n` +
+                `Or just tell me what's on your mind - I dey here!`,
+            buttons: [[
+                { text: '📊 Calculate Tax', callback_data: 'calc_tax' },
+                { text: '📄 Upload Document', callback_data: 'upload_doc' }
+            ], [
+                { text: '💡 Tax Reliefs', callback_data: 'view_reliefs' },
+                { text: '❓ Help', callback_data: 'help' }
+            ]],
+            metadata: { skill: 'welcome-back', personality: true, aiGenerated: true }
+        };
+    }
+
+    /**
+     * Get welcome back message for returning users (static fallback)
      */
     private getWelcomeBackMessage(context: SessionContext): Static<typeof MessageResponseSchema> {
         const userName = (context.metadata?.userName as string)?.split(' ')[0]; // First name only
