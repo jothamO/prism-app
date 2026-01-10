@@ -4,7 +4,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 // Types for tax rules
 export interface TaxBand {

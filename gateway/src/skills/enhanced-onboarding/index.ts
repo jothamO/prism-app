@@ -312,7 +312,7 @@ export class EnhancedOnboardingSkill {
             if (profile.suggestedNextQuestion) {
                 return {
                     message: profile.suggestedNextQuestion + (profile.suggestedOptions?.length
-                        ? `\n\n${profile.suggestedOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`
+                        ? `\n\n${profile.suggestedOptions.map((opt: string, i: number) => `${i + 1}. ${opt}`).join('\n')}`
                         : ''),
                     metadata: {
                         skill: this.name,

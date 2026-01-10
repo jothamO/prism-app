@@ -333,7 +333,7 @@ export async function handleGeneralQueryWithAI(
             throw new Error(`AI Gateway error: ${response.status}`);
         }
         
-        const aiData = await response.json();
+        const aiData = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
         const aiResponse = aiData.choices?.[0]?.message?.content;
         
         if (!aiResponse) {
