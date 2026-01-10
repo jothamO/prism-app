@@ -20,6 +20,7 @@ export interface TaxRule {
   rule_name: string;
   rule_type: string;
   parameters: Record<string, any>;
+  actions?: Record<string, any>;  // For fee structures and regulatory actions
   description: string;
   effective_from: string | null;
   effective_to: string | null;
@@ -310,6 +311,7 @@ export function formatNaira(amount: number): string {
 
 /**
  * Build a summary of current tax rules for chat context
+ * Enhanced to include detailed fee structures from upcoming rules
  */
 export async function buildTaxRulesSummary(): Promise<string> {
   const taxBands = await getTaxBands();
@@ -348,14 +350,42 @@ Filing Deadlines:
 ${deadlinesText}
 `.trim();
 
-  // Add upcoming changes section if there are any
+  // Enhanced upcoming changes section with detailed fee structures
   if (upcoming.length > 0) {
-    const upcomingText = upcoming
-      .slice(0, 5) // Limit to 5 upcoming rules
-      .map(r => `  - ${r.rule_name} (${r.rule_type}): Effective ${r.effective_from}`)
-      .join('\n');
+    const upcomingDetails = upcoming
+      .slice(0, 10) // Show up to 10 upcoming rules
+      .map(r => {
+        let details = `  - ${r.rule_name} (${r.rule_type}): Effective ${r.effective_from}`;
+        
+        // Include key action details for fees and thresholds
+        const actions = r.parameters?.actions || r.actions;
+        if (actions) {
+          if (actions.charge_per_unit !== undefined && actions.unit_amount !== undefined) {
+            details += `\n      Fee: ₦${actions.charge_per_unit} per ₦${Number(actions.unit_amount).toLocaleString()} unit`;
+          }
+          if (actions.base_fee !== undefined) {
+            details += `\n      Base Fee: ₦${actions.base_fee}`;
+          }
+          if (actions.maximum_fee !== undefined) {
+            details += `\n      Maximum: ₦${Number(actions.maximum_fee).toLocaleString()}`;
+          }
+          if (actions.rate !== undefined) {
+            details += `\n      Rate: ${(actions.rate * 100).toFixed(1)}%`;
+          }
+          if (actions.message) {
+            details += `\n      Note: ${actions.message}`;
+          }
+        }
+        
+        // Include label from parameters if available
+        if (r.parameters?.label) {
+          details += `\n      ${r.parameters.label}`;
+        }
+        
+        return details;
+      }).join('\n');
     
-    summary += `\n\nUPCOMING CHANGES:\n${upcomingText}`;
+    summary += `\n\nUPCOMING REGULATORY CHANGES:\n${upcomingDetails}`;
   }
 
   return summary;

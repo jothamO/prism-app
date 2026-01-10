@@ -402,7 +402,7 @@ export class SkillRouter {
             default: {
                 // Use AI-powered conversation for general queries
                 const result = await intentHandlers.handleGeneralQueryWithAI(
-                    '', // Message already processed by NLU
+                    message, // FIX: Pass the actual user message (was empty string)
                     intent, 
                     context, 
                     timeOfDay
