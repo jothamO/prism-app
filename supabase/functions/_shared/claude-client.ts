@@ -22,10 +22,12 @@ interface ClaudeResponse {
 
 // Model configurations
 export const CLAUDE_MODELS = {
-    // Fast, cheap - ideal for profile extraction, simple classification
+    // Fast, cheap - ideal for NLU, intent classification
     HAIKU: 'claude-haiku-4-5-20251001',
-    // Powerful - for complex NLU, document analysis
+    // Balanced - for chat, document analysis, OCR
     SONNET: 'claude-sonnet-4-5-20250929',
+    // Powerful - for complex code generation, ML training
+    OPUS: 'claude-opus-4-5-20251101',
 } as const;
 
 export type ClaudeModel = typeof CLAUDE_MODELS[keyof typeof CLAUDE_MODELS];
@@ -51,7 +53,7 @@ export async function callClaude(
 
     const {
         model = CLAUDE_MODELS.HAIKU,
-        maxTokens = 1024,
+        maxTokens = 8000,
         temperature = 0.3,
     } = options;
 

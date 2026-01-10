@@ -332,10 +332,10 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
     
     // Use AI if available, otherwise fallback
-    if (LOVABLE_API_KEY) {
+    if (ANTHROPIC_API_KEY) {
       try {
         // Build context from conversation history
         const contextString = context.length > 0
@@ -363,16 +363,18 @@ Consider the conversation context when available.
 
 Return ONLY valid JSON, no markdown or explanation.`;
 
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01'
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 8000,
+            system: systemPrompt,
             messages: [
-              { role: 'system', content: systemPrompt },
               { role: 'user', content: `${contextString}Current message: "${message}"` }
             ]
           })
@@ -380,17 +382,17 @@ Return ONLY valid JSON, no markdown or explanation.`;
 
         if (!response.ok) {
           if (response.status === 429) {
-            console.error('AI Gateway rate limited');
+            console.error('Anthropic Claude rate limited');
           } else if (response.status === 402) {
-            console.error('AI Gateway payment required');
+            console.error('Anthropic Claude payment required');
           } else {
-            console.error('AI Gateway error:', response.status);
+            console.error('Anthropic Claude error:', response.status);
           }
-          throw new Error('AI Gateway unavailable');
+          throw new Error('Anthropic Claude unavailable');
         }
 
         const aiData = await response.json();
-        const content = aiData.choices?.[0]?.message?.content;
+        const content = aiData.content?.[0]?.text;
 
         if (content) {
           // Parse JSON response
@@ -418,7 +420,7 @@ Return ONLY valid JSON, no markdown or explanation.`;
                   reasoning: parsed.reasoning
                 },
                 source: 'ai',
-                model: 'google/gemini-2.5-flash',
+                model: 'claude-haiku-4-5-20251001',
                 artificialTransactionCheck: artificialCheck
               }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

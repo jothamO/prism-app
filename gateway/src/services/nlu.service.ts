@@ -98,10 +98,10 @@ const PERSONAL_ITEM_PATTERNS = [
 ];
 
 export class NLUService {
-    private lovableApiKey?: string;
+    private anthropicApiKey?: string;
 
     constructor() {
-        this.lovableApiKey = process.env.LOVABLE_API_KEY;
+        this.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
     }
 
     /**
@@ -109,7 +109,7 @@ export class NLUService {
      */
     async classifyIntent(message: string, context?: ConversationContext): Promise<NLUResult> {
         // Try AI classification first
-        if (this.lovableApiKey) {
+        if (this.anthropicApiKey) {
             try {
                 const aiResult = await this.classifyWithAI(message, context);
                 if (aiResult) {
@@ -145,10 +145,10 @@ export class NLUService {
     }
 
     /**
-     * AI-powered intent classification using Lovable AI
+     * AI-powered intent classification using Anthropic Claude Haiku
      */
     private async classifyWithAI(message: string, context?: ConversationContext): Promise<NLUIntent | null> {
-        if (!this.lovableApiKey) return null;
+        if (!this.anthropicApiKey) return null;
 
         try {
             // Build context string
@@ -183,28 +183,30 @@ Consider the conversation context when available.
 
 Return ONLY valid JSON, no markdown or explanation.`;
 
-            const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.lovableApiKey}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'x-api-key': this.anthropicApiKey,
+                    'anthropic-version': '2023-06-01',
                 },
                 body: JSON.stringify({
-                    model: 'google/gemini-2.5-flash',
+                    model: 'claude-haiku-4-5-20251001',
+                    max_tokens: 8000,
+                    system: systemPrompt,
                     messages: [
-                        { role: 'system', content: systemPrompt },
                         { role: 'user', content: `${contextString}Current message: "${message}"` }
                     ]
                 })
             });
 
             if (!response.ok) {
-                logger.warn('[NLU] AI Gateway error:', response.status);
+                logger.warn('[NLU] Anthropic Claude error:', response.status);
                 return null;
             }
 
-            const aiData = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-            const content = aiData.choices?.[0]?.message?.content;
+            const aiData = await response.json() as { content?: Array<{ type?: string; text?: string }> };
+            const content = aiData.content?.[0]?.text;
 
             if (!content) return null;
 
