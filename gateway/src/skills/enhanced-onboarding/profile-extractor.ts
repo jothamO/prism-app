@@ -11,6 +11,11 @@ export type TaxCategory =
     | 'individual_mixed'
     | 'sme'
     | 'corporate'
+    | 'paye'
+    | 'company_tax'
+    | 'self_assessment'
+    | 'withholding'
+    | 'exempt'
     | 'unknown';
 
 export type IncomeSource = 
