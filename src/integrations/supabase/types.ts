@@ -3000,6 +3000,9 @@ export type Database = {
           auto_verification_enabled: boolean | null
           default_tax_year: number | null
           filing_reminder_days: number | null
+          gateway_enabled: boolean | null
+          gateway_enabled_at: string | null
+          gateway_enabled_by: string | null
           id: string
           onboarding_mode: string | null
           telegram_enabled: boolean | null
@@ -3016,6 +3019,9 @@ export type Database = {
           auto_verification_enabled?: boolean | null
           default_tax_year?: number | null
           filing_reminder_days?: number | null
+          gateway_enabled?: boolean | null
+          gateway_enabled_at?: string | null
+          gateway_enabled_by?: string | null
           id?: string
           onboarding_mode?: string | null
           telegram_enabled?: boolean | null
@@ -3032,6 +3038,9 @@ export type Database = {
           auto_verification_enabled?: boolean | null
           default_tax_year?: number | null
           filing_reminder_days?: number | null
+          gateway_enabled?: boolean | null
+          gateway_enabled_at?: string | null
+          gateway_enabled_by?: string | null
           id?: string
           onboarding_mode?: string | null
           telegram_enabled?: boolean | null

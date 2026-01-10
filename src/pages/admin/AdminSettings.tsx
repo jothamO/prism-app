@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
-import { Settings, User, Bell, Shield, Sliders, Save, Eye, EyeOff, RefreshCw, Check, AlertTriangle } from "lucide-react";
+import { Settings, User, Bell, Shield, Sliders, Save, Eye, EyeOff, RefreshCw, Check, AlertTriangle, Plug, Unplug, ExternalLink, Wifi, WifiOff, Radio } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { TestModePinDialog } from "@/components/admin/TestModePinDialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useGatewayHealth } from "@/hooks/useGatewayHealth";
 
-type Tab = "profile" | "notifications" | "security" | "general";
+type Tab = "profile" | "notifications" | "security" | "general" | "integrations";
 
 interface AdminPreferences {
   email_on_new_user: boolean;
@@ -25,6 +27,7 @@ interface SystemSettings {
   onboarding_mode: 'strict' | 'ai';
   test_mode_enabled: boolean;
   test_mode_enabled_at: string | null;
+  gateway_enabled: boolean;
 }
 
 interface Profile {
@@ -40,6 +43,7 @@ export default function AdminSettings() {
     { id: "notifications" as Tab, name: "Notifications", icon: Bell },
     { id: "security" as Tab, name: "Security", icon: Shield },
     { id: "general" as Tab, name: "General", icon: Sliders },
+    { id: "integrations" as Tab, name: "Integrations", icon: Plug },
   ];
 
   return (
@@ -75,6 +79,7 @@ export default function AdminSettings() {
           {activeTab === "notifications" && <NotificationsTab />}
           {activeTab === "security" && <SecurityTab />}
           {activeTab === "general" && <GeneralTab />}
+          {activeTab === "integrations" && <IntegrationsTab />}
         </div>
       </div>
     </div>
@@ -454,6 +459,7 @@ function GeneralTab() {
     onboarding_mode: 'strict',
     test_mode_enabled: false,
     test_mode_enabled_at: null,
+    gateway_enabled: true,
   });
 
   useEffect(() => {
@@ -480,6 +486,7 @@ function GeneralTab() {
           onboarding_mode: data.onboarding_mode ?? 'strict',
           test_mode_enabled: data.test_mode_enabled ?? false,
           test_mode_enabled_at: data.test_mode_enabled_at ?? null,
+          gateway_enabled: data.gateway_enabled ?? true,
         });
       }
     } catch (error) {
@@ -733,6 +740,267 @@ function GeneralTab() {
         currentMode={settings.test_mode_enabled}
         onConfirm={toggleTestMode}
         loading={saving}
+      />
+    </div>
+  );
+}
+
+function IntegrationsTab() {
+  const { toast } = useToast();
+  const { health, loading: healthLoading, refetch } = useGatewayHealth(60000);
+  const [gatewayEnabled, setGatewayEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'connect' | 'disconnect' | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const gatewayUrl = import.meta.env.VITE_RAILWAY_GATEWAY_URL || '';
+  const maskedUrl = gatewayUrl ? gatewayUrl.replace(/\/\/([^.]+)\./, '//$1*****.') : 'Not configured';
+
+  useEffect(() => {
+    fetchGatewayStatus();
+  }, []);
+
+  async function fetchGatewayStatus() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("gateway_enabled")
+        .limit(1)
+        .single();
+
+      if (error) throw error;
+      setGatewayEnabled(data?.gateway_enabled ?? true);
+    } catch (error) {
+      console.error("Error fetching gateway status:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleGateway(enable: boolean) {
+    setActionLoading(true);
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      
+      const { error } = await supabase
+        .from("system_settings")
+        .update({
+          gateway_enabled: enable,
+          gateway_enabled_at: enable ? new Date().toISOString() : null,
+          gateway_enabled_by: enable ? user.user?.id : null,
+          updated_at: new Date().toISOString(),
+          updated_by: user.user?.id,
+        })
+        .not("id", "is", null);
+
+      if (error) throw error;
+      
+      setGatewayEnabled(enable);
+      toast({ 
+        title: enable ? "Gateway Connected" : "Gateway Disconnected",
+        description: enable 
+          ? "Railway Gateway is now active for bot messages" 
+          : "Bot messages will use local fallback processing"
+      });
+      
+      setShowConnectDialog(false);
+      setShowDisconnectDialog(false);
+      setShowPinDialog(false);
+      setPendingAction(null);
+    } catch (error) {
+      console.error("Error toggling gateway:", error);
+      toast({ title: "Error", description: "Failed to update gateway status", variant: "destructive" });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function handleToggleClick(action: 'connect' | 'disconnect') {
+    setPendingAction(action);
+    setShowPinDialog(true);
+  }
+
+  function handlePinSuccess() {
+    setShowPinDialog(false);
+    if (pendingAction === 'disconnect') {
+      setShowDisconnectDialog(true);
+    } else if (pendingAction === 'connect') {
+      setShowConnectDialog(true);
+    }
+  }
+
+  const statusConfig = {
+    healthy: { icon: Wifi, color: "text-green-500", bg: "bg-green-500/20", label: "Connected" },
+    degraded: { icon: Radio, color: "text-amber-500", bg: "bg-amber-500/20", label: "Degraded" },
+    offline: { icon: WifiOff, color: "text-red-500", bg: "bg-red-500/20", label: "Offline" },
+    unknown: { icon: WifiOff, color: "text-muted-foreground", bg: "bg-muted", label: "Unknown" },
+  };
+
+  const currentStatus = gatewayEnabled ? statusConfig[health.status] : statusConfig.offline;
+  const StatusIcon = currentStatus.icon;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="text-lg font-medium text-foreground mb-4">Integrations</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        Manage external service connections for PRISM.
+      </p>
+
+      {/* Railway Gateway */}
+      <div className="border border-border rounded-xl overflow-hidden">
+        <div className="p-4 bg-background">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", currentStatus.bg)}>
+                <StatusIcon className={cn("w-5 h-5", currentStatus.color)} />
+              </div>
+              <div>
+                <h4 className="text-foreground font-medium flex items-center gap-2">
+                  Railway Gateway
+                  <Badge className={cn(
+                    "text-xs",
+                    gatewayEnabled && health.status === 'healthy' 
+                      ? "bg-green-500/20 text-green-400 border-green-500/30"
+                      : gatewayEnabled && health.status === 'degraded'
+                      ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                      : "bg-red-500/20 text-red-400 border-red-500/30"
+                  )}>
+                    {gatewayEnabled ? currentStatus.label : 'Disabled'}
+                  </Badge>
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  Processes Telegram & WhatsApp bot messages
+                </p>
+              </div>
+            </div>
+            
+            {gatewayEnabled ? (
+              <button
+                onClick={() => handleToggleClick('disconnect')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+              >
+                <Unplug className="w-4 h-4" />
+                Disconnect
+              </button>
+            ) : (
+              <button
+                onClick={() => handleToggleClick('connect')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Plug className="w-4 h-4" />
+                Connect
+              </button>
+            )}
+          </div>
+        </div>
+
+        {gatewayEnabled && (
+          <div className="px-4 py-3 border-t border-border bg-card">
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">URL</p>
+                <p className="text-foreground font-mono text-xs truncate">{maskedUrl}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Response Time</p>
+                <p className="text-foreground">
+                  {health.responseTime !== null ? `${health.responseTime}ms` : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Last Check</p>
+                <p className="text-foreground">
+                  {health.lastCheck ? new Date(health.lastCheck).toLocaleTimeString() : '-'}
+                </p>
+              </div>
+            </div>
+            {health.error && (
+              <div className="mt-3 p-2 bg-destructive/10 rounded-lg">
+                <p className="text-xs text-destructive">{health.error}</p>
+              </div>
+            )}
+            <div className="mt-3 flex justify-between items-center">
+              <button
+                onClick={() => refetch()}
+                disabled={healthLoading}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+              >
+                <RefreshCw className={cn("w-3 h-3", healthLoading && "animate-spin")} />
+                Refresh Status
+              </button>
+              <a
+                href="/admin/simulator"
+                className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+              >
+                Open Simulator
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Info note */}
+      <div className="mt-4 p-4 bg-muted/30 rounded-lg border border-border">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm text-foreground font-medium">Gateway Processing</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              When the Gateway is disconnected, bot messages will fall back to basic responses. 
+              Advanced features like NLU processing, tax calculations, and document analysis require an active Gateway connection.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* PIN Dialog */}
+      <TestModePinDialog
+        open={showPinDialog}
+        onOpenChange={(open) => {
+          setShowPinDialog(open);
+          if (!open) setPendingAction(null);
+        }}
+        currentMode={false}
+        onConfirm={handlePinSuccess}
+        loading={false}
+      />
+
+      {/* Disconnect Confirmation */}
+      <ConfirmDialog
+        open={showDisconnectDialog}
+        onOpenChange={setShowDisconnectDialog}
+        title="Disconnect Railway Gateway?"
+        description="Bot messages will fall back to basic responses. Advanced features like NLU, tax calculations, and document processing will be unavailable."
+        confirmText="Disconnect"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={() => toggleGateway(false)}
+        loading={actionLoading}
+      />
+
+      {/* Connect Confirmation */}
+      <ConfirmDialog
+        open={showConnectDialog}
+        onOpenChange={setShowConnectDialog}
+        title="Connect Railway Gateway?"
+        description="This will enable advanced bot processing including NLU, tax calculations, and document analysis."
+        confirmText="Connect"
+        cancelText="Cancel"
+        onConfirm={() => toggleGateway(true)}
+        loading={actionLoading}
       />
     </div>
   );
