@@ -101,12 +101,33 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // STEP 1: Resolve userId - it might be auth_user_id or internal users.id
+    let internalUserId = userId;
+    
+    // Check if this is an auth_user_id by looking for a matching record
+    const { data: userByAuthId } = await supabase
+      .from("users")
+      .select("id, entity_type")
+      .eq("auth_user_id", userId)
+      .single();
+    
+    if (userByAuthId) {
+      // Found by auth_user_id, use the internal id
+      internalUserId = userByAuthId.id;
+      console.log(`[prompt-generator] Resolved auth_user_id to internal id: ${internalUserId}`);
+      
+      // If we already have entity_type, use it directly
+      if (userByAuthId.entity_type) {
+        return { entityType: userByAuthId.entity_type };
+      }
+    }
 
-    // Try to get from user_tax_profiles first
+    // STEP 2: Try to get from user_tax_profiles first (using resolved internal ID)
     const { data: taxProfile } = await supabase
       .from("user_tax_profiles")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", internalUserId)
       .single();
 
     if (taxProfile) {
@@ -121,11 +142,11 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       };
     }
 
-    // Fallback to users table for entity_type
+    // STEP 3: Fallback to users table for entity_type (using resolved internal ID)
     const { data: userData } = await supabase
       .from("users")
       .select("entity_type")
-      .eq("id", userId)
+      .eq("id", internalUserId)
       .single();
 
     if (userData?.entity_type) {
@@ -134,11 +155,11 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       };
     }
 
-    // Fallback to onboarding_progress
+    // STEP 4: Fallback to onboarding_progress
     const { data: onboarding } = await supabase
       .from("onboarding_progress")
       .select("extracted_profile")
-      .eq("user_id", userId)
+      .eq("user_id", internalUserId)
       .single();
 
     if (onboarding?.extracted_profile) {
