@@ -1,4 +1,3 @@
-import { forwardRef } from "react";
 import { Link } from "react-router-dom";
 import { MessageSquare, FileText, Calculator, Clock, Shield, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,9 +36,9 @@ const features = [
   },
 ];
 
-const LandingPage = forwardRef<HTMLDivElement, {}>(function LandingPage(_props, ref) {
+export default function LandingPage() {
   return (
-    <div ref={ref} className="min-h-screen bg-background" style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
+    <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -158,6 +157,4 @@ const LandingPage = forwardRef<HTMLDivElement, {}>(function LandingPage(_props, 
       </footer>
     </div>
   );
-});
-
-export default LandingPage;
+}
