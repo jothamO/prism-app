@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { useToast } from "@/hooks/use-toast"
 import {
   Toast,
@@ -8,26 +9,30 @@ import {
   ToastViewport,
 } from "@/components/ui/toast"
 
-export function Toaster() {
-  const { toasts } = useToast()
+export const Toaster = forwardRef<HTMLDivElement, {}>(
+  function Toaster(_props, ref) {
+    const { toasts } = useToast()
 
-  return (
-    <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
-        return (
-          <Toast key={id} {...props}>
-            <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
-            </div>
-            {action}
-            <ToastClose />
-          </Toast>
-        )
-      })}
-      <ToastViewport />
-    </ToastProvider>
-  )
-}
+    return (
+      <ToastProvider>
+        <div ref={ref}>
+          {toasts.map(function ({ id, title, description, action, ...props }) {
+            return (
+              <Toast key={id} {...props}>
+                <div className="grid gap-1">
+                  {title && <ToastTitle>{title}</ToastTitle>}
+                  {description && (
+                    <ToastDescription>{description}</ToastDescription>
+                  )}
+                </div>
+                {action}
+                <ToastClose />
+              </Toast>
+            )
+          })}
+        </div>
+        <ToastViewport />
+      </ToastProvider>
+    )
+  }
+);
