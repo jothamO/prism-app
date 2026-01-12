@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { generateSystemPrompt } from '../_shared/prompt-generator.ts';
 
 const corsHeaders = {
@@ -23,6 +24,106 @@ interface ChatRequest {
     };
 }
 
+/**
+ * Extract durable facts from user message (Clawd-inspired)
+ * Only stores facts that are explicitly stated or requested
+ */
+async function extractAndStoreFacts(userId: string, message: string): Promise<void> {
+    try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+        if (!supabaseUrl || !supabaseKey || !userId) return;
+
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const lowerMessage = message.toLowerCase();
+        const factsToAdd: string[] = [];
+        let entityType: string | null = null;
+        let incomeEstimate: number | null = null;
+        let preferredName: string | null = null;
+
+        // Detect entity type statements
+        if (lowerMessage.includes("i'm a freelancer") || lowerMessage.includes("i am a freelancer")) {
+            entityType = 'self_employed';
+            factsToAdd.push('User is a freelancer');
+        }
+        if (lowerMessage.includes("i'm self-employed") || lowerMessage.includes("i am self-employed")) {
+            entityType = 'self_employed';
+        }
+        if (lowerMessage.includes("i run a business") || lowerMessage.includes("i own a business")) {
+            entityType = 'company';
+            factsToAdd.push('User is a business owner');
+        }
+        if (lowerMessage.includes("i'm employed") || lowerMessage.includes("i work for")) {
+            entityType = 'individual';
+            factsToAdd.push('User is employed (PAYE)');
+        }
+
+        // Detect income mentions
+        const incomeMatch = message.match(/(?:i\s+(?:earn|make|get)\s+)?[₦n]?([\d,]+)\s*(?:per\s+)?(?:month|monthly|annually|yearly|year|per\s+year)/i);
+        if (incomeMatch) {
+            let amount = parseInt(incomeMatch[1].replace(/,/g, ''));
+            const isMonthly = lowerMessage.includes('month');
+            incomeEstimate = isMonthly ? amount * 12 : amount;
+            factsToAdd.push(`Annual income: approximately ₦${incomeEstimate.toLocaleString()}`);
+        }
+
+        // Detect explicit "remember" requests
+        const rememberMatch = message.match(/remember\s+(?:that\s+)?(.+)/i);
+        if (rememberMatch) {
+            factsToAdd.push(rememberMatch[1].trim());
+        }
+
+        // Detect name preferences
+        const nameMatch = message.match(/(?:call\s+me|my\s+name\s+is)\s+([a-z]+)/i);
+        if (nameMatch) {
+            preferredName = nameMatch[1];
+        }
+
+        // Only update if we have something to store
+        if (factsToAdd.length === 0 && !entityType && !incomeEstimate && !preferredName) {
+            return;
+        }
+
+        // Get existing preferences
+        const { data: existing } = await supabase
+            .from('user_preferences')
+            .select('remembered_facts')
+            .eq('user_id', userId)
+            .single();
+
+        const existingFacts: string[] = existing?.remembered_facts || [];
+        const newFacts = [...new Set([...existingFacts, ...factsToAdd])]; // Dedupe
+
+        // Upsert preferences
+        const updates: Record<string, unknown> = {
+            user_id: userId,
+            remembered_facts: newFacts,
+            updated_at: new Date().toISOString(),
+        };
+
+        if (preferredName) updates.preferred_name = preferredName;
+        if (incomeEstimate) updates.income_estimate = incomeEstimate;
+
+        await supabase
+            .from('user_preferences')
+            .upsert(updates, { onConflict: 'user_id' });
+
+        // Also update entity_type in users table if detected
+        if (entityType) {
+            await supabase
+                .from('users')
+                .update({ entity_type: entityType })
+                .eq('id', userId);
+        }
+
+        console.log('[chat-assist] Stored facts:', factsToAdd);
+    } catch (error) {
+        console.error('[chat-assist] Fact extraction error:', error);
+        // Don't fail the request if fact storage fails
+    }
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
@@ -44,6 +145,11 @@ serve(async (req) => {
                 JSON.stringify({ error: 'Message is required' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
+        }
+
+        // Extract and store facts from user message (async, non-blocking)
+        if (context?.userId) {
+            extractAndStoreFacts(context.userId, message).catch(console.error);
         }
 
         // Build context-aware system prompt dynamically from database
