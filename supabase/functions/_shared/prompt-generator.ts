@@ -95,7 +95,7 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY");
-    
+
     if (!supabaseUrl || !supabaseKey) {
       return null;
     }
@@ -118,6 +118,19 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
         isDisabled: taxProfile.is_disabled,
         hasDiplomaticExemption: taxProfile.has_diplomatic_exemption,
         incomeTypes: taxProfile.income_types,
+      };
+    }
+
+    // Fallback to users table for entity_type
+    const { data: userData } = await supabase
+      .from("users")
+      .select("entity_type")
+      .eq("id", userId)
+      .single();
+
+    if (userData?.entity_type) {
+      return {
+        entityType: userData.entity_type,
       };
     }
 

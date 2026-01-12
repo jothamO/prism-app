@@ -38,15 +38,39 @@ const QUICK_QUESTIONS = [
 export default function ChatWidget({ userContext }: ChatWidgetProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([
-        {
+    const [messages, setMessages] = useState<Message[]>(() => {
+        // Restore from sessionStorage if available
+        const saved = sessionStorage.getItem('prism_chat_history');
+        if (saved) {
+            try {
+                return JSON.parse(saved);
+            } catch {
+                // Invalid JSON, start fresh
+            }
+        }
+        return [{
             role: 'assistant',
             content: "Hi! I'm PRISM, your Nigerian tax assistant. 👋 Ask me anything about your taxes, transactions, or financial obligations!",
-        },
-    ]);
+        }];
+    });
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Get authenticated user ID
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUserId(user?.id || null);
+        };
+        getUser();
+    }, []);
+
+    // Save messages to sessionStorage when they change
+    useEffect(() => {
+        sessionStorage.setItem('prism_chat_history', JSON.stringify(messages));
+    }, [messages]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,7 +89,10 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
                 body: {
                     message: text,
                     history: messages.slice(-6), // Last 6 messages for context
-                    context: userContext,
+                    context: {
+                        userId,  // Now passing userId!
+                        ...userContext,
+                    },
                 },
             });
 
