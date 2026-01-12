@@ -62,6 +62,7 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
     useEffect(() => {
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
+            console.log('[ChatWidget] Auth user:', user?.id || 'NOT LOGGED IN');
             setUserId(user?.id || null);
         };
         getUser();
@@ -85,6 +86,7 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
         setLoading(true);
 
         try {
+            console.log('[ChatWidget] Sending to chat-assist:', { userId, userContext });
             const { data, error } = await supabase.functions.invoke('chat-assist', {
                 body: {
                     message: text,

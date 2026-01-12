@@ -1,0 +1,798 @@
+5124-bbcdee9287c121de.js?dpl=6964df1eb003000008b1c47b:11 Initializing RudderStack Analytics
+5124-bbcdee9287c121de.js?dpl=6964df1eb003000008b1c47b:11 
+⠀⠀#######
+ ##########
+#############
+##############
+##############
+###################
+#####################
+#######################
+#######################
+#######################
+######################
+###################
+
+We're hiring!https://lovable.dev/careers
+5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1 Unrecognized feature: 'vr'.
+e4 @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+sc @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+sd @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+(anonymous) @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ix @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ik @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+(anonymous) @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+iu @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+iX @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+A @ 5124-bbcdee9287c121de.js?dpl=6964df1eb003000008b1c47b:28
+5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1 Unrecognized feature: 'ambient-light-sensor'.
+e4 @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+sc @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+sd @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+(anonymous) @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ix @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ik @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+(anonymous) @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+iu @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+iX @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+A @ 5124-bbcdee9287c121de.js?dpl=6964df1eb003000008b1c47b:28
+5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1 Unrecognized feature: 'battery'.
+e4 @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+sc @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+sd @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+(anonymous) @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ix @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ik @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+(anonymous) @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+iu @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+iX @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+A @ 5124-bbcdee9287c121de.js?dpl=6964df1eb003000008b1c47b:28
+layout-d41708207f8a38ca.js?dpl=6964df1eb003000008b1c47b:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+Node.insertBefore @ layout-d41708207f8a38ca.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ub @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+layout-d41708207f8a38ca.js?dpl=6964df1eb003000008b1c47b:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+Node.insertBefore @ layout-d41708207f8a38ca.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+un @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ub @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+uv @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+ug @ 5bfa753c-58c87e918754e410.js?dpl=6964df1eb003000008b1c47b:1
+about:blank:1 An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.
+lovable.js:1 cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+console.<computed> @ lovable.js:1
+(anonymous) @ (index):64
+(anonymous) @ (index):64
+lovable.js:1 cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation
+console.<computed> @ lovable.js:1
+(anonymous) @ (index):64
+(anonymous) @ (index):64
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at Routes (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7107:3)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at LandingPage
+    at RenderedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:6264:26)
+    at Routes (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7107:3)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at Toaster (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ui/toaster.tsx?t=1768259880991:7:24)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `Toaster`.
+    at ToastProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@radix-ui_react-toast.js?v=60d6f6fb:49:5)
+    at Toaster (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ui/toaster.tsx?t=1768259880991:7:24)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at Auth (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/pages/Auth.tsx?t=1768259835276:13:35)
+    at RenderedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:6264:26)
+    at Routes (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7107:3)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopConcurrent @ chunk-IEWVK4NL.js?v=487839c9:19242
+renderRootConcurrent @ chunk-IEWVK4NL.js?v=487839c9:19217
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at ProtectedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ProtectedRoute.tsx?t=1768259880988:5:42)
+    at RenderedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:6264:26)
+    at Routes (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7107:3)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopConcurrent @ chunk-IEWVK4NL.js?v=487839c9:19242
+renderRootConcurrent @ chunk-IEWVK4NL.js?v=487839c9:19217
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `App`.
+    at Dashboard (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/pages/Dashboard.tsx?t=1768259835276:20:22)
+    at ProtectedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ProtectedRoute.tsx?t=1768259880988:5:42)
+    at RenderedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:6264:26)
+    at Routes (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7107:3)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopConcurrent @ chunk-IEWVK4NL.js?v=487839c9:19242
+renderRootConcurrent @ chunk-IEWVK4NL.js?v=487839c9:19217
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `Dashboard`.
+    at ChatWidget (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ChatWidget.tsx:15:38)
+    at div
+    at Dashboard (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/pages/Dashboard.tsx?t=1768259835276:20:22)
+    at ProtectedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ProtectedRoute.tsx?t=1768259880988:5:42)
+    at RenderedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:6264:26)
+    at Routes (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7107:3)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performConcurrentWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18728
+workLoop @ chunk-IEWVK4NL.js?v=487839c9:197
+flushWork @ chunk-IEWVK4NL.js?v=487839c9:176
+performWorkUntilDeadline @ chunk-IEWVK4NL.js?v=487839c9:384
+lovable.js:1 Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?
+
+Check the render method of `ChatWidget`.
+    at Markdown (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-markdown.js?v=eb92b63c:11499:21)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at ChatWidget (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ChatWidget.tsx:15:38)
+    at div
+    at Dashboard (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/pages/Dashboard.tsx?t=1768259835276:20:22)
+    at ProtectedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ProtectedRoute.tsx?t=1768259880988:5:42)
+    at RenderedRoute (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:6264:26)
+    at Routes (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7107:3)
+    at AuthProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/contexts/AuthContext.tsx?t=1768259835276:6:32)
+    at Router (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:7048:13)
+    at BrowserRouter (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/react-router-dom.js?v=e120ea18:10154:3)
+    at ThemeProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/src/components/ThemeProvider.tsx?t=1768259835273:5:33)
+    at App
+    at QueryClientProvider (https://2507f1be-15c2-4df7-97a2-4b19e688c3cd.lovableproject.com/node_modules/.vite/deps/@tanstack_react-query.js?v=38e840f6:3089:3)
+console.<computed> @ lovable.js:1
+printWarning @ chunk-IEWVK4NL.js?v=487839c9:521
+error @ chunk-IEWVK4NL.js?v=487839c9:505
+validateFunctionComponentInDev @ chunk-IEWVK4NL.js?v=487839c9:15061
+mountIndeterminateComponent @ chunk-IEWVK4NL.js?v=487839c9:15036
+beginWork @ chunk-IEWVK4NL.js?v=487839c9:15962
+beginWork$1 @ chunk-IEWVK4NL.js?v=487839c9:19806
+performUnitOfWork @ chunk-IEWVK4NL.js?v=487839c9:19251
+workLoopSync @ chunk-IEWVK4NL.js?v=487839c9:19190
+renderRootSync @ chunk-IEWVK4NL.js?v=487839c9:19169
+performSyncWorkOnRoot @ chunk-IEWVK4NL.js?v=487839c9:18927
+flushSyncCallbacks @ chunk-IEWVK4NL.js?v=487839c9:9166
+(anonymous) @ chunk-IEWVK4NL.js?v=487839c9:18677

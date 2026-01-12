@@ -78,6 +78,12 @@ export async function generateSystemPrompt(
     if (userProfile) {
       prompt += buildUserProfileContext(userProfile);
     }
+
+    // Add remembered facts from user_preferences
+    const rememberedFacts = await fetchRememberedFacts(userId);
+    if (rememberedFacts.length > 0) {
+      prompt += `\n\nREMEMBERED FACTS ABOUT USER:\n${rememberedFacts.map(f => `- ${f}`).join('\n')}`;
+    }
   }
 
   // Add financial context if provided
@@ -101,22 +107,22 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
+
     // STEP 1: Resolve userId - it might be auth_user_id or internal users.id
     let internalUserId = userId;
-    
+
     // Check if this is an auth_user_id by looking for a matching record
     const { data: userByAuthId } = await supabase
       .from("users")
       .select("id, entity_type")
       .eq("auth_user_id", userId)
       .single();
-    
+
     if (userByAuthId) {
       // Found by auth_user_id, use the internal id
       internalUserId = userByAuthId.id;
       console.log(`[prompt-generator] Resolved auth_user_id to internal id: ${internalUserId}`);
-      
+
       // If we already have entity_type, use it directly
       if (userByAuthId.entity_type) {
         return { entityType: userByAuthId.entity_type };
@@ -246,4 +252,48 @@ function buildFinancialContext(context: UserContext): string {
   }
 
   return `\n\nUSER FINANCIAL CONTEXT (use this to personalize answers):\n${items.join("\n")}`;
+}
+
+/**
+ * Fetch remembered facts from user_preferences table
+ */
+async function fetchRememberedFacts(userId: string): Promise<string[]> {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !supabaseKey) {
+      return [];
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data } = await supabase
+      .from("user_preferences")
+      .select("remembered_facts, preferred_name, income_estimate")
+      .eq("user_id", userId)
+      .single();
+
+    if (!data) {
+      return [];
+    }
+
+    const facts: string[] = [];
+
+    if (data.preferred_name) {
+      facts.push(`User prefers to be called "${data.preferred_name}"`);
+    }
+
+    if (data.income_estimate) {
+      facts.push(`Estimated income: ₦${Number(data.income_estimate).toLocaleString()}`);
+    }
+
+    if (Array.isArray(data.remembered_facts)) {
+      facts.push(...data.remembered_facts);
+    }
+
+    return facts;
+  } catch {
+    return [];
+  }
 }
