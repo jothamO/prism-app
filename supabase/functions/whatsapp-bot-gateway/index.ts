@@ -22,8 +22,8 @@ if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_NUMBER_ID || !RAW_GATEWAY_URL) {
 }
 
 // Ensure URL has protocol prefix
-const RAILWAY_GATEWAY_URL = RAW_GATEWAY_URL.startsWith("http") 
-    ? RAW_GATEWAY_URL 
+const RAILWAY_GATEWAY_URL = RAW_GATEWAY_URL.startsWith("http")
+    ? RAW_GATEWAY_URL
     : `https://${RAW_GATEWAY_URL}`;
 
 // Initialize Supabase client
@@ -78,11 +78,57 @@ async function sendWhatsAppMessage(to: string, text: string, buttons?: { id: str
     return response.json();
 }
 
-// ============= Gateway Adapter =============
+// ============= Chat History =============
+
+async function getChatHistory(userId: string, limit: number = 6) {
+    const { data } = await supabase
+        .from('chat_messages')
+        .select('role, content')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    return (data || []).reverse();
+}
+
+async function storeMessage(userId: string, platform: string, role: string, content: string) {
+    await supabase.from('chat_messages').insert({
+        user_id: userId,
+        platform,
+        role,
+        content
+    });
+}
+
+// ============= Chat Assist Integration =============
+
+async function callChatAssist(message: string, userId: string): Promise<{ response: string }> {
+    const history = await getChatHistory(userId, 6);
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-assist`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({
+            message,
+            history,
+            context: { userId }
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`chat-assist failed: ${response.status}`);
+    }
+
+    return response.json();
+}
+
+// ============= Gateway Adapter (kept for document uploads) =============
 
 async function forwardToGateway(
-    userId: string, 
-    message: string, 
+    userId: string,
+    message: string,
     messageId: string,
     metadata?: Partial<GatewayMetadata>
 ) {
@@ -150,7 +196,6 @@ serve(async (req) => {
         if (body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {
             const message = body.entry[0].changes[0].value.messages[0];
             const from = message.from;
-            const messageId = message.id;
             let text = "";
 
             // Extract message text
@@ -160,33 +205,52 @@ serve(async (req) => {
                 text = message.interactive.button_reply.id;
             }
 
-            // Check if user exists and needs onboarding
+            // Check if user exists
             const { data: existingUser } = await supabase
                 .from('users')
-                .select('id, onboarding_completed')
+                .select('id')
                 .eq('whatsapp_id', from)
                 .single();
 
             const isNewUser = !existingUser;
-            const needsOnboarding = isNewUser || !existingUser?.onboarding_completed;
 
-            // Forward to Gateway with user status metadata
-            const gatewayResponse = await forwardToGateway(from, text, messageId, {
-                needsOnboarding,
-                isNewUser
-            });
-
-            // Convert Telegram-style buttons to WhatsApp format
-            let whatsappButtons = undefined;
-            if (gatewayResponse.buttons && gatewayResponse.buttons.length > 0) {
-                whatsappButtons = gatewayResponse.buttons.flat().slice(0, 3).map((btn: any) => ({
-                    id: btn.callback_data,
-                    title: btn.text.substring(0, 20) // WhatsApp button title max 20 chars
-                }));
+            // Unregistered users on greeting: prompt to register
+            if (isNewUser && (text.toLowerCase() === 'hi' || text.toLowerCase() === 'hello')) {
+                await sendWhatsAppMessage(from,
+                    "👋 Welcome to PRISM Tax Assistant!\n\n" +
+                    "Please register at https://prism.tax to get started."
+                );
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
             }
 
-            // Send response back to WhatsApp
-            await sendWhatsAppMessage(from, gatewayResponse.message, whatsappButtons);
+            // All other messages: use chat-assist directly
+            try {
+                const userId = existingUser?.id || from;
+
+                // Store user message if registered
+                if (existingUser?.id) {
+                    await storeMessage(existingUser.id, 'whatsapp', 'user', text);
+                }
+
+                // Call chat-assist with conversation history
+                const aiResponse = await callChatAssist(text, userId);
+
+                // Store assistant response if registered
+                if (existingUser?.id) {
+                    await storeMessage(existingUser.id, 'whatsapp', 'assistant', aiResponse.response);
+                }
+
+                // Send response (WhatsApp uses plain text, no HTML conversion needed)
+                await sendWhatsAppMessage(from, aiResponse.response);
+
+            } catch (error) {
+                console.error('[WhatsApp] chat-assist error:', error);
+                await sendWhatsAppMessage(from,
+                    "I'm having trouble connecting right now. Please try again."
+                );
+            }
 
             return new Response(JSON.stringify({ ok: true }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },

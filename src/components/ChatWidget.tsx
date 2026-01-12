@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
     MessageSquare,
     X,
@@ -150,11 +151,17 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
                                 )}
                                 <div
                                     className={`max-w-[80%] px-3 py-2 rounded-lg text-sm ${msg.role === 'user'
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-gray-100 text-gray-800'
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'bg-gray-100 text-gray-800'
                                         }`}
                                 >
-                                    {msg.content}
+                                    {msg.role === 'assistant' ? (
+                                        <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:mt-1 [&>ol]:mt-1">
+                                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                        </div>
+                                    ) : (
+                                        msg.content
+                                    )}
                                 </div>
                                 {msg.role === 'user' && (
                                     <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center">

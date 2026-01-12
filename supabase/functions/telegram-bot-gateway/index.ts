@@ -76,6 +76,74 @@ async function sendChatAction(chatId: number, action: string = "upload_document"
     });
 }
 
+async function removeButtons(chatId: number, messageId: number) {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: { inline_keyboard: [] }
+        })
+    });
+}
+
+// ============= Markdown to Telegram HTML =============
+
+function toTelegramHTML(markdown: string): string {
+    return markdown
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+        .replace(/\*(.*?)\*/g, '<i>$1</i>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/\n\n/g, '\n\n');
+}
+
+// ============= Chat History =============
+
+async function getChatHistory(userId: string, limit: number = 6) {
+    const { data } = await supabase
+        .from('chat_messages')
+        .select('role, content')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    return (data || []).reverse();
+}
+
+async function storeMessage(userId: string, platform: string, role: string, content: string) {
+    await supabase.from('chat_messages').insert({
+        user_id: userId,
+        platform,
+        role,
+        content
+    });
+}
+
+// ============= Chat Assist Integration =============
+
+async function callChatAssist(message: string, userId: string): Promise<{ response: string }> {
+    const history = await getChatHistory(userId, 6);
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-assist`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({
+            message,
+            history,
+            context: { userId }
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`chat-assist failed: ${response.status}`);
+    }
+
+    return response.json();
+}
+
 // ============= File Handling =============
 
 async function getFileInfo(fileId: string): Promise<{ file_path: string; file_size: number } | null> {
@@ -530,7 +598,7 @@ serve(async (req) => {
 
             // ============= REGULAR MESSAGE HANDLING =============
 
-            // Check if user exists and needs onboarding
+            // Check if user exists
             const { data: existingUser } = await supabase
                 .from('users')
                 .select('id, onboarding_completed')
@@ -538,59 +606,50 @@ serve(async (req) => {
                 .single();
 
             const isNewUser = !existingUser;
-            const needsOnboarding = isNewUser || !existingUser?.onboarding_completed;
 
-            // Helper function to check if message is a greeting
-            const isGreeting = /^(hi|hello|hey|morning|afternoon|evening|wetin|good\s*(morning|afternoon|evening))/i.test(text.toLowerCase());
-            const isStartOrGreeting = text === '/start' || isGreeting;
-
-            // For unregistered users: only show registration prompt for /start or greetings
-            // Let substantive questions through to Gateway for AI handling
-            if ((isNewUser || needsOnboarding) && isStartOrGreeting) {
-                if (text === '/start') {
-                    await sendMessage(chatId,
-                        `👋 <b>Welcome to PRISM Tax Assistant!</b>\n\n` +
-                        `To get started, please register on our website first. ` +
-                        `You'll be redirected back here to complete setup.\n\n` +
-                        `🌐 <b>Register at:</b> https://prism.tax`,
-                        [[{ text: '🔗 Register Now', callback_data: 'open_registration' }]]
-                    );
-                } else {
-                    await sendMessage(chatId,
-                        `👋 Hello! To unlock all features, please register at https://prism.tax\n\n` +
-                        `But feel free to ask me tax questions in the meantime!`,
-                        [[{ text: '🔗 Register', callback_data: 'open_registration' }]]
-                    );
-                }
+            // Unregistered users: prompt to register on web
+            if (isNewUser && text === '/start') {
+                await sendMessage(chatId,
+                    `👋 <b>Welcome to PRISM Tax Assistant!</b>\n\n` +
+                    `Please register at https://prism.tax to get started.\n\n` +
+                    `Once registered, come back here to chat!`,
+                    [[{ text: '🔗 Register Now', callback_data: 'open_registration' }]]
+                );
                 return new Response(JSON.stringify({ ok: true }), {
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
             }
 
-            // For substantive questions from any user, forward to Gateway
-            // Pass user state so Gateway can personalize response
+            // All other messages: use chat-assist directly
+            try {
+                await sendChatAction(chatId, "typing");
 
-            // Fetch onboarding mode from system settings
-            const { data: systemSettings } = await supabase
-                .from('system_settings')
-                .select('onboarding_mode')
-                .limit(1)
-                .single();
+                // Get user's DB ID for chat history (use telegram_id if no user record)
+                const userId = existingUser?.id || telegramId;
 
-            // Convert string mode to boolean for Gateway compatibility
-            const aiMode = systemSettings?.onboarding_mode === 'ai';
-            console.log(`[Telegram] Onboarding mode: ${systemSettings?.onboarding_mode} -> aiMode: ${aiMode}`);
+                // Store user message
+                if (existingUser?.id) {
+                    await storeMessage(existingUser.id, 'telegram', 'user', text);
+                }
 
-            // Forward to Gateway - pass actual user state so Gateway can personalize
-            const gatewayResponse = await forwardToGateway(telegramId, text, message.message_id, {
-                needsOnboarding,
-                isNewUser,
-                userName: message.from?.first_name,
-                aiMode
-            });
+                // Call chat-assist with conversation history
+                const aiResponse = await callChatAssist(text, userId);
 
-            // Send response back to Telegram
-            await sendMessage(chatId, gatewayResponse.message, gatewayResponse.buttons);
+                // Store assistant response
+                if (existingUser?.id) {
+                    await storeMessage(existingUser.id, 'telegram', 'assistant', aiResponse.response);
+                }
+
+                // Convert markdown to Telegram HTML and send
+                const htmlResponse = toTelegramHTML(aiResponse.response);
+                await sendMessage(chatId, htmlResponse);
+
+            } catch (error) {
+                console.error('[Telegram] chat-assist error:', error);
+                await sendMessage(chatId,
+                    "I'm having trouble connecting right now. Please try again in a moment."
+                );
+            }
 
             return new Response(JSON.stringify({ ok: true }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -601,16 +660,40 @@ serve(async (req) => {
         if (update.callback_query) {
             const callbackQuery = update.callback_query;
             const chatId = callbackQuery.message.chat.id;
+            const messageId = callbackQuery.message.message_id;
             const telegramId = String(callbackQuery.from.id);
             const data = callbackQuery.data;
 
+            // Acknowledge callback and remove buttons from old message
             await answerCallbackQuery(callbackQuery.id);
+            await removeButtons(chatId, messageId);
 
-            // Forward to Gateway
-            const gatewayResponse = await forwardToGateway(telegramId, data, callbackQuery.id);
+            // Handle special callbacks
+            if (data === 'open_registration') {
+                await sendMessage(chatId,
+                    "🔗 Register at: https://prism.tax\n\nOnce registered, come back here!"
+                );
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
 
-            // Send response
-            await sendMessage(chatId, gatewayResponse.message, gatewayResponse.buttons);
+            // For other callbacks, treat as a message to chat-assist
+            try {
+                const { data: existingUser } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('telegram_id', telegramId)
+                    .single();
+
+                const userId = existingUser?.id || telegramId;
+                const aiResponse = await callChatAssist(data, userId);
+                const htmlResponse = toTelegramHTML(aiResponse.response);
+                await sendMessage(chatId, htmlResponse);
+            } catch (error) {
+                console.error('[Telegram] Callback error:', error);
+                await sendMessage(chatId, "Something went wrong. Please try again.");
+            }
 
             return new Response(JSON.stringify({ ok: true }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
