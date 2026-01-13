@@ -15,6 +15,13 @@ import { taxCalculationSkill } from './tax-calculation';
 import { identityVerificationSkill } from './identity-verification';
 import { receiptProcessingSkill } from './receipt-processing';
 import { enhancedOnboardingSkill } from './enhanced-onboarding';
+// New tax skills per NTA 2025
+import { corporateTaxSkill } from './corporate-tax';
+import { withholdingTaxSkill } from './withholding-tax';
+import { capitalGainsSkill } from './capital-gains';
+import { stampDutiesSkill } from './stamp-duties';
+import { developmentLevySkill } from './development-levy';
+import { minimumETRSkill } from './minimum-etr';
 
 // Import NLU and context services
 import { nluService, NLUResult, NLUIntent } from '../services/nlu.service';
@@ -79,6 +86,43 @@ export class SkillRouter {
                 this.matchesPattern(lowerMessage, /calculate.*tax|income tax|paye/i)) {
                 logger.info('[Router] Pattern match: Tax calculation', { userId });
                 return await taxCalculationSkill.handle(message, context);
+            }
+
+            // Corporate Tax: "corporate tax 50000000" or "CIT"
+            if (this.matchesPattern(lowerMessage, /\b(corporate|company|cit)\s*(income\s*)?tax\b/i) ||
+                this.matchesPattern(lowerMessage, /^cit\s+\d/i)) {
+                logger.info('[Router] Pattern match: Corporate Tax', { userId });
+                return await corporateTaxSkill.handle(message, context);
+            }
+
+            // Withholding Tax: "WHT dividend 5000000"
+            if (this.matchesPattern(lowerMessage, /\b(withholding|wht|deduct(ed)?\s*at\s*source)\b/i)) {
+                logger.info('[Router] Pattern match: Withholding Tax', { userId });
+                return await withholdingTaxSkill.handle(message, context);
+            }
+
+            // Capital Gains: "sold property for 25M cost 15M"
+            if (this.matchesPattern(lowerMessage, /\b(capital\s*gains?|sold\s*(property|asset|land|house)|disposal)\b/i)) {
+                logger.info('[Router] Pattern match: Capital Gains', { userId });
+                return await capitalGainsSkill.handle(message, context);
+            }
+
+            // Stamp Duties: "stamp duty property 50000000"
+            if (this.matchesPattern(lowerMessage, /\bstamp\s*dut(y|ies)\b/i)) {
+                logger.info('[Router] Pattern match: Stamp Duties', { userId });
+                return await stampDutiesSkill.handle(message, context);
+            }
+
+            // Development Levy: "development levy 100000000"
+            if (this.matchesPattern(lowerMessage, /\b(development|education)\s*levy\b/i)) {
+                logger.info('[Router] Pattern match: Development Levy', { userId });
+                return await developmentLevySkill.handle(message, context);
+            }
+
+            // Minimum ETR: "minimum tax profit 500M"
+            if (this.matchesPattern(lowerMessage, /\b(minimum\s*(effective\s*)?tax|15%\s*minimum|top.?up\s*tax|etr)\b/i)) {
+                logger.info('[Router] Pattern match: Minimum ETR', { userId });
+                return await minimumETRSkill.handle(message, context);
             }
 
             // ===== PRIORITY 3: Check if user needs onboarding =====
