@@ -105,6 +105,7 @@ function UserActionMenu({
     { label: "View Profile", icon: Eye, action: "view" },
     { label: "Send Message", icon: MessageSquare, action: "message" },
     { label: "Clear Session", icon: RefreshCw, action: "reset-session" },
+    { label: "Clear All Platforms", icon: RefreshCw, action: "clear-all-platforms" },
     { label: "Reset Onboarding", icon: RefreshCw, action: "reset-onboarding" },
     { 
       label: user.status === "suspended" ? "Unblock User" : "Block User", 
@@ -368,6 +369,38 @@ export default function AdminUsers() {
         } catch (error) {
           console.error("Error clearing session:", error);
           toast({ title: "Error", description: "Failed to clear session", variant: "destructive" });
+        }
+        break;
+      
+      case 'clear-all-platforms':
+        try {
+          // Use edge function for comprehensive cross-platform session clearing
+          const { data, error } = await supabase.functions.invoke('admin-bot-messaging', {
+            body: {
+              action: 'clear-sessions-all-platforms',
+              userId: user.id,
+              clearOptions: {
+                database: true,
+                chatHistory: true,
+                gatewayCache: true,
+              },
+            },
+          });
+
+          if (error) throw error;
+          
+          if (!data?.success) {
+            throw new Error(data?.error || 'Failed to clear sessions');
+          }
+
+          const clearedItems = (data.cleared as string[])?.join(', ') || 'all platforms';
+          toast({ 
+            title: "All Sessions Cleared", 
+            description: `Cleared for ${user.name}: ${clearedItems}${data.note ? `. Note: ${data.note}` : ''}` 
+          });
+        } catch (error) {
+          console.error("Error clearing all platform sessions:", error);
+          toast({ title: "Error", description: "Failed to clear sessions", variant: "destructive" });
         }
         break;
       

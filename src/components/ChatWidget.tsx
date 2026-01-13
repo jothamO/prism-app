@@ -9,6 +9,7 @@ import {
     User,
     Minimize2,
     Maximize2,
+    Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -149,6 +150,20 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
                     <span className="font-semibold">PRISM AI</span>
                 </div>
                 <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => {
+                            // Clear chat history from sessionStorage
+                            sessionStorage.removeItem('prism_chat_history');
+                            setMessages([{
+                                role: 'assistant',
+                                content: "Hi! I'm PRISM, your Nigerian tax assistant. 👋 Ask me anything about your taxes, transactions, or financial obligations!",
+                            }]);
+                        }}
+                        className="p-1 hover:bg-indigo-500 rounded"
+                        title="Clear chat"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
                     <button
                         onClick={() => setIsMinimized(!isMinimized)}
                         className="p-1 hover:bg-indigo-500 rounded"

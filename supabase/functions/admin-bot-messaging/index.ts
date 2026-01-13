@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface ClearOptions {
+  database?: boolean;
+  chatHistory?: boolean;
+  gatewayCache?: boolean;
+}
+
 interface BotRequest {
   action: 
     | "broadcast" 
@@ -15,6 +21,7 @@ interface BotRequest {
     | "update-commands"
     | "clear-user-data"
     | "clear-all-states"
+    | "clear-sessions-all-platforms"
     | "get-recent-errors"
     | "verify-user"
     | "request-reverify"
@@ -25,6 +32,7 @@ interface BotRequest {
   userId?: string;
   enabled?: boolean;
   clearOption?: "state" | "messages" | "onboarding" | "full";
+  clearOptions?: ClearOptions;
   subscriptionTier?: "free" | "basic" | "pro" | "enterprise";
   filters?: {
     entityType?: string;
@@ -111,7 +119,7 @@ Deno.serve(async (req) => {
     console.log("[admin-bot-messaging] Admin verified");
 
     const body: BotRequest = await req.json();
-    const { action, message, platform, userId, filters, enabled, clearOption } = body;
+    const { action, message, platform, userId, filters, enabled, clearOption, clearOptions } = body;
 
     console.log(`[admin-bot-messaging] Processing action: ${action}, Platform: ${platform}`);
 
@@ -344,6 +352,135 @@ Deno.serve(async (req) => {
       console.log(`[admin-bot-messaging] Cleared for user ${userId}: ${cleared.join(", ")}`);
       return new Response(
         JSON.stringify({ success: true, cleared }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================== CLEAR SESSIONS ALL PLATFORMS ====================
+    if (action === "clear-sessions-all-platforms") {
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "User ID required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      console.log(`[admin-bot-messaging] Clearing all platform sessions for user ${userId}`);
+      
+      // Get user platform IDs (check both users table and auth)
+      const { data: userData } = await supabaseClient
+        .from("users")
+        .select("telegram_id, whatsapp_id, auth_user_id")
+        .eq("id", userId)
+        .single();
+
+      // Also try looking up by auth_user_id
+      const { data: userByAuth } = await supabaseClient
+        .from("users")
+        .select("id, telegram_id, whatsapp_id")
+        .eq("auth_user_id", userId)
+        .single();
+
+      const cleared: string[] = [];
+      const telegramId = userData?.telegram_id || userByAuth?.telegram_id;
+      const whatsappId = userData?.whatsapp_id || userByAuth?.whatsapp_id;
+      const internalUserId = userByAuth?.id || userId;
+
+      // 1. Clear database sessions (chatbot_sessions)
+      if (!clearOptions || clearOptions.database !== false) {
+        const sessionIds = [userId, internalUserId, telegramId, whatsappId].filter(Boolean) as string[];
+        
+        for (const sessionId of sessionIds) {
+          await supabaseClient
+            .from("chatbot_sessions")
+            .delete()
+            .eq("user_id", sessionId);
+        }
+        
+        // Also clear conversation_state
+        if (telegramId) {
+          await supabaseClient
+            .from("conversation_state")
+            .update({ expecting: null, context: {} })
+            .eq("telegram_id", telegramId);
+        }
+        if (whatsappId) {
+          await supabaseClient
+            .from("conversation_state")
+            .update({ expecting: null, context: {} })
+            .eq("whatsapp_id", whatsappId);
+        }
+        
+        cleared.push("database_sessions");
+      }
+
+      // 2. Clear chat history (chat_messages from web chat)
+      if (!clearOptions || clearOptions.chatHistory !== false) {
+        await supabaseClient
+          .from("chat_messages")
+          .delete()
+          .eq("user_id", userId);
+        
+        // Also try internal user id
+        if (internalUserId !== userId) {
+          await supabaseClient
+            .from("chat_messages")
+            .delete()
+            .eq("user_id", internalUserId);
+        }
+        
+        cleared.push("chat_history");
+      }
+
+      // 3. Clear Gateway in-memory cache (if RAILWAY_GATEWAY_URL is set)
+      if (!clearOptions || clearOptions.gatewayCache !== false) {
+        const gatewayUrl = Deno.env.get("RAILWAY_GATEWAY_URL");
+        
+        if (gatewayUrl) {
+          try {
+            // Clear for each platform ID
+            if (telegramId) {
+              await fetch(`${gatewayUrl}/sessions/${telegramId}/telegram`, { 
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+              });
+            }
+            if (whatsappId) {
+              await fetch(`${gatewayUrl}/sessions/${whatsappId}/whatsapp`, { 
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+              });
+            }
+            cleared.push("gateway_cache");
+          } catch (gatewayError) {
+            console.error("[admin-bot-messaging] Failed to clear gateway cache:", gatewayError);
+            // Don't fail the whole operation, just note it
+            cleared.push("gateway_cache_failed");
+          }
+        } else {
+          cleared.push("gateway_cache_skipped_no_url");
+        }
+      }
+
+      // Log audit
+      await supabaseClient.from("audit_log").insert({
+        admin_id: user.id,
+        user_id: userId,
+        action: "sessions_cleared_all_platforms",
+        entity_type: "user",
+        entity_id: userId,
+        new_values: { cleared, clearOptions },
+      });
+
+      console.log(`[admin-bot-messaging] Cleared for user ${userId}: ${cleared.join(", ")}`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          cleared,
+          note: cleared.includes("gateway_cache_skipped_no_url") 
+            ? "Gateway cache will auto-expire in up to 30 minutes" 
+            : undefined
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
