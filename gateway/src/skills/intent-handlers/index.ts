@@ -10,6 +10,7 @@ import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
 import type { NLUIntent } from '../../services/nlu.service';
 import { getReliefs, getDeadlines, formatNaira, buildTaxRulesSummary } from '../../services/rules-fetcher';
+import { getFactExtractor } from '../../services/conversation-fact-extractor';
 import config from '../../config';
 
 export interface IntentHandlerResult {
@@ -302,6 +303,14 @@ export async function handleGeneralQueryWithAI(
     }
 
     try {
+        // Extract and store facts from user message (async, non-blocking)
+        // Uses internal users.id from context.userId
+        if (context.userId) {
+            getFactExtractor().extractAndStore(context.userId, message).catch(err => {
+                logger.error('[IntentHandlers] Fact extraction failed:', err);
+            });
+        }
+
         // Build Nigerian tax-aware system prompt with dynamic rules from database
         const systemPrompt = await buildConversationalPromptAsync(context, timeOfDay);
 
