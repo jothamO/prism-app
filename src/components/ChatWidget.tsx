@@ -10,10 +10,12 @@ import {
     Minimize2,
     Maximize2,
     Trash2,
+    Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+import { printChatAsPDF } from '@/utils/chat-export';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -163,6 +165,13 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
                         title="Clear chat"
                     >
                         <Trash2 className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={() => printChatAsPDF(messages)}
+                        className="p-1 hover:bg-indigo-500 rounded"
+                        title="Export as PDF"
+                    >
+                        <Download className="h-4 w-4" />
                     </button>
                     <button
                         onClick={() => setIsMinimized(!isMinimized)}
