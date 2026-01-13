@@ -1690,6 +1690,7 @@ export type Database = {
       }
       document_processing_jobs: {
         Row: {
+          api_key_id: string | null
           attempts: number | null
           completed_at: string | null
           created_at: string | null
@@ -1708,8 +1709,11 @@ export type Database = {
           statement_id: string | null
           updated_at: string | null
           user_id: string
+          webhook_sent: boolean | null
+          webhook_url: string | null
         }
         Insert: {
+          api_key_id?: string | null
           attempts?: number | null
           completed_at?: string | null
           created_at?: string | null
@@ -1728,8 +1732,11 @@ export type Database = {
           statement_id?: string | null
           updated_at?: string | null
           user_id: string
+          webhook_sent?: boolean | null
+          webhook_url?: string | null
         }
         Update: {
+          api_key_id?: string | null
           attempts?: number | null
           completed_at?: string | null
           created_at?: string | null
@@ -1748,8 +1755,17 @@ export type Database = {
           statement_id?: string | null
           updated_at?: string | null
           user_id?: string
+          webhook_sent?: boolean | null
+          webhook_url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "document_processing_jobs_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "document_processing_jobs_statement_id_fkey"
             columns: ["statement_id"]
@@ -4275,6 +4291,15 @@ export type Database = {
           id: string
           item_pattern: string
           similarity: number
+        }[]
+      }
+      get_api_usage_stats: {
+        Args: { p_key_id: string }
+        Returns: {
+          avg_response_ms: number
+          date: string
+          error_count: number
+          request_count: number
         }[]
       }
       get_profile_confidence_trend: {
