@@ -249,6 +249,66 @@ export type Database = {
           },
         ]
       }
+      api_payments: {
+        Row: {
+          amount_kobo: number
+          api_subscription_id: string | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          metadata: Json | null
+          paid_at: string | null
+          payment_method: string | null
+          paystack_reference: string
+          status: string
+          tier: string
+          user_id: string
+        }
+        Insert: {
+          amount_kobo: number
+          api_subscription_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_method?: string | null
+          paystack_reference: string
+          status: string
+          tier: string
+          user_id: string
+        }
+        Update: {
+          amount_kobo?: number
+          api_subscription_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_method?: string | null
+          paystack_reference?: string
+          status?: string
+          tier?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_payments_api_subscription_id_fkey"
+            columns: ["api_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "api_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_rate_limits: {
         Row: {
           api_key_id: string
@@ -274,6 +334,59 @@ export type Database = {
             columns: ["api_key_id"]
             isOneToOne: false
             referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          paystack_customer_code: string | null
+          paystack_plan_code: string | null
+          paystack_subscription_code: string | null
+          status: string
+          tier: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          paystack_customer_code?: string | null
+          paystack_plan_code?: string | null
+          paystack_subscription_code?: string | null
+          status?: string
+          tier?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          paystack_customer_code?: string | null
+          paystack_plan_code?: string | null
+          paystack_subscription_code?: string | null
+          status?: string
+          tier?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -3855,6 +3968,7 @@ export type Database = {
           occupation: string | null
           onboarding_completed: boolean | null
           onboarding_step: number | null
+          paystack_customer_code: string | null
           phone: string | null
           platform: string | null
           primary_tax_category: string | null
@@ -3923,6 +4037,7 @@ export type Database = {
           occupation?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          paystack_customer_code?: string | null
           phone?: string | null
           platform?: string | null
           primary_tax_category?: string | null
@@ -3991,6 +4106,7 @@ export type Database = {
           occupation?: string | null
           onboarding_completed?: boolean | null
           onboarding_step?: number | null
+          paystack_customer_code?: string | null
           phone?: string | null
           platform?: string | null
           primary_tax_category?: string | null
