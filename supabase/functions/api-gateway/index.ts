@@ -22,6 +22,12 @@ interface APIKey {
     user_id: string;
 }
 
+interface SubscriptionStatus {
+    tier: string;
+    status: string;
+    is_valid: boolean;
+}
+
 interface RateLimitResult {
     allowed: boolean;
     minute_remaining: number;
@@ -80,6 +86,19 @@ serve(async (req) => {
         }
 
         const apiKeyRecord = keyData as APIKey;
+
+        // 2b. Validate subscription for paid tiers
+        if (apiKeyRecord.tier !== 'free') {
+            const subscriptionStatus = await validateSubscription(supabase, apiKeyRecord.user_id, apiKeyRecord.tier);
+            if (!subscriptionStatus.is_valid) {
+                return jsonResponse({
+                    error: 'Subscription required for this tier',
+                    code: 'SUBSCRIPTION_REQUIRED',
+                    message: `Your ${apiKeyRecord.tier} subscription is ${subscriptionStatus.status}. Please update your subscription to continue using this API key.`,
+                    current_status: subscriptionStatus.status
+                }, 403);
+            }
+        }
 
         // 3. Check rate limits
         const { data: rateLimitData } = await supabase
@@ -455,6 +474,46 @@ async function logUsage(
     } catch (e) {
         console.error('[API Gateway] Failed to log usage:', e);
     }
+}
+
+/**
+ * Validate user subscription for paid tiers
+ */
+async function validateSubscription(
+    supabase: any,
+    userId: string,
+    requiredTier: string
+): Promise<SubscriptionStatus> {
+    const { data: subscription, error } = await supabase
+        .from('api_subscriptions')
+        .select('tier, status, current_period_end')
+        .eq('user_id', userId)
+        .single();
+
+    if (error || !subscription) {
+        return { tier: 'free', status: 'none', is_valid: false };
+    }
+
+    // Check if subscription is active and not expired
+    const isActive = subscription.status === 'active';
+    const isNotExpired = !subscription.current_period_end || 
+        new Date(subscription.current_period_end) > new Date();
+    
+    // Check tier hierarchy (enterprise > business > starter > free)
+    const tierHierarchy: Record<string, number> = {
+        'free': 0,
+        'starter': 1,
+        'business': 2,
+        'enterprise': 3
+    };
+    
+    const hasSufficientTier = tierHierarchy[subscription.tier] >= tierHierarchy[requiredTier];
+
+    return {
+        tier: subscription.tier,
+        status: subscription.status,
+        is_valid: isActive && isNotExpired && hasSufficientTier
+    };
 }
 
 /**
