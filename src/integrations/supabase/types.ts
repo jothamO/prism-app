@@ -4395,6 +4395,7 @@ export type Database = {
         }[]
       }
       cleanup_api_rate_limits: { Args: never; Returns: undefined }
+      downgrade_expired_subscriptions: { Args: never; Returns: number }
       find_similar_pattern: {
         Args: {
           p_business_id: string
@@ -4435,6 +4436,16 @@ export type Database = {
           notification_config: Json
           recurrence: string
           title: string
+        }[]
+      }
+      get_user_api_usage_summary: {
+        Args: { p_user_id: string }
+        Returns: {
+          daily_limit: number
+          monthly_limit: number
+          tier: string
+          total_requests_month: number
+          total_requests_today: number
         }[]
       }
       has_role: {
