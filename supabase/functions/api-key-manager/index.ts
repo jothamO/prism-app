@@ -36,11 +36,11 @@ serve(async (req) => {
             return jsonResponse({ error: 'Invalid token' }, 401);
         }
 
-        // Look up the user in the public.users table by auth_id
+        // Look up the user in the public.users table by email
         const { data: publicUser } = await supabase
             .from('users')
             .select('id')
-            .eq('auth_id', user.id)
+            .eq('email', user.email)
             .single();
 
         if (!publicUser) {
