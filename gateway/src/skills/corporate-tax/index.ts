@@ -43,12 +43,12 @@ export class CorporateTaxSkill {
             const turnoverThreshold = await getThreshold('SMALL_COMPANY_TURNOVER');
             const assetsThreshold = await getThreshold('SMALL_COMPANY_ASSETS');
 
-            this.smallCompanyTurnoverCache = turnoverThreshold?.limit ?? FALLBACK_SMALL_COMPANY_TURNOVER;
-            this.smallCompanyAssetsCache = assetsThreshold?.limit ?? FALLBACK_SMALL_COMPANY_ASSETS;
+            const turnover = turnoverThreshold?.limit ?? FALLBACK_SMALL_COMPANY_TURNOVER;
+            const assets = assetsThreshold?.limit ?? FALLBACK_SMALL_COMPANY_ASSETS;
+            
+            this.smallCompanyTurnoverCache = turnover;
+            this.smallCompanyAssetsCache = assets;
             this.cacheTimestamp = Date.now();
-
-            const turnover = this.smallCompanyTurnoverCache;
-            const assets = this.smallCompanyAssetsCache;
 
             return { turnover, assets };
         } catch (error) {

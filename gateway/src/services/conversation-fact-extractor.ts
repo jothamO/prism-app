@@ -4,9 +4,12 @@
  * Extracts durable facts from user messages and stores them
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger';
 import config from '../config';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySupabaseClient = SupabaseClient<any, any, any>;
 
 interface ExtractedFacts {
     entityType: string | null;
@@ -16,10 +19,10 @@ interface ExtractedFacts {
 }
 
 export class ConversationFactExtractor {
-    private supabase: ReturnType<typeof createClient>;
+    private supabase: AnySupabaseClient;
 
     constructor() {
-        this.supabase = createClient(config.supabase.url, config.supabase.serviceKey);
+        this.supabase = createClient(config.supabase.url, config.supabase.serviceKey) as AnySupabaseClient;
     }
 
     /**
