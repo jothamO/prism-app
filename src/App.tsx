@@ -58,6 +58,7 @@ import AdminEducation from "./pages/admin/AdminEducation";
 import AdminTaxCalendar from "./pages/admin/AdminTaxCalendar";
 import AcceptInvite from "./pages/AcceptInvite";
 import AwaitingApproval from "./pages/AwaitingApproval";
+import DeveloperPortal from "./pages/DeveloperPortal";
 
 function App() {
   return (
@@ -165,6 +166,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Projects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/developers"
+              element={
+                <ProtectedRoute>
+                  <DeveloperPortal />
                 </ProtectedRoute>
               }
             />
