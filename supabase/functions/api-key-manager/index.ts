@@ -36,6 +36,17 @@ serve(async (req) => {
             return jsonResponse({ error: 'Invalid token' }, 401);
         }
 
+        // Look up the user in the public.users table by auth_id
+        const { data: publicUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_id', user.id)
+            .single();
+
+        if (!publicUser) {
+            return jsonResponse({ error: 'User profile not found. Please complete registration first.' }, 404);
+        }
+
         const { action, key_id, tier, name, environment } = await req.json();
 
         switch (action) {
@@ -48,7 +59,7 @@ serve(async (req) => {
                 const { data, error } = await supabase
                     .from('api_keys')
                     .insert({
-                        user_id: user.id,
+                        user_id: publicUser.id,
                         key_hash: keyHash,
                         key_prefix: keyPrefix,
                         name: name || 'Default Key',
@@ -75,7 +86,7 @@ serve(async (req) => {
                 const { data, error } = await supabase
                     .from('api_keys')
                     .select('id, key_prefix, name, tier, environment, is_active, last_used_at, created_at')
-                    .eq('user_id', user.id)
+                    .eq('user_id', publicUser.id)
                     .order('created_at', { ascending: false });
 
                 if (error) {
@@ -94,7 +105,7 @@ serve(async (req) => {
                     .from('api_keys')
                     .update({ is_active: false })
                     .eq('id', key_id)
-                    .eq('user_id', user.id);
+                    .eq('user_id', publicUser.id);
 
                 if (error) {
                     return jsonResponse({ error: error.message }, 400);
@@ -113,7 +124,7 @@ serve(async (req) => {
                     .from('api_keys')
                     .select('tier, environment, name')
                     .eq('id', key_id)
-                    .eq('user_id', user.id)
+                    .eq('user_id', publicUser.id)
                     .single();
 
                 if (!existing) {
@@ -134,7 +145,7 @@ serve(async (req) => {
                 const { data, error } = await supabase
                     .from('api_keys')
                     .insert({
-                        user_id: user.id,
+                        user_id: publicUser.id,
                         key_hash: keyHash,
                         key_prefix: keyPrefix,
                         name: existing.name + ' (rotated)',
