@@ -36,6 +36,32 @@ async function extractAndStoreFacts(userId: string, message: string): Promise<vo
         if (!supabaseUrl || !supabaseKey || !userId) return;
 
         const supabase = createClient(supabaseUrl, supabaseKey);
+
+        // Resolve auth_user_id to internal users.id (same fix as prompt-generator)
+        let internalUserId = userId;
+        const { data: userByAuthId } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_user_id', userId)
+            .single();
+
+        if (userByAuthId) {
+            internalUserId = userByAuthId.id;
+            console.log('[chat-assist] Resolved auth_user_id to internal id:', internalUserId);
+        } else {
+            // Try direct lookup in case userId is already an internal ID
+            const { data: userDirect } = await supabase
+                .from('users')
+                .select('id')
+                .eq('id', userId)
+                .single();
+
+            if (!userDirect) {
+                console.log('[chat-assist] User not found for fact extraction:', userId);
+                return;
+            }
+        }
+
         const lowerMessage = message.toLowerCase();
         const factsToAdd: string[] = [];
         let entityType: string | null = null;
@@ -85,19 +111,19 @@ async function extractAndStoreFacts(userId: string, message: string): Promise<vo
             return;
         }
 
-        // Get existing preferences
+        // Get existing preferences using resolved internal ID
         const { data: existing } = await supabase
             .from('user_preferences')
             .select('remembered_facts')
-            .eq('user_id', userId)
+            .eq('user_id', internalUserId)
             .single();
 
         const existingFacts: string[] = existing?.remembered_facts || [];
         const newFacts = [...new Set([...existingFacts, ...factsToAdd])]; // Dedupe
 
-        // Upsert preferences
+        // Upsert preferences using internal ID
         const updates: Record<string, unknown> = {
-            user_id: userId,
+            user_id: internalUserId,
             remembered_facts: newFacts,
             updated_at: new Date().toISOString(),
         };
@@ -114,10 +140,10 @@ async function extractAndStoreFacts(userId: string, message: string): Promise<vo
             await supabase
                 .from('users')
                 .update({ entity_type: entityType })
-                .eq('id', userId);
+                .eq('id', internalUserId);
         }
 
-        console.log('[chat-assist] Stored facts:', factsToAdd);
+        console.log('[chat-assist] Stored facts for user', internalUserId, ':', factsToAdd);
     } catch (error) {
         console.error('[chat-assist] Fact extraction error:', error);
         // Don't fail the request if fact storage fails
