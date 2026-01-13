@@ -184,6 +184,194 @@ export type Database = {
         }
         Relationships: []
       }
+      api_keys: {
+        Row: {
+          can_access_documents: boolean | null
+          can_access_ocr: boolean | null
+          can_use_webhooks: boolean | null
+          created_at: string | null
+          environment: string
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string | null
+          rate_limit_per_day: number | null
+          rate_limit_per_min: number | null
+          tier: string
+          user_id: string
+        }
+        Insert: {
+          can_access_documents?: boolean | null
+          can_access_ocr?: boolean | null
+          can_use_webhooks?: boolean | null
+          created_at?: string | null
+          environment?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name?: string | null
+          rate_limit_per_day?: number | null
+          rate_limit_per_min?: number | null
+          tier?: string
+          user_id: string
+        }
+        Update: {
+          can_access_documents?: boolean | null
+          can_access_ocr?: boolean | null
+          can_use_webhooks?: boolean | null
+          created_at?: string | null
+          environment?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string | null
+          rate_limit_per_day?: number | null
+          rate_limit_per_min?: number | null
+          tier?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_keys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_rate_limits: {
+        Row: {
+          api_key_id: string
+          request_count: number | null
+          window_start: string
+          window_type: string
+        }
+        Insert: {
+          api_key_id: string
+          request_count?: number | null
+          window_start: string
+          window_type: string
+        }
+        Update: {
+          api_key_id?: string
+          request_count?: number | null
+          window_start?: string
+          window_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_rate_limits_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_usage: {
+        Row: {
+          api_key_id: string
+          created_at: string | null
+          endpoint: string
+          id: string
+          ip_address: unknown
+          method: string
+          request_size_bytes: number | null
+          response_size_bytes: number | null
+          response_time_ms: number | null
+          status_code: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          api_key_id: string
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          ip_address?: unknown
+          method: string
+          request_size_bytes?: number | null
+          response_size_bytes?: number | null
+          response_time_ms?: number | null
+          status_code?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          api_key_id?: string
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          ip_address?: unknown
+          method?: string
+          request_size_bytes?: number | null
+          response_size_bytes?: number | null
+          response_time_ms?: number | null
+          status_code?: number | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_webhooks: {
+        Row: {
+          api_key_id: string
+          created_at: string | null
+          events: string[]
+          failure_count: number | null
+          id: string
+          is_active: boolean | null
+          last_triggered_at: string | null
+          secret: string
+          url: string
+        }
+        Insert: {
+          api_key_id: string
+          created_at?: string | null
+          events?: string[]
+          failure_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          secret: string
+          url: string
+        }
+        Update: {
+          api_key_id?: string
+          created_at?: string | null
+          events?: string[]
+          failure_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          secret?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_webhooks_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_changelog_entries: {
         Row: {
           commit_hash: string | null
@@ -4048,6 +4236,15 @@ export type Database = {
     }
     Functions: {
       capture_rules_for_ml_training: { Args: never; Returns: Json }
+      check_api_rate_limit: {
+        Args: { p_key_id: string; p_tier: string }
+        Returns: {
+          allowed: boolean
+          day_remaining: number
+          minute_remaining: number
+          retry_after_seconds: number
+        }[]
+      }
       check_rule_conflicts: {
         Args: {
           p_effective_from: string
@@ -4065,6 +4262,7 @@ export type Database = {
           overlap_start: string
         }[]
       }
+      cleanup_api_rate_limits: { Args: never; Returns: undefined }
       find_similar_pattern: {
         Args: {
           p_business_id: string
