@@ -1310,6 +1310,7 @@ export type Database = {
           rule_code: string | null
           rule_name: string
           rule_type: string
+          sector: string | null
           tax_types: string[] | null
           updated_at: string | null
           version: number | null
@@ -1332,6 +1333,7 @@ export type Database = {
           rule_code?: string | null
           rule_name: string
           rule_type: string
+          sector?: string | null
           tax_types?: string[] | null
           updated_at?: string | null
           version?: number | null
@@ -1354,6 +1356,7 @@ export type Database = {
           rule_code?: string | null
           rule_name?: string
           rule_type?: string
+          sector?: string | null
           tax_types?: string[] | null
           updated_at?: string | null
           version?: number | null
@@ -3036,6 +3039,74 @@ export type Database = {
           },
         ]
       }
+      rule_versions: {
+        Row: {
+          actions: Json | null
+          change_reason: string | null
+          changed_by: string | null
+          created_at: string | null
+          id: string
+          is_current: boolean | null
+          parameters: Json
+          rule_id: string
+          snapshot: Json | null
+          version_number: number
+        }
+        Insert: {
+          actions?: Json | null
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          is_current?: boolean | null
+          parameters: Json
+          rule_id: string
+          snapshot?: Json | null
+          version_number?: number
+        }
+        Update: {
+          actions?: Json | null
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          is_current?: boolean | null
+          parameters?: Json
+          rule_id?: string
+          snapshot?: Json | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rule_versions_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rule_versions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "active_tax_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rule_versions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rule_versions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "upcoming_tax_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_settings: {
         Row: {
           auto_verification_enabled: boolean | null
@@ -3977,6 +4048,23 @@ export type Database = {
     }
     Functions: {
       capture_rules_for_ml_training: { Args: never; Returns: Json }
+      check_rule_conflicts: {
+        Args: {
+          p_effective_from: string
+          p_effective_to: string
+          p_exclude_id?: string
+          p_rule_code: string
+          p_rule_type: string
+          p_sector?: string
+        }
+        Returns: {
+          conflict_code: string
+          conflict_id: string
+          conflict_type: string
+          overlap_end: string
+          overlap_start: string
+        }[]
+      }
       find_similar_pattern: {
         Args: {
           p_business_id: string
@@ -4022,6 +4110,10 @@ export type Database = {
         Returns: undefined
       }
       refresh_transaction_analytics: { Args: never; Returns: undefined }
+      rollback_rule_to_version: {
+        Args: { p_rule_id: string; p_version_number: number }
+        Returns: boolean
+      }
       search_compliance_documents: {
         Args: {
           match_count?: number
