@@ -10,20 +10,17 @@ const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-// Paystack plan codes and amounts (in kobo) - create plans in Paystack dashboard
-const TIER_CONFIG: Record<string, { planCode: string; amountKobo: number; name: string }> = {
+// Tier pricing (in kobo) - 100 kobo = 1 NGN
+const TIER_CONFIG: Record<string, { amountKobo: number; name: string }> = {
   starter: { 
-    planCode: Deno.env.get('PAYSTACK_PLAN_STARTER') || 'PLN_starter',
     amountKobo: 500000, // 5,000 NGN
     name: 'API Starter'
   },
   business: { 
-    planCode: Deno.env.get('PAYSTACK_PLAN_BUSINESS') || 'PLN_business',
     amountKobo: 5000000, // 50,000 NGN
     name: 'API Business'
   },
   enterprise: { 
-    planCode: Deno.env.get('PAYSTACK_PLAN_ENTERPRISE') || 'PLN_enterprise',
     amountKobo: 50000000, // 500,000 NGN
     name: 'API Enterprise'
   },
@@ -133,7 +130,7 @@ serve(async (req) => {
     const reference = `PRISM_API_${publicUser.id.substring(0, 8)}_${Date.now()}`;
     const tierConfig = TIER_CONFIG[tier];
 
-    // Initialize subscription transaction with amount
+    // Initialize one-time payment (subscription activated via webhook)
     const initResponse = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -142,15 +139,14 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         email: publicUser.email,
-        amount: tierConfig.amountKobo, // Amount in kobo (required)
-        plan: tierConfig.planCode,
+        amount: tierConfig.amountKobo,
         reference,
         callback_url: callback_url || `${req.headers.get('origin')}/developers?subscription=success`,
         metadata: {
           user_id: publicUser.id,
           tier,
+          tier_name: tierConfig.name,
           type: 'api_subscription',
-          cancel_action: callback_url || `${req.headers.get('origin')}/developers?subscription=cancelled`,
         },
       }),
     });
@@ -168,9 +164,8 @@ serve(async (req) => {
       .upsert({
         user_id: publicUser.id,
         tier: tier,
-        status: 'inactive', // Will be activated by webhook
+        status: 'inactive', // Will be activated by webhook on payment success
         paystack_customer_code: paystackCustomerCode,
-        paystack_plan_code: tierConfig.planCode,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'user_id',
