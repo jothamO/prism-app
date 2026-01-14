@@ -43,9 +43,10 @@ interface BotUser {
   entity_type: string | null;
   onboarding_completed: boolean | null;
   verification_status: string | null;
-  subscription_tier: string | null;
   is_blocked: boolean | null;
   created_at: string | null;
+  // From user_subscriptions join
+  subscription_tier_name: string | null;
 }
 
 interface Message {
@@ -230,14 +231,14 @@ function OverviewTab() {
   async function handleClearAllStates(): Promise<{ steps: ProgressStep[] }> {
     const response = await supabase.functions.invoke("admin-bot-messaging", { body: { action: "clear-all-states" } });
     if (response.error) throw response.error;
-    
+
     const result = response.data;
     if (result.success) {
       toast({ title: "Success", description: `Cleared ${result.totalCleared} conversation states` });
     } else {
       toast({ title: "Warning", description: "Some states may not have been cleared", variant: "destructive" });
     }
-    
+
     return { steps: result.steps || [] };
   }
 
@@ -390,7 +391,7 @@ function OverviewTab() {
           <h3 className="text-lg font-medium text-foreground">NLU Insights</h3>
           <span className="ml-auto text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">Coming Soon</span>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Intent Distribution */}
           <div className="bg-background rounded-lg p-4">
@@ -518,11 +519,21 @@ function UsersTab() {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("id, full_name, first_name, last_name, platform, telegram_id, telegram_username, whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, subscription_tier, is_blocked, created_at")
+        .select(`
+          id, full_name, first_name, last_name, platform, telegram_id, telegram_username, 
+          whatsapp_id, whatsapp_number, entity_type, onboarding_completed, verification_status, 
+          is_blocked, created_at,
+          user_subscriptions(tier_id, user_pricing_tiers(name, display_name))
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setUsers(data || []);
+      // Map the nested subscription data to flat format
+      const mappedUsers = (data || []).map(user => ({
+        ...user,
+        subscription_tier_name: user.user_subscriptions?.[0]?.user_pricing_tiers?.display_name || null
+      }));
+      setUsers(mappedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast({ title: "Error", description: "Failed to fetch bot users", variant: "destructive" });
@@ -634,14 +645,14 @@ function UsersTab() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <UserActionMenu 
+                    <UserActionMenu
                       userId={user.id}
                       userName={user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim() || "Unknown"}
                       platform={user.platform}
                       isBlocked={user.is_blocked}
                       verificationStatus={user.verification_status}
-                      subscriptionTier={user.subscription_tier}
-                      onUpdate={fetchUsers} 
+                      subscriptionTier={user.subscription_tier_name}
+                      onUpdate={fetchUsers}
                     />
                   </td>
                 </tr>

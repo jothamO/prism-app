@@ -165,6 +165,14 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
 
           if (linkedBot) {
             botUserId = linkedBot.id;
+
+            // Fetch subscription from user_subscriptions
+            const { data: subData } = await supabase
+              .from('user_subscriptions')
+              .select('status, user_pricing_tiers(name, display_name)')
+              .eq('user_id', linkedBot.id)
+              .single();
+
             profileData = {
               ...profileData,
               telegram_id: linkedBot.telegram_id,
@@ -183,8 +191,8 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
               onboarding_step: linkedBot.onboarding_step,
               verification_status: linkedBot.verification_status,
               is_blocked: linkedBot.is_blocked,
-              subscription_tier: linkedBot.subscription_tier,
-              subscription_status: linkedBot.subscription_status,
+              subscription_tier: subData?.user_pricing_tiers?.display_name || 'Free',
+              subscription_status: subData?.status || 'trial',
               linked_telegram_id: linkedBot.telegram_id,
               linked_whatsapp_number: linkedBot.whatsapp_number,
               has_bot_account: true,
@@ -203,6 +211,14 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
 
         if (botUser) {
           botUserId = botUser.id;
+
+          // Fetch subscription from user_subscriptions
+          const { data: subData } = await supabase
+            .from('user_subscriptions')
+            .select('status, user_pricing_tiers(name, display_name)')
+            .eq('user_id', botUser.id)
+            .single();
+
           profileData = {
             id: botUser.id,
             full_name: botUser.full_name,
@@ -231,8 +247,8 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
             is_blocked: botUser.is_blocked,
             blocked_at: botUser.blocked_at,
             blocked_reason: botUser.blocked_reason,
-            subscription_tier: botUser.subscription_tier,
-            subscription_status: botUser.subscription_status,
+            subscription_tier: subData?.user_pricing_tiers?.display_name || 'Free',
+            subscription_status: subData?.status || 'trial',
             created_at: botUser.created_at,
             updated_at: botUser.updated_at,
             has_bot_account: true,
@@ -585,8 +601,8 @@ export function UserProfileModal({ userId, platform, onClose }: UserProfileModal
                           {project.source_person && (
                             <p className="text-xs text-muted-foreground mb-2">From: {project.source_person}</p>
                           )}
-                          <Progress 
-                            value={Math.min(progress, 100)} 
+                          <Progress
+                            value={Math.min(progress, 100)}
                             className={cn("h-1.5 mb-1", isOverBudget && "[&>div]:bg-red-500")}
                           />
                           <div className="flex justify-between text-xs">
