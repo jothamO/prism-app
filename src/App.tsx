@@ -65,6 +65,7 @@ import AdminAPIPricing from "./pages/admin/AdminAPIPricing";
 import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 import Pricing from "./pages/Pricing";
 import PricingCompare from "./pages/PricingCompare";
+import AdminDeveloperRequests from "./pages/admin/AdminDeveloperRequests";
 
 function App() {
   return (
@@ -230,6 +231,7 @@ function App() {
               <Route path="api-keys" element={<AdminAPIKeys />} />
               <Route path="api-pricing" element={<AdminAPIPricing />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
+              <Route path="developer-requests" element={<AdminDeveloperRequests />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

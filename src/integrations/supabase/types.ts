@@ -1918,6 +1918,71 @@ export type Database = {
         }
         Relationships: []
       }
+      developer_access_requests: {
+        Row: {
+          admin_notes: string | null
+          company_name: string | null
+          company_website: string | null
+          created_at: string | null
+          expected_monthly_requests: number | null
+          id: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+          target_api_tier: string | null
+          technical_contact_email: string | null
+          technical_contact_name: string | null
+          updated_at: string | null
+          use_case_description: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          company_name?: string | null
+          company_website?: string | null
+          created_at?: string | null
+          expected_monthly_requests?: number | null
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          target_api_tier?: string | null
+          technical_contact_email?: string | null
+          technical_contact_name?: string | null
+          updated_at?: string | null
+          use_case_description: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          company_name?: string | null
+          company_website?: string | null
+          created_at?: string | null
+          expected_monthly_requests?: number | null
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          target_api_tier?: string | null
+          technical_contact_email?: string | null
+          technical_contact_name?: string | null
+          updated_at?: string | null
+          use_case_description?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "developer_access_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_processing_jobs: {
         Row: {
           api_key_id: string | null
@@ -4249,12 +4314,14 @@ export type Database = {
           company_name: string | null
           consent_given: boolean | null
           created_at: string | null
+          developer_access_granted_at: string | null
           email: string | null
           entity_type: string | null
           first_name: string | null
           full_name: string | null
           has_active_vat: boolean | null
           has_business_income: boolean | null
+          has_developer_access: boolean | null
           has_freelance_income: boolean | null
           has_investment_income: boolean | null
           has_pension_income: boolean | null
@@ -4318,12 +4385,14 @@ export type Database = {
           company_name?: string | null
           consent_given?: boolean | null
           created_at?: string | null
+          developer_access_granted_at?: string | null
           email?: string | null
           entity_type?: string | null
           first_name?: string | null
           full_name?: string | null
           has_active_vat?: boolean | null
           has_business_income?: boolean | null
+          has_developer_access?: boolean | null
           has_freelance_income?: boolean | null
           has_investment_income?: boolean | null
           has_pension_income?: boolean | null
@@ -4387,12 +4456,14 @@ export type Database = {
           company_name?: string | null
           consent_given?: boolean | null
           created_at?: string | null
+          developer_access_granted_at?: string | null
           email?: string | null
           entity_type?: string | null
           first_name?: string | null
           full_name?: string | null
           has_active_vat?: boolean | null
           has_business_income?: boolean | null
+          has_developer_access?: boolean | null
           has_freelance_income?: boolean | null
           has_investment_income?: boolean | null
           has_pension_income?: boolean | null
