@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Save, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -16,7 +16,7 @@ interface UserEditFormProps {
     location?: string | null;
     nin_verified?: boolean | null;
     bvn_verified?: boolean | null;
-    subscription_tier?: string | null;
+    subscription_tier_id?: string | null;
     telegram_id?: string | null;
     whatsapp_number?: string | null;
   };
@@ -31,15 +31,16 @@ const ENTITY_TYPES = [
   { value: "corporate", label: "Corporate" },
 ];
 
-const SUBSCRIPTION_TIERS = [
-  { value: "basic", label: "Basic" },
-  { value: "pro", label: "Pro" },
-  { value: "enterprise", label: "Enterprise" },
-];
+interface PricingTier {
+  id: string;
+  name: string;
+  display_name: string;
+}
 
 export function UserEditForm({ userId, platform, initialData, onSave, onCancel }: UserEditFormProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [tiers, setTiers] = useState<PricingTier[]>([]);
   const [formData, setFormData] = useState({
     full_name: initialData.full_name || "",
     email: initialData.email || "",
@@ -49,10 +50,23 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
     location: initialData.location || "",
     nin_verified: initialData.nin_verified || false,
     bvn_verified: initialData.bvn_verified || false,
-    subscription_tier: initialData.subscription_tier || "basic",
+    subscription_tier_id: initialData.subscription_tier_id || "",
     telegram_id: initialData.telegram_id || "",
     whatsapp_number: initialData.whatsapp_number || "",
   });
+
+  // Fetch pricing tiers on mount
+  useEffect(() => {
+    async function fetchTiers() {
+      const { data } = await supabase
+        .from('user_pricing_tiers')
+        .select('id, name, display_name')
+        .eq('is_active', true)
+        .order('sort_order');
+      if (data) setTiers(data);
+    }
+    fetchTiers();
+  }, []);
 
   async function handleSave() {
     setSaving(true);
@@ -80,7 +94,7 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
           .single();
 
         if (linkedUser) {
-          // Update existing linked user record
+          // Update existing linked user record (without subscription_tier)
           await supabase
             .from("users")
             .update({
@@ -91,14 +105,24 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
               location: formData.location || null,
               nin_verified: formData.nin_verified,
               bvn_verified: formData.bvn_verified,
-              subscription_tier: formData.subscription_tier || "basic",
               telegram_id: formData.telegram_id || null,
               whatsapp_number: formData.whatsapp_number || null,
             })
             .eq("id", linkedUser.id);
+
+          // Update subscription tier separately
+          if (formData.subscription_tier_id) {
+            await supabase
+              .from("user_subscriptions")
+              .upsert({
+                user_id: linkedUser.id,
+                tier_id: formData.subscription_tier_id,
+                status: 'active'
+              }, { onConflict: 'user_id' });
+          }
         } else {
           // Create a new user record linked to this web profile
-          const { error: createError } = await supabase
+          const { error: createError, data: newUser } = await supabase
             .from("users")
             .insert({
               auth_user_id: userId,
@@ -110,20 +134,31 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
               location: formData.location || null,
               nin_verified: formData.nin_verified,
               bvn_verified: formData.bvn_verified,
-              subscription_tier: formData.subscription_tier || "basic",
               telegram_id: formData.telegram_id || null,
               whatsapp_number: formData.whatsapp_number || null,
               onboarding_completed: true,
               onboarding_step: 4,
-            });
-          
+            })
+            .select('id')
+            .single();
+
+          if (!createError && newUser && formData.subscription_tier_id) {
+            await supabase
+              .from("user_subscriptions")
+              .insert({
+                user_id: newUser.id,
+                tier_id: formData.subscription_tier_id,
+                status: 'active'
+              });
+          }
+
           if (createError) {
             console.error("Error creating user record:", createError);
             // Don't throw - the profile update already succeeded
           }
         }
       } else {
-        // Update users table for bot users
+        // Update users table for bot users (without subscription_tier)
         const { error } = await supabase
           .from("users")
           .update({
@@ -134,13 +169,23 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
             location: formData.location || null,
             nin_verified: formData.nin_verified,
             bvn_verified: formData.bvn_verified,
-            subscription_tier: formData.subscription_tier || "basic",
             telegram_id: formData.telegram_id || null,
             whatsapp_number: formData.whatsapp_number || null,
           })
           .eq("id", userId);
 
         if (error) throw error;
+
+        // Update subscription tier separately
+        if (formData.subscription_tier_id) {
+          await supabase
+            .from("user_subscriptions")
+            .upsert({
+              user_id: userId,
+              tier_id: formData.subscription_tier_id,
+              status: 'active'
+            }, { onConflict: 'user_id' });
+        }
       }
 
       // Log the change to audit_log
@@ -157,9 +202,11 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
       await supabase.from("user_activity_log").insert({
         user_id: userId,
         event_type: "profile_update",
-        event_data: { changed_fields: Object.keys(formData).filter(k => 
-          formData[k as keyof typeof formData] !== initialData[k as keyof typeof initialData]
-        )},
+        event_data: {
+          changed_fields: Object.keys(formData).filter(k =>
+            formData[k as keyof typeof formData] !== initialData[k as keyof typeof initialData]
+          )
+        },
       });
 
       toast({ title: "Profile Updated", description: "Changes have been saved successfully" });
@@ -273,12 +320,13 @@ export function UserEditForm({ userId, platform, initialData, onSave, onCancel }
           <div>
             <label className="text-xs text-muted-foreground">Subscription Tier</label>
             <select
-              value={formData.subscription_tier}
-              onChange={(e) => setFormData({ ...formData, subscription_tier: e.target.value })}
+              value={formData.subscription_tier_id}
+              onChange={(e) => setFormData({ ...formData, subscription_tier_id: e.target.value })}
               className="w-full mt-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-primary"
             >
-              {SUBSCRIPTION_TIERS.map((tier) => (
-                <option key={tier.value} value={tier.value}>{tier.label}</option>
+              <option value="">Select tier...</option>
+              {tiers.map((tier) => (
+                <option key={tier.id} value={tier.id}>{tier.display_name}</option>
               ))}
             </select>
           </div>
