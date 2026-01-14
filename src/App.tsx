@@ -59,6 +59,10 @@ import AdminTaxCalendar from "./pages/admin/AdminTaxCalendar";
 import AcceptInvite from "./pages/AcceptInvite";
 import AwaitingApproval from "./pages/AwaitingApproval";
 import DeveloperPortal from "./pages/DeveloperPortal";
+import AdminCalculationLogs from "./pages/admin/AdminCalculationLogs";
+import AdminAPIKeys from "./pages/admin/AdminAPIKeys";
+import AdminAPIPricing from "./pages/admin/AdminAPIPricing";
+import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 
 function App() {
   return (
@@ -218,6 +222,10 @@ function App() {
               <Route path="education" element={<AdminEducation />} />
               <Route path="tax-calendar" element={<AdminTaxCalendar />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="calculation-logs" element={<AdminCalculationLogs />} />
+              <Route path="api-keys" element={<AdminAPIKeys />} />
+              <Route path="api-pricing" element={<AdminAPIPricing />} />
+              <Route path="subscriptions" element={<AdminSubscriptions />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
