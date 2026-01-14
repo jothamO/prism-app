@@ -31,6 +31,9 @@ import {
   Code,
   BookOpen,
   Calendar,
+  Key,
+  DollarSign,
+  Calculator,
 } from "lucide-react";
 
 interface NavGroup {
@@ -126,7 +129,17 @@ export default function AdminLayout() {
         { name: "Projects", path: "/admin/projects", icon: FolderKanban },
         { name: "Invoices", path: "/admin/invoices", icon: FileText },
         { name: "Payments", path: "/admin/payments", icon: CreditCard },
+        { name: "Subscriptions", path: "/admin/subscriptions", icon: Users },
         { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
+      ]
+    },
+    {
+      name: "API Management",
+      defaultOpen: true,
+      items: [
+        { name: "API Keys", path: "/admin/api-keys", icon: Key },
+        { name: "API Pricing", path: "/admin/api-pricing", icon: DollarSign },
+        { name: "Calculation Logs", path: "/admin/calculation-logs", icon: Calculator },
       ]
     },
     {
