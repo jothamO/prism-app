@@ -4,23 +4,16 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { corsHeaders, jsonResponse, handleCors } from '../_shared/cors.ts';
+import { getSupabaseAdmin } from '../_shared/supabase.ts';
 
 serve(async (req) => {
-    if (req.method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders });
-    }
+    // Handle CORS preflight
+    const corsResponse = handleCors(req);
+    if (corsResponse) return corsResponse;
 
     try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const supabase = getSupabaseAdmin();
 
         // Get authenticated user
         const authHeader = req.headers.get('authorization');
@@ -93,7 +86,7 @@ serve(async (req) => {
                     return jsonResponse({ error: error.message }, 400);
                 }
 
-                return jsonResponse({ keys: data }, 200);
+                return jsonResponse({ keys: data });
             }
 
             case 'revoke': {
@@ -111,7 +104,7 @@ serve(async (req) => {
                     return jsonResponse({ error: error.message }, 400);
                 }
 
-                return jsonResponse({ success: true, message: 'Key revoked' }, 200);
+                return jsonResponse({ success: true, message: 'Key revoked' });
             }
 
             case 'rotate': {
@@ -187,7 +180,7 @@ serve(async (req) => {
                 return jsonResponse({
                     recent_requests: usage,
                     daily_stats: dailyStats
-                }, 200);
+                });
             }
 
             default:
@@ -222,14 +215,4 @@ async function hashKey(key: string): Promise<string> {
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * JSON response helper
- */
-function jsonResponse(data: any, status: number): Response {
-    return new Response(JSON.stringify(data), {
-        status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
 }

@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, jsonResponse, handleCors } from '../_shared/cors.ts';
+import { getSupabaseAdmin, getSupabaseWithAuth } from '../_shared/supabase.ts';
 
 const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY');
 const PAYSTACK_API = 'https://api.paystack.co';
@@ -17,16 +17,8 @@ serve(async (req) => {
             return jsonResponse({ error: 'Unauthorized' }, 401);
         }
 
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        );
-
-        const anonSupabase = createClient(
-            Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_ANON_KEY')!,
-            { global: { headers: { Authorization: authHeader } } }
-        );
+        const supabase = getSupabaseAdmin();
+        const anonSupabase = getSupabaseWithAuth(authHeader.replace('Bearer ', ''));
 
         const { data: { user }, error: authError } = await anonSupabase.auth.getUser();
         if (authError || !user) {
