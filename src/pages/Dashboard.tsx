@@ -43,7 +43,6 @@ import BankConnectModal from '@/components/BankConnectModal';
 import VerifyIdentityModal from '@/components/VerifyIdentityModal';
 import ChatWidget from '@/components/ChatWidget';
 import { SubscriptionCard } from '@/components/dashboard/SubscriptionCard';
-import { DeveloperAccessCard } from '@/components/dashboard/DeveloperAccessCard';
 
 export default function Dashboard() {
   const location = useLocation();
@@ -532,14 +531,11 @@ export default function Dashboard() {
         </CardHeader>
       </Card>
 
-      {/* Subscription & Developer Access Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <SubscriptionCard />
-        <DeveloperAccessCard />
-      </div>
+      {/* Subscription Card */}
+      <SubscriptionCard />
 
       {/* Quick Access to Features */}
-      <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <button
           onClick={() => navigate('/projects')}
           className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
@@ -588,13 +584,15 @@ export default function Dashboard() {
           <span className="text-sm font-medium">Subscription</span>
         </button>
 
-        <button
-          onClick={() => navigate('/developers')}
-          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
-        >
-          <Code className="h-6 w-6 text-purple-600" />
-          <span className="text-sm font-medium">Developer API</span>
-        </button>
+        {profile?.hasDeveloperAccess && (
+          <button
+            onClick={() => navigate('/developers')}
+            className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+          >
+            <Code className="h-6 w-6 text-purple-600" />
+            <span className="text-sm font-medium">Developer</span>
+          </button>
+        )}
       </div>
 
       {/* Main content area */}

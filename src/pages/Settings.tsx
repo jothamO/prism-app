@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Settings as SettingsIcon,
-    Bell,
     Mail,
     MessageSquare,
     User,
@@ -10,7 +9,9 @@ import {
     Save,
     Loader2,
     CheckCircle2,
+    Code,
 } from 'lucide-react';
+import { DeveloperAccessCard } from '@/components/dashboard/DeveloperAccessCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -366,6 +367,19 @@ export default function Settings() {
                                 Get alerts for transactions above this amount
                             </p>
                         </div>
+                    </CardContent>
+                </Card>
+
+                {/* Developer API Access */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Code className="h-5 w-5" />
+                            Developer API Access
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <DeveloperAccessCard />
                     </CardContent>
                 </Card>
 
