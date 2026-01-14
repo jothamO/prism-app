@@ -62,6 +62,7 @@ import DeveloperPortal from "./pages/DeveloperPortal";
 import AdminCalculationLogs from "./pages/admin/AdminCalculationLogs";
 import AdminAPIKeys from "./pages/admin/AdminAPIKeys";
 import AdminAPIPricing from "./pages/admin/AdminAPIPricing";
+import AdminUserPricing from "./pages/admin/AdminUserPricing";
 import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 import Pricing from "./pages/Pricing";
 import PricingCompare from "./pages/PricingCompare";
@@ -230,6 +231,7 @@ function App() {
               <Route path="calculation-logs" element={<AdminCalculationLogs />} />
               <Route path="api-keys" element={<AdminAPIKeys />} />
               <Route path="api-pricing" element={<AdminAPIPricing />} />
+              <Route path="user-pricing" element={<AdminUserPricing />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
               <Route path="developer-requests" element={<AdminDeveloperRequests />} />
             </Route>
