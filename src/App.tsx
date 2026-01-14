@@ -63,6 +63,7 @@ import AdminCalculationLogs from "./pages/admin/AdminCalculationLogs";
 import AdminAPIKeys from "./pages/admin/AdminAPIKeys";
 import AdminAPIPricing from "./pages/admin/AdminAPIPricing";
 import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
+import Pricing from "./pages/Pricing";
 
 function App() {
   return (
@@ -81,6 +82,7 @@ function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/invite/:token" element={<AcceptInvite />} />
             <Route path="/awaiting-approval" element={<AwaitingApproval />} />
 
