@@ -222,6 +222,7 @@ async function routeRequest(
 
 /**
  * Handle tax calculation endpoints
+ * Now uses the central tax-calculate edge function
  */
 async function handleTaxCalculation(
     path: string,
@@ -229,152 +230,223 @@ async function handleTaxCalculation(
     supabase: any,
     apiKey: APIKey
 ): Promise<{ body: string; status: number }> {
-    const taxType = path.split('/').pop(); // pit, cit, vat, etc.
+    const taxType = path.split('/').pop(); // pit, cit, vat, wht, cgt, stamp, levy, metr
 
-    // Get tax rules
-    const { data: rules } = await supabase
-        .from('active_tax_rules')
-        .select('*');
+    // Map API path to tax_type
+    const taxTypeMap: Record<string, string> = {
+        'pit': 'pit',
+        'calculate': 'pit', // Legacy endpoint
+        'cit': 'cit',
+        'vat': 'vat',
+        'wht': 'wht',
+        'cgt': 'cgt',
+        'stamp': 'stamp',
+        'levy': 'levy',
+        'metr': 'metr',
+    };
 
-    // Basic validation
-    if (!body.income && !body.amount && !body.profits) {
+    const mappedType = taxTypeMap[taxType || ''];
+    if (!mappedType) {
         return {
             body: JSON.stringify({
-                error: 'Missing required field: income, amount, or profits',
-                code: 'VALIDATION_ERROR'
+                error: `Unknown tax type: ${taxType}`,
+                code: 'INVALID_TAX_TYPE',
+                supported_types: Object.keys(taxTypeMap)
             }),
             status: 400
         };
     }
 
-    const amount = body.income || body.amount || body.profits || 0;
+    // Build params based on tax type
+    let params: Record<string, any> = {};
 
-    // Simple calculation example (would use actual skill logic)
-    let result: any = {};
-
-    switch (taxType) {
+    switch (mappedType) {
         case 'pit':
-        case 'calculate':
-            result = calculatePIT(amount, rules);
+            if (!body.income && !body.gross_income) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required field: income or gross_income',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = {
+                gross_income: body.income || body.gross_income,
+                annual: body.annual ?? true,
+                deductions: body.deductions || 0
+            };
             break;
-        case 'vat':
-            result = calculateVAT(amount, body.vat_inclusive);
-            break;
+
         case 'cit':
-            result = calculateCIT(amount, body.turnover);
+            if (!body.profits) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required field: profits',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = {
+                profits: body.profits,
+                turnover: body.turnover,
+                assets: body.assets
+            };
             break;
-        default:
-            result = { tax_payable: 0, message: 'Tax type not implemented yet' };
+
+        case 'vat':
+            if (!body.amount) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required field: amount',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = {
+                amount: body.amount,
+                is_vatable: body.is_vatable ?? true,
+                supply_type: body.supply_type || 'goods'
+            };
+            break;
+
+        case 'wht':
+            if (!body.amount || !body.payment_type) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required fields: amount, payment_type',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = {
+                amount: body.amount,
+                payment_type: body.payment_type,
+                payee_type: body.payee_type || 'individual',
+                is_resident: body.is_resident ?? true
+            };
+            break;
+
+        case 'cgt':
+            if (!body.proceeds || !body.cost_basis) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required fields: proceeds, cost_basis',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = {
+                proceeds: body.proceeds,
+                cost_basis: body.cost_basis,
+                expenses: body.expenses || 0,
+                asset_type: body.asset_type || 'other'
+            };
+            break;
+
+        case 'stamp':
+            if (!body.amount || !body.instrument_type) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required fields: amount, instrument_type',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = {
+                amount: body.amount,
+                instrument_type: body.instrument_type
+            };
+            break;
+
+        case 'levy':
+            if (!body.cit_amount) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required field: cit_amount',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = { cit_amount: body.cit_amount };
+            break;
+
+        case 'metr':
+            if (!body.profits) {
+                return {
+                    body: JSON.stringify({
+                        error: 'Missing required field: profits',
+                        code: 'VALIDATION_ERROR'
+                    }),
+                    status: 400
+                };
+            }
+            params = {
+                profits: body.profits,
+                losses_brought_forward: body.losses_brought_forward || 0,
+                turnover: body.turnover
+            };
+            break;
     }
 
-    return {
-        body: JSON.stringify({
-            success: true,
-            data: result,
-            meta: {
-                request_id: crypto.randomUUID(),
-                rules_version: new Date().toISOString().split('T')[0],
-                tier: apiKey.tier
-            }
-        }),
-        status: 200
-    };
-}
+    try {
+        // Call central tax-calculate function
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const response = await fetch(`${supabaseUrl}/functions/v1/tax-calculate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify({
+                tax_type: mappedType,
+                params,
+                api_key_id: apiKey.id,
+                user_id: apiKey.user_id
+            })
+        });
 
-/**
- * PIT calculation
- */
-function calculatePIT(income: number, rules: any[]): any {
-    const bands = [
-        { min: 0, max: 800000, rate: 0 },
-        { min: 800000, max: 3000000, rate: 0.15 },
-        { min: 3000000, max: 12000000, rate: 0.18 },
-        { min: 12000000, max: 25000000, rate: 0.21 },
-        { min: 25000000, max: 50000000, rate: 0.23 },
-        { min: 50000000, max: Infinity, rate: 0.25 },
-    ];
+        const calcResult = await response.json();
 
-    let totalTax = 0;
-    let remaining = income;
-    const breakdown: any[] = [];
-
-    for (const band of bands) {
-        if (remaining <= 0) break;
-        const bandWidth = band.max === Infinity ? remaining : band.max - band.min;
-        const taxableInBand = Math.min(remaining, bandWidth);
-        const taxInBand = taxableInBand * band.rate;
-
-        if (taxInBand > 0) {
-            breakdown.push({
-                band: band.max === Infinity ? `Above ₦${band.min.toLocaleString()}` : `₦${band.min.toLocaleString()} - ₦${band.max.toLocaleString()}`,
-                rate: band.rate * 100,
-                tax: taxInBand
-            });
+        if (!calcResult.success) {
+            return {
+                body: JSON.stringify({
+                    error: calcResult.error || 'Calculation failed',
+                    code: 'CALCULATION_ERROR'
+                }),
+                status: 400
+            };
         }
 
-        totalTax += taxInBand;
-        remaining -= taxableInBand;
+        return {
+            body: JSON.stringify({
+                success: true,
+                data: calcResult.result,
+                meta: {
+                    request_id: crypto.randomUUID(),
+                    rules_version: calcResult.metadata?.rules_version || new Date().toISOString().split('T')[0],
+                    tier: apiKey.tier,
+                    tax_type: mappedType
+                }
+            }),
+            status: 200
+        };
+    } catch (error) {
+        console.error('[API Gateway] Tax calculation error:', error);
+        return {
+            body: JSON.stringify({
+                error: 'Tax calculation service unavailable',
+                code: 'SERVICE_ERROR'
+            }),
+            status: 503
+        };
     }
-
-    return {
-        gross_income: income,
-        tax_payable: totalTax,
-        effective_rate: (totalTax / income * 100).toFixed(2),
-        breakdown,
-        act_reference: 'Section 58 NTA 2025'
-    };
-}
-
-/**
- * VAT calculation
- */
-function calculateVAT(amount: number, inclusive: boolean = false): any {
-    const rate = 0.075;
-    let vatAmount: number;
-    let netAmount: number;
-    let grossAmount: number;
-
-    if (inclusive) {
-        grossAmount = amount;
-        netAmount = amount / (1 + rate);
-        vatAmount = grossAmount - netAmount;
-    } else {
-        netAmount = amount;
-        vatAmount = amount * rate;
-        grossAmount = amount + vatAmount;
-    }
-
-    return {
-        net_amount: netAmount,
-        vat_amount: vatAmount,
-        gross_amount: grossAmount,
-        rate: rate * 100,
-        act_reference: 'Section 83 NTA 2025'
-    };
-}
-
-/**
- * CIT calculation
- */
-function calculateCIT(profits: number, turnover?: number): any {
-    const isSmallCompany = (turnover || profits) <= 50000000;
-    const citRate = isSmallCompany ? 0 : 0.30;
-    const devLevyRate = isSmallCompany ? 0 : 0.04;
-
-    const cit = profits * citRate;
-    const devLevy = profits * devLevyRate;
-    const totalTax = cit + devLevy;
-
-    return {
-        assessable_profits: profits,
-        is_small_company: isSmallCompany,
-        cit: cit,
-        cit_rate: citRate * 100,
-        development_levy: devLevy,
-        total_tax: totalTax,
-        effective_rate: (totalTax / profits * 100).toFixed(2),
-        act_reference: 'Section 56-57 NTA 2025'
-    };
 }
 
 /**
@@ -496,9 +568,9 @@ async function validateSubscription(
 
     // Check if subscription is active and not expired
     const isActive = subscription.status === 'active';
-    const isNotExpired = !subscription.current_period_end || 
+    const isNotExpired = !subscription.current_period_end ||
         new Date(subscription.current_period_end) > new Date();
-    
+
     // Check tier hierarchy (enterprise > business > starter > free)
     const tierHierarchy: Record<string, number> = {
         'free': 0,
@@ -506,7 +578,7 @@ async function validateSubscription(
         'business': 2,
         'enterprise': 3
     };
-    
+
     const hasSufficientTier = tierHierarchy[subscription.tier] >= tierHierarchy[requiredTier];
 
     return {
