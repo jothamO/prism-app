@@ -208,41 +208,48 @@ serve(async (req) => {
             // Check if user exists
             const { data: existingUser } = await supabase
                 .from('users')
-                .select('id')
+                .select('id, is_blocked')
                 .eq('whatsapp_id', from)
                 .single();
 
             const isNewUser = !existingUser;
 
-            // Unregistered users on greeting: prompt to register
-            if (isNewUser && (text.toLowerCase() === 'hi' || text.toLowerCase() === 'hello')) {
+            // ============= WEB-ONLY REGISTRATION ENFORCEMENT =============
+            // Unregistered users: ALWAYS prompt to register on web
+            if (isNewUser) {
                 await sendWhatsAppMessage(from,
                     "👋 Welcome to PRISM Tax Assistant!\n\n" +
-                    "Please register at https://prism.tax to get started."
+                    "To use this bot, please register first:\n" +
+                    "🔗 https://prismtaxassistant.lovable.app/register\n\n" +
+                    "After registration, link your WhatsApp account in Settings → Connected Accounts."
                 );
                 return new Response(JSON.stringify({ ok: true }), {
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
             }
 
-            // All other messages: use chat-assist directly
-            try {
-                const userId = existingUser?.id || from;
+            // Check if user is blocked
+            if (existingUser.is_blocked) {
+                await sendWhatsAppMessage(from,
+                    "⚠️ Your account has been suspended. Please contact support."
+                );
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
 
-                // Store user message if registered
-                if (existingUser?.id) {
-                    await storeMessage(existingUser.id, 'whatsapp', 'user', text);
-                }
+            // ============= REGISTERED USER: PROCESS MESSAGE =============
+            try {
+                // Store user message
+                await storeMessage(existingUser.id, 'whatsapp', 'user', text);
 
                 // Call chat-assist with conversation history
-                const aiResponse = await callChatAssist(text, userId);
+                const aiResponse = await callChatAssist(text, existingUser.id);
 
-                // Store assistant response if registered
-                if (existingUser?.id) {
-                    await storeMessage(existingUser.id, 'whatsapp', 'assistant', aiResponse.response);
-                }
+                // Store assistant response
+                await storeMessage(existingUser.id, 'whatsapp', 'assistant', aiResponse.response);
 
-                // Send response (WhatsApp uses plain text, no HTML conversion needed)
+                // Send response
                 await sendWhatsAppMessage(from, aiResponse.response);
 
             } catch (error) {

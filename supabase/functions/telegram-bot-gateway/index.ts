@@ -601,18 +601,20 @@ serve(async (req) => {
             // Check if user exists
             const { data: existingUser } = await supabase
                 .from('users')
-                .select('id, onboarding_completed')
+                .select('id, onboarding_completed, is_blocked')
                 .eq('telegram_id', telegramId)
                 .single();
 
             const isNewUser = !existingUser;
 
-            // Unregistered users: prompt to register on web
-            if (isNewUser && text === '/start') {
+            // ============= WEB-ONLY REGISTRATION ENFORCEMENT =============
+            // Unregistered users: ALWAYS prompt to register on web (for ALL messages)
+            if (isNewUser) {
                 await sendMessage(chatId,
                     `👋 <b>Welcome to PRISM Tax Assistant!</b>\n\n` +
-                    `Please register at https://prism.tax to get started.\n\n` +
-                    `Once registered, come back here to chat!`,
+                    `To use this bot, please register first:\n` +
+                    `🔗 https://prismtaxassistant.lovable.app/register\n\n` +
+                    `After registration, link your Telegram account in Settings → Connected Accounts.`,
                     [[{ text: '🔗 Register Now', callback_data: 'open_registration' }]]
                 );
                 return new Response(JSON.stringify({ ok: true }), {
@@ -620,25 +622,28 @@ serve(async (req) => {
                 });
             }
 
-            // All other messages: use chat-assist directly
+            // Check if user is blocked
+            if (existingUser.is_blocked) {
+                await sendMessage(chatId,
+                    `⚠️ Your account has been suspended. Please contact support.`
+                );
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
+
+            // ============= REGISTERED USER: PROCESS MESSAGE =============
             try {
                 await sendChatAction(chatId, "typing");
 
-                // Get user's DB ID for chat history (use telegram_id if no user record)
-                const userId = existingUser?.id || telegramId;
-
                 // Store user message
-                if (existingUser?.id) {
-                    await storeMessage(existingUser.id, 'telegram', 'user', text);
-                }
+                await storeMessage(existingUser.id, 'telegram', 'user', text);
 
                 // Call chat-assist with conversation history
-                const aiResponse = await callChatAssist(text, userId);
+                const aiResponse = await callChatAssist(text, existingUser.id);
 
                 // Store assistant response
-                if (existingUser?.id) {
-                    await storeMessage(existingUser.id, 'telegram', 'assistant', aiResponse.response);
-                }
+                await storeMessage(existingUser.id, 'telegram', 'assistant', aiResponse.response);
 
                 // Convert markdown to Telegram HTML and send
                 const htmlResponse = toTelegramHTML(aiResponse.response);

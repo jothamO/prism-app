@@ -129,15 +129,34 @@ export default function Register() {
         }
 
         setRegistrationComplete(true);
-        toast({
-          title: "Registration successful!",
-          description: "Welcome to PRISM! Let's connect your Telegram."
-        });
 
-        // Navigate to dashboard after short delay
-        setTimeout(() => {
-          navigate('/dashboard', { state: { showTelegramPrompt: true } });
-        }, 2000);
+        // Check if Test Mode is enabled
+        const { data: settings } = await supabase
+          .from('system_settings')
+          .select('test_mode_enabled')
+          .single();
+
+        const isTestMode = settings?.test_mode_enabled ?? false;
+
+        if (isTestMode) {
+          // Test Mode: redirect to awaiting approval
+          toast({
+            title: "Registration submitted!",
+            description: "Your account is pending admin approval."
+          });
+          setTimeout(() => {
+            navigate('/awaiting-approval');
+          }, 2000);
+        } else {
+          // Normal mode: go to dashboard
+          toast({
+            title: "Registration successful!",
+            description: "Welcome to PRISM! Let's connect your Telegram."
+          });
+          setTimeout(() => {
+            navigate('/dashboard', { state: { showTelegramPrompt: true } });
+          }, 2000);
+        }
       } else {
         throw new Error(data.error || 'Registration failed');
       }

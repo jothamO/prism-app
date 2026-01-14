@@ -43,12 +43,22 @@ export default function Pricing() {
     const [isYearly, setIsYearly] = useState(false);
     const [currentSub, setCurrentSub] = useState<CurrentSubscription | null>(null);
     const [subscribing, setSubscribing] = useState<string | null>(null);
+    const [testModeEnabled, setTestModeEnabled] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         fetchTiers();
+        fetchTestMode();
         if (user) fetchCurrentSubscription();
     }, [user]);
+
+    async function fetchTestMode() {
+        const { data } = await supabase
+            .from('system_settings')
+            .select('test_mode_enabled')
+            .single();
+        setTestModeEnabled(data?.test_mode_enabled ?? false);
+    }
 
     async function fetchTiers() {
         const { data, error } = await supabase
@@ -177,6 +187,15 @@ export default function Pricing() {
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back
                 </Button>
 
+                {/* Test Mode Banner */}
+                {testModeEnabled && (
+                    <div className="mb-6 p-4 bg-amber-500/20 border border-amber-500/30 rounded-lg text-center">
+                        <p className="text-amber-600 font-medium">
+                            🔧 Subscriptions are temporarily disabled during testing period.
+                        </p>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
@@ -197,9 +216,9 @@ export default function Pricing() {
                 {/* Pricing Cards - Horizontal Scroll */}
                 <div className="relative">
                     {/* Left scroll arrow */}
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         className="absolute left-0 top-1/2 -translate-y-1/2 z-10 hidden md:flex bg-background/80 backdrop-blur-sm shadow-md hover:bg-background"
                         onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
                     >
@@ -207,7 +226,7 @@ export default function Pricing() {
                     </Button>
 
                     {/* Horizontal scroll container */}
-                    <div 
+                    <div
                         ref={scrollRef}
                         className="flex gap-6 overflow-x-auto pb-4 px-10 snap-x snap-mandatory scrollbar-hide"
                     >
@@ -266,7 +285,7 @@ export default function Pricing() {
                                     <Button
                                         className="w-full"
                                         variant={tier.is_featured ? 'default' : 'outline'}
-                                        disabled={subscribing === tier.id || currentSub?.tier_id === tier.id}
+                                        disabled={testModeEnabled || subscribing === tier.id || currentSub?.tier_id === tier.id}
                                         onClick={() => handleSubscribe(tier)}
                                     >
                                         {subscribing === tier.id ? (
@@ -287,9 +306,9 @@ export default function Pricing() {
                     </div>
 
                     {/* Right scroll arrow */}
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         className="absolute right-0 top-1/2 -translate-y-1/2 z-10 hidden md:flex bg-background/80 backdrop-blur-sm shadow-md hover:bg-background"
                         onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
                     >
