@@ -11,8 +11,9 @@ interface SubscribeRequest {
 }
 
 serve(async (req) => {
-    // Handle CORS
-    if (req.method === 'OPTIONS') return handleCors();
+    // Handle CORS preflight
+    const corsResponse = handleCors(req);
+    if (corsResponse) return corsResponse;
 
     try {
         // Get authenticated user
