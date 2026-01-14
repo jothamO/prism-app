@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Check, Zap, Building, Crown, Users, CreditCard, ArrowRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Check, Zap, Building, Crown, Users, CreditCard, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ export default function Pricing() {
     const [isYearly, setIsYearly] = useState(false);
     const [currentSub, setCurrentSub] = useState<CurrentSubscription | null>(null);
     const [subscribing, setSubscribing] = useState<string | null>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         fetchTiers();
@@ -188,81 +189,107 @@ export default function Pricing() {
                     </div>
                 </div>
 
-                {/* Pricing Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {tiers.filter(t => !['personal_plus', 'business_lite', 'business_pro'].includes(t.name)).map((tier) => (
-                        <Card
-                            key={tier.id}
-                            className={`relative flex flex-col ${tier.is_featured ? 'border-primary border-2 shadow-lg scale-105' : ''}`}
-                        >
-                            {tier.is_featured && (
-                                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                    <Badge className="bg-primary text-primary-foreground">Most Popular</Badge>
-                                </div>
-                            )}
+                {/* Pricing Cards - Horizontal Scroll */}
+                <div className="relative">
+                    {/* Left scroll arrow */}
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 hidden md:flex bg-background/80 backdrop-blur-sm shadow-md hover:bg-background"
+                        onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
+                    >
+                        <ChevronLeft className="w-6 h-6" />
+                    </Button>
 
-                            <CardHeader className="text-center pb-4">
-                                <div className="mx-auto mb-2 p-2 bg-primary/10 rounded-full w-fit">
-                                    {getIcon(tier.name)}
-                                </div>
-                                <CardTitle className="text-xl">{tier.display_name}</CardTitle>
-                                <CardDescription>{tier.min_revenue_band?.replace('_', ' ') || 'For everyone'}</CardDescription>
-                            </CardHeader>
+                    {/* Horizontal scroll container */}
+                    <div 
+                        ref={scrollRef}
+                        className="flex gap-6 overflow-x-auto pb-4 px-10 snap-x snap-mandatory scrollbar-hide"
+                    >
+                        {tiers.map((tier) => (
+                            <Card
+                                key={tier.id}
+                                className={`relative flex flex-col min-w-[280px] max-w-[300px] flex-shrink-0 snap-center ${tier.is_featured ? 'border-primary border-2 shadow-lg scale-105' : ''}`}
+                            >
+                                {tier.is_featured && (
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                                        <Badge className="bg-primary text-primary-foreground">Most Popular</Badge>
+                                    </div>
+                                )}
 
-                            <CardContent className="flex-1 flex flex-col">
-                                {/* Price */}
-                                <div className="text-center mb-6">
-                                    {tier.price_monthly === 0 && tier.name !== 'enterprise' ? (
-                                        <div className="text-4xl font-bold">Free</div>
-                                    ) : tier.name === 'enterprise' ? (
-                                        <div className="text-2xl font-bold">Custom</div>
-                                    ) : (
-                                        <>
-                                            <div className="text-4xl font-bold">
-                                                {formatPrice(isYearly && tier.price_yearly ? tier.price_yearly / 12 : tier.price_monthly)}
-                                            </div>
-                                            <div className="text-muted-foreground">/month</div>
-                                            {isYearly && tier.price_yearly && (
-                                                <div className="text-sm text-green-600 mt-1">
-                                                    {formatPrice(tier.price_yearly)}/year
+                                <CardHeader className="text-center pb-4">
+                                    <div className="mx-auto mb-2 p-2 bg-primary/10 rounded-full w-fit">
+                                        {getIcon(tier.name)}
+                                    </div>
+                                    <CardTitle className="text-xl">{tier.display_name}</CardTitle>
+                                    <CardDescription>{tier.min_revenue_band?.replace('_', ' ') || 'For everyone'}</CardDescription>
+                                </CardHeader>
+
+                                <CardContent className="flex-1 flex flex-col">
+                                    {/* Price */}
+                                    <div className="text-center mb-6">
+                                        {tier.price_monthly === 0 && tier.name !== 'enterprise' ? (
+                                            <div className="text-4xl font-bold">Free</div>
+                                        ) : tier.name === 'enterprise' ? (
+                                            <div className="text-2xl font-bold">Custom</div>
+                                        ) : (
+                                            <>
+                                                <div className="text-4xl font-bold">
+                                                    {formatPrice(isYearly && tier.price_yearly ? tier.price_yearly / 12 : tier.price_monthly)}
                                                 </div>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
+                                                <div className="text-muted-foreground">/month</div>
+                                                {isYearly && tier.price_yearly && (
+                                                    <div className="text-sm text-green-600 mt-1">
+                                                        {formatPrice(tier.price_yearly)}/year
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
 
-                                {/* Features */}
-                                <ul className="space-y-3 mb-6 flex-1">
-                                    {getFeatures(tier).map((feature, i) => (
-                                        <li key={i} className="flex items-start gap-2">
-                                            <Check className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                                            <span className="text-sm">{feature}</span>
-                                        </li>
-                                    ))}
-                                </ul>
+                                    {/* Features */}
+                                    <ul className="space-y-3 mb-6 flex-1">
+                                        {getFeatures(tier).map((feature, i) => (
+                                            <li key={i} className="flex items-start gap-2">
+                                                <Check className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                                                <span className="text-sm">{feature}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
 
-                                {/* CTA Button */}
-                                <Button
-                                    className="w-full"
-                                    variant={tier.is_featured ? 'default' : 'outline'}
-                                    disabled={subscribing === tier.id || currentSub?.tier_id === tier.id}
-                                    onClick={() => handleSubscribe(tier)}
-                                >
-                                    {subscribing === tier.id ? (
-                                        <span className="animate-spin">⏳</span>
-                                    ) : currentSub?.tier_id === tier.id ? (
-                                        "Current Plan"
-                                    ) : tier.name === 'enterprise' ? (
-                                        "Contact Sales"
-                                    ) : tier.name === 'free' ? (
-                                        "Get Started"
-                                    ) : (
-                                        <>Subscribe <ArrowRight className="w-4 h-4 ml-1" /></>
-                                    )}
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                    {/* CTA Button */}
+                                    <Button
+                                        className="w-full"
+                                        variant={tier.is_featured ? 'default' : 'outline'}
+                                        disabled={subscribing === tier.id || currentSub?.tier_id === tier.id}
+                                        onClick={() => handleSubscribe(tier)}
+                                    >
+                                        {subscribing === tier.id ? (
+                                            <span className="animate-spin">⏳</span>
+                                        ) : currentSub?.tier_id === tier.id ? (
+                                            "Current Plan"
+                                        ) : tier.name === 'enterprise' ? (
+                                            "Contact Sales"
+                                        ) : tier.name === 'free' ? (
+                                            "Get Started"
+                                        ) : (
+                                            <>Subscribe <ArrowRight className="w-4 h-4 ml-1" /></>
+                                        )}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+
+                    {/* Right scroll arrow */}
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 hidden md:flex bg-background/80 backdrop-blur-sm shadow-md hover:bg-background"
+                        onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+                    >
+                        <ChevronRight className="w-6 h-6" />
+                    </Button>
                 </div>
 
                 {/* All Plans Link */}

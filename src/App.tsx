@@ -64,6 +64,7 @@ import AdminAPIKeys from "./pages/admin/AdminAPIKeys";
 import AdminAPIPricing from "./pages/admin/AdminAPIPricing";
 import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 import Pricing from "./pages/Pricing";
+import PricingCompare from "./pages/PricingCompare";
 
 function App() {
   return (
@@ -83,6 +84,7 @@ function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/pricing/compare" element={<PricingCompare />} />
             <Route path="/invite/:token" element={<AcceptInvite />} />
             <Route path="/awaiting-approval" element={<AwaitingApproval />} />
 
