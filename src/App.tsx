@@ -66,6 +66,7 @@ import AdminUserPricing from "./pages/admin/AdminUserPricing";
 import AdminSubscriptions from "./pages/admin/AdminSubscriptions";
 import Pricing from "./pages/Pricing";
 import PricingCompare from "./pages/PricingCompare";
+import SubscriptionSuccess from "./pages/SubscriptionSuccess";
 import AdminDeveloperRequests from "./pages/admin/AdminDeveloperRequests";
 
 function App() {
@@ -87,6 +88,7 @@ function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/pricing/compare" element={<PricingCompare />} />
+            <Route path="/subscription/success" element={<SubscriptionSuccess />} />
             <Route path="/invite/:token" element={<AcceptInvite />} />
             <Route path="/awaiting-approval" element={<AwaitingApproval />} />
 
