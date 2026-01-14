@@ -4056,6 +4056,66 @@ export type Database = {
           },
         ]
       }
+      user_payments: {
+        Row: {
+          amount_kobo: number
+          billing_cycle: string | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          metadata: Json | null
+          paid_at: string | null
+          payment_method: string | null
+          paystack_reference: string
+          status: string
+          tier_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_kobo: number
+          billing_cycle?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_method?: string | null
+          paystack_reference: string
+          status?: string
+          tier_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_kobo?: number
+          billing_cycle?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_method?: string | null
+          paystack_reference?: string
+          status?: string
+          tier_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_payments_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "user_pricing_tiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_pricing_tiers: {
         Row: {
           created_at: string | null
@@ -4158,9 +4218,11 @@ export type Database = {
           id: string
           last_request_at: string | null
           ocr_docs_used_this_period: number | null
+          paystack_customer_code: string | null
           paystack_customer_id: string | null
           paystack_email_token: string | null
           paystack_plan_code: string | null
+          paystack_reference: string | null
           paystack_subscription_code: string | null
           requests_this_period: number | null
           status: string
@@ -4180,9 +4242,11 @@ export type Database = {
           id?: string
           last_request_at?: string | null
           ocr_docs_used_this_period?: number | null
+          paystack_customer_code?: string | null
           paystack_customer_id?: string | null
           paystack_email_token?: string | null
           paystack_plan_code?: string | null
+          paystack_reference?: string | null
           paystack_subscription_code?: string | null
           requests_this_period?: number | null
           status?: string
@@ -4202,9 +4266,11 @@ export type Database = {
           id?: string
           last_request_at?: string | null
           ocr_docs_used_this_period?: number | null
+          paystack_customer_code?: string | null
           paystack_customer_id?: string | null
           paystack_email_token?: string | null
           paystack_plan_code?: string | null
+          paystack_reference?: string | null
           paystack_subscription_code?: string | null
           requests_this_period?: number | null
           status?: string

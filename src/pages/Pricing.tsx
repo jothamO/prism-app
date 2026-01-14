@@ -109,17 +109,21 @@ export default function Pricing() {
 
         setSubscribing(tier.id);
         try {
-            // TODO: Integrate with Paystack
-            const { error } = await supabase.functions.invoke('paystack-subscribe', {
+            const { data, error } = await supabase.functions.invoke('paystack-subscribe', {
                 body: { tier_id: tier.id, billing_cycle: isYearly ? 'yearly' : 'monthly' }
             });
 
             if (error) throw error;
-            toast({ title: "Success", description: "Subscription started!" });
-            fetchCurrentSubscription();
+            
+            // Redirect to Paystack checkout
+            if (data?.authorization_url) {
+                window.location.href = data.authorization_url;
+            } else {
+                throw new Error('No payment URL received');
+            }
         } catch (error) {
-            toast({ title: "Error", description: "Failed to subscribe", variant: "destructive" });
-        } finally {
+            console.error('Subscription error:', error);
+            toast({ title: "Error", description: "Failed to initialize payment", variant: "destructive" });
             setSubscribing(null);
         }
     }
