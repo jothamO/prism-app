@@ -309,6 +309,66 @@ export type Database = {
           },
         ]
       }
+      api_pricing_tiers: {
+        Row: {
+          can_access_documents: boolean | null
+          can_access_ocr: boolean | null
+          can_bulk_process: boolean | null
+          can_use_webhooks: boolean | null
+          created_at: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+          is_featured: boolean | null
+          name: string
+          price_monthly: number
+          price_yearly: number | null
+          priority_support: boolean | null
+          requests_per_day: number
+          requests_per_min: number
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          can_access_documents?: boolean | null
+          can_access_ocr?: boolean | null
+          can_bulk_process?: boolean | null
+          can_use_webhooks?: boolean | null
+          created_at?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          is_featured?: boolean | null
+          name: string
+          price_monthly: number
+          price_yearly?: number | null
+          priority_support?: boolean | null
+          requests_per_day: number
+          requests_per_min: number
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          can_access_documents?: boolean | null
+          can_access_ocr?: boolean | null
+          can_bulk_process?: boolean | null
+          can_use_webhooks?: boolean | null
+          created_at?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_featured?: boolean | null
+          name?: string
+          price_monthly?: number
+          price_yearly?: number | null
+          priority_support?: boolean | null
+          requests_per_day?: number
+          requests_per_min?: number
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       api_rate_limits: {
         Row: {
           api_key_id: string
@@ -1207,6 +1267,63 @@ export type Database = {
           vat_registered?: boolean | null
         }
         Relationships: []
+      }
+      calculation_logs: {
+        Row: {
+          api_key_id: string | null
+          created_at: string | null
+          id: string
+          input: Json
+          output: Json
+          response_time_ms: number | null
+          rules_version: string | null
+          session_id: string | null
+          source: string
+          tax_type: string
+          user_id: string | null
+        }
+        Insert: {
+          api_key_id?: string | null
+          created_at?: string | null
+          id?: string
+          input: Json
+          output: Json
+          response_time_ms?: number | null
+          rules_version?: string | null
+          session_id?: string | null
+          source: string
+          tax_type: string
+          user_id?: string | null
+        }
+        Update: {
+          api_key_id?: string | null
+          created_at?: string | null
+          id?: string
+          input?: Json
+          output?: Json
+          response_time_ms?: number | null
+          rules_version?: string | null
+          session_id?: string | null
+          source?: string
+          tax_type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calculation_logs_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calculation_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cbn_exchange_rates: {
         Row: {
@@ -3857,6 +3974,72 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          last_request_at: string | null
+          paystack_customer_id: string | null
+          paystack_plan_code: string | null
+          paystack_subscription_code: string | null
+          requests_this_period: number | null
+          status: string
+          tier_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          last_request_at?: string | null
+          paystack_customer_id?: string | null
+          paystack_plan_code?: string | null
+          paystack_subscription_code?: string | null
+          requests_this_period?: number | null
+          status?: string
+          tier_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          last_request_at?: string | null
+          paystack_customer_id?: string | null
+          paystack_plan_code?: string | null
+          paystack_subscription_code?: string | null
+          requests_this_period?: number | null
+          status?: string
+          tier_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "api_pricing_tiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_tax_profiles: {
         Row: {
           ai_confidence: number | null
@@ -4458,6 +4641,18 @@ export type Database = {
       increment_pattern_usage: {
         Args: { pattern_id: string }
         Returns: undefined
+      }
+      log_calculation: {
+        Args: {
+          p_api_key_id: string
+          p_input: Json
+          p_output: Json
+          p_response_time_ms?: number
+          p_source: string
+          p_tax_type: string
+          p_user_id: string
+        }
+        Returns: string
       }
       refresh_transaction_analytics: { Args: never; Returns: undefined }
       rollback_rule_to_version: {
