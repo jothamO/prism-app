@@ -49,7 +49,10 @@ export default function LandingPage() {
               </div>
               <span className="text-xl font-bold text-foreground">PRISM</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors font-medium">
+                Pricing
+              </Link>
               <ThemeToggle />
               <Link to="/auth">
                 <Button variant="secondary" className="font-medium">Sign In</Button>
@@ -78,9 +81,11 @@ export default function LandingPage() {
                   Get Started
                 </Button>
               </Link>
-              <Button size="lg" variant="secondary" className="w-full sm:w-auto text-lg px-8">
-                Learn More
-              </Button>
+              <Link to="/pricing">
+                <Button size="lg" variant="secondary" className="w-full sm:w-auto text-lg px-8">
+                  View Pricing
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
