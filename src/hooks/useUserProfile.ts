@@ -28,6 +28,8 @@ export interface UserProfile {
     // Bank
     bankSetup?: string;
     bankConnected: boolean;
+    // Developer Access
+    hasDeveloperAccess: boolean;
     // Onboarding
     onboardingCompleted: boolean;
     profileConfidence?: number;
@@ -113,6 +115,7 @@ export function useUserProfile(): UseUserProfileReturn {
                 telegramConnected: !!userData.telegram_id,
                 bankSetup: userData.bank_setup,
                 bankConnected: userData.bank_setup === 'connected',
+                hasDeveloperAccess: userData.has_developer_access || false,
                 onboardingCompleted: userData.onboarding_completed || false,
                 profileConfidence: userData.profile_confidence,
                 createdAt: userData.created_at,
