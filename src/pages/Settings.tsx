@@ -10,6 +10,9 @@ import {
     Loader2,
     CheckCircle2,
     Code,
+    CreditCard,
+    Crown,
+    ExternalLink,
 } from 'lucide-react';
 import { DeveloperAccessCard } from '@/components/dashboard/DeveloperAccessCard';
 import { Button } from '@/components/ui/button';
@@ -61,9 +64,16 @@ export default function Settings() {
     const [saving, setSaving] = useState(false);
     const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
     const [profile, setProfile] = useState<{ fullName: string; email: string; telegramConnected: boolean } | null>(null);
+    const [subscription, setSubscription] = useState<{
+        tier_name: string;
+        display_name: string;
+        status: string;
+        current_period_end: string | null;
+    } | null>(null);
 
     useEffect(() => {
         fetchSettings();
+        fetchSubscription();
     }, []);
 
     const fetchSettings = async () => {
@@ -101,6 +111,43 @@ export default function Settings() {
             console.error('Error fetching settings:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchSubscription = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Get user ID from users table
+            const { data: userData } = await supabase
+                .from('users')
+                .select('id')
+                .eq('auth_user_id', user.id)
+                .single();
+
+            if (!userData) return;
+
+            const { data: subData } = await supabase
+                .from('user_subscriptions')
+                .select(`
+                    status,
+                    current_period_end,
+                    user_pricing_tiers (name, display_name)
+                `)
+                .eq('user_id', userData.id)
+                .single();
+
+            if (subData) {
+                setSubscription({
+                    tier_name: (subData as any).user_pricing_tiers?.name || 'free',
+                    display_name: (subData as any).user_pricing_tiers?.display_name || 'Free',
+                    status: subData.status,
+                    current_period_end: subData.current_period_end,
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching subscription:', error);
         }
     };
 
@@ -193,6 +240,74 @@ export default function Settings() {
                                 <span className="text-sm text-gray-500">Not connected</span>
                             )}
                         </div>
+                    </CardContent>
+                </Card>
+
+                {/* Subscription Plan */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <CreditCard className="h-5 w-5" />
+                            Subscription Plan
+                        </CardTitle>
+                        <CardDescription>
+                            Manage your subscription and billing
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-100">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-100 rounded-lg">
+                                    <Crown className="h-6 w-6 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-gray-900">
+                                        {subscription?.display_name || 'Free'}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        {subscription?.status === 'active' ? 'Active' :
+                                            subscription?.status === 'trial' ? 'Trial' :
+                                                subscription?.status || 'Active'}
+                                        {subscription?.current_period_end && subscription.status === 'active' && (
+                                            <span> · Renews {new Date(subscription.current_period_end).toLocaleDateString()}</span>
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                            {subscription?.tier_name !== 'enterprise' && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => navigate('/pricing')}
+                                    className="gap-2"
+                                >
+                                    <ExternalLink className="h-4 w-4" />
+                                    {subscription?.tier_name === 'free' ? 'Upgrade' : 'Change Plan'}
+                                </Button>
+                            )}
+                        </div>
+
+                        {subscription?.tier_name !== 'free' && (
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                        const { data, error } = await supabase.functions.invoke('paystack-portal');
+                                        if (!error && data?.url) {
+                                            window.open(data.url, '_blank');
+                                        } else {
+                                            toast({
+                                                title: 'Error',
+                                                description: 'Could not open billing portal',
+                                                variant: 'destructive'
+                                            });
+                                        }
+                                    }}
+                                >
+                                    Manage Billing
+                                </Button>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
