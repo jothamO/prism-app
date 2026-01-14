@@ -39,16 +39,17 @@ export async function getUserTier(supabase: SupabaseClient, userId: string): Pro
         return null;
     }
 
+    const tierData = data as Record<string, unknown>;
     return {
-        tier_name: data.tier_name,
-        max_banks: data.max_banks,
-        max_team: data.max_team,
-        max_ocr: data.max_ocr,
-        max_chats: data.max_chats,
-        banks_used: data.banks_used,
-        team_used: data.team_used,
-        ocr_used: data.ocr_used,
-        chats_used: data.chats_used
+        tier_name: tierData.tier_name as string,
+        max_banks: tierData.max_banks as number,
+        max_team: tierData.max_team as number,
+        max_ocr: tierData.max_ocr as number,
+        max_chats: tierData.max_chats as number | null,
+        banks_used: tierData.banks_used as number,
+        team_used: tierData.team_used as number,
+        ocr_used: tierData.ocr_used as number,
+        chats_used: tierData.chats_used as number
     };
 }
 
@@ -74,11 +75,12 @@ export async function checkUserLimit(
         };
     }
 
+    const limitData = data as Record<string, unknown>;
     return {
-        allowed: data.allowed,
-        currentCount: data.current_count,
-        maxAllowed: data.max_allowed,
-        upgradeMessage: data.upgrade_message
+        allowed: limitData.allowed as boolean,
+        currentCount: limitData.current_count as number,
+        maxAllowed: limitData.max_allowed as number,
+        upgradeMessage: limitData.upgrade_message as string | null
     };
 }
 
