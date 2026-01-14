@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Check, Zap, Building, Crown, Users, CreditCard, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, Zap, Building, Crown, Users, CreditCard, ArrowRight, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -172,6 +172,11 @@ export default function Pricing() {
     return (
         <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 py-12 px-4">
             <div className="max-w-7xl mx-auto">
+                {/* Back Button */}
+                <Button variant="ghost" onClick={() => navigate(user ? '/dashboard' : '/')} className="mb-4">
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Back
+                </Button>
+
                 {/* Header */}
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
