@@ -3541,6 +3541,41 @@ export type Database = {
           },
         ]
       }
+      subscription_addons: {
+        Row: {
+          addon_type: string
+          created_at: string | null
+          id: string
+          price_per_unit: number
+          quantity: number
+          subscription_id: string
+        }
+        Insert: {
+          addon_type: string
+          created_at?: string | null
+          id?: string
+          price_per_unit: number
+          quantity?: number
+          subscription_id: string
+        }
+        Update: {
+          addon_type?: string
+          created_at?: string | null
+          id?: string
+          price_per_unit?: number
+          quantity?: number
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_addons_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_settings: {
         Row: {
           auto_verification_enabled: boolean | null
@@ -3956,6 +3991,78 @@ export type Database = {
           },
         ]
       }
+      user_pricing_tiers: {
+        Row: {
+          created_at: string | null
+          display_name: string
+          has_api_access: boolean | null
+          has_filing_assistance: boolean | null
+          has_pdf_reports: boolean | null
+          has_priority_support: boolean | null
+          has_reminders: boolean | null
+          id: string
+          is_active: boolean | null
+          is_featured: boolean | null
+          max_bank_accounts: number
+          max_chats_per_day: number | null
+          max_ocr_docs_per_month: number
+          max_team_members: number
+          min_revenue_band: string | null
+          name: string
+          price_monthly: number
+          price_yearly: number | null
+          sort_order: number | null
+          target_description: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_name: string
+          has_api_access?: boolean | null
+          has_filing_assistance?: boolean | null
+          has_pdf_reports?: boolean | null
+          has_priority_support?: boolean | null
+          has_reminders?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_featured?: boolean | null
+          max_bank_accounts?: number
+          max_chats_per_day?: number | null
+          max_ocr_docs_per_month?: number
+          max_team_members?: number
+          min_revenue_band?: string | null
+          name: string
+          price_monthly?: number
+          price_yearly?: number | null
+          sort_order?: number | null
+          target_description?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string
+          has_api_access?: boolean | null
+          has_filing_assistance?: boolean | null
+          has_pdf_reports?: boolean | null
+          has_priority_support?: boolean | null
+          has_reminders?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_featured?: boolean | null
+          max_bank_accounts?: number
+          max_chats_per_day?: number | null
+          max_ocr_docs_per_month?: number
+          max_team_members?: number
+          min_revenue_band?: string | null
+          name?: string
+          price_monthly?: number
+          price_yearly?: number | null
+          sort_order?: number | null
+          target_description?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -3976,50 +4083,68 @@ export type Database = {
       }
       user_subscriptions: {
         Row: {
+          billing_cycle: string | null
           cancel_at_period_end: boolean | null
+          chats_last_reset: string | null
+          chats_used_today: number | null
           created_at: string | null
           current_period_end: string | null
           current_period_start: string | null
           id: string
           last_request_at: string | null
+          ocr_docs_used_this_period: number | null
           paystack_customer_id: string | null
+          paystack_email_token: string | null
           paystack_plan_code: string | null
           paystack_subscription_code: string | null
           requests_this_period: number | null
           status: string
           tier_id: string
+          trial_ends_at: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          billing_cycle?: string | null
           cancel_at_period_end?: boolean | null
+          chats_last_reset?: string | null
+          chats_used_today?: number | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
           last_request_at?: string | null
+          ocr_docs_used_this_period?: number | null
           paystack_customer_id?: string | null
+          paystack_email_token?: string | null
           paystack_plan_code?: string | null
           paystack_subscription_code?: string | null
           requests_this_period?: number | null
           status?: string
           tier_id: string
+          trial_ends_at?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          billing_cycle?: string | null
           cancel_at_period_end?: boolean | null
+          chats_last_reset?: string | null
+          chats_used_today?: number | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
           last_request_at?: string | null
+          ocr_docs_used_this_period?: number | null
           paystack_customer_id?: string | null
+          paystack_email_token?: string | null
           paystack_plan_code?: string | null
           paystack_subscription_code?: string | null
           requests_this_period?: number | null
           status?: string
           tier_id?: string
+          trial_ends_at?: string | null
           updated_at?: string | null
           user_id?: string
         }
