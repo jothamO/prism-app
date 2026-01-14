@@ -34,6 +34,9 @@ import {
   Key,
   DollarSign,
   Calculator,
+  Gauge,
+  Webhook,
+  History,
 } from "lucide-react";
 
 interface NavGroup {
@@ -147,7 +150,11 @@ export default function AdminLayout() {
       items: [
         { name: "Developer Requests", path: "/admin/developer-requests", icon: Code },
         { name: "API Keys", path: "/admin/api-keys", icon: Key },
+        { name: "API Usage", path: "/admin/api-usage", icon: BarChart3 },
+        { name: "Rate Limits", path: "/admin/rate-limits", icon: Gauge },
+        { name: "Webhooks", path: "/admin/webhooks", icon: Webhook },
         { name: "Calculation Logs", path: "/admin/calculation-logs", icon: Calculator },
+        { name: "Rule Versions", path: "/admin/rule-versions", icon: History },
       ]
     },
     {

@@ -68,6 +68,10 @@ import Pricing from "./pages/Pricing";
 import PricingCompare from "./pages/PricingCompare";
 import SubscriptionSuccess from "./pages/SubscriptionSuccess";
 import AdminDeveloperRequests from "./pages/admin/AdminDeveloperRequests";
+import AdminAPIUsage from "./pages/admin/AdminAPIUsage";
+import AdminWebhooks from "./pages/admin/AdminWebhooks";
+import AdminRateLimits from "./pages/admin/AdminRateLimits";
+import AdminRuleVersions from "./pages/admin/AdminRuleVersions";
 
 function App() {
   return (
@@ -232,6 +236,10 @@ function App() {
               <Route path="settings" element={<AdminSettings />} />
               <Route path="calculation-logs" element={<AdminCalculationLogs />} />
               <Route path="api-keys" element={<AdminAPIKeys />} />
+              <Route path="api-usage" element={<AdminAPIUsage />} />
+              <Route path="webhooks" element={<AdminWebhooks />} />
+              <Route path="rate-limits" element={<AdminRateLimits />} />
+              <Route path="rule-versions" element={<AdminRuleVersions />} />
               <Route path="api-pricing" element={<AdminAPIPricing />} />
               <Route path="user-pricing" element={<AdminUserPricing />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
