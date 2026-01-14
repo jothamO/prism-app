@@ -137,6 +137,7 @@ export default function AdminLayout() {
       name: "API Management",
       defaultOpen: true,
       items: [
+        { name: "Developer Requests", path: "/admin/developer-requests", icon: Code },
         { name: "API Keys", path: "/admin/api-keys", icon: Key },
         { name: "API Pricing", path: "/admin/api-pricing", icon: DollarSign },
         { name: "Calculation Logs", path: "/admin/calculation-logs", icon: Calculator },

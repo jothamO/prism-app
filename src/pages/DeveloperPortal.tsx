@@ -22,6 +22,7 @@ import { PricingCard, PRICING_TIERS } from "@/components/developer/PricingCard";
 import { UsageStats } from "@/components/developer/UsageStats";
 import { PaymentHistory } from "@/components/developer/PaymentHistory";
 import { SubscriptionManager } from "@/components/developer/SubscriptionManager";
+import { DeveloperAccessGate } from "@/components/developer/DeveloperAccessGate";
 
 interface APIKey {
     id: string;
@@ -194,6 +195,7 @@ export default function DeveloperPortal() {
     }
 
     return (
+        <DeveloperAccessGate>
         <div className="container mx-auto py-8 space-y-8">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -443,5 +445,6 @@ export default function DeveloperPortal() {
                 </TabsContent>
             </Tabs>
         </div>
+        </DeveloperAccessGate>
     );
 }

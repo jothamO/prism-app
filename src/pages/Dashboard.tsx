@@ -26,6 +26,8 @@ import {
   Settings,
   Shield,
   FolderKanban,
+  Crown,
+  Code,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,6 +42,8 @@ import TelegramConnectModal from '@/components/TelegramConnectModal';
 import BankConnectModal from '@/components/BankConnectModal';
 import VerifyIdentityModal from '@/components/VerifyIdentityModal';
 import ChatWidget from '@/components/ChatWidget';
+import { SubscriptionCard } from '@/components/dashboard/SubscriptionCard';
+import { DeveloperAccessCard } from '@/components/dashboard/DeveloperAccessCard';
 
 export default function Dashboard() {
   const location = useLocation();
@@ -528,8 +532,14 @@ export default function Dashboard() {
         </CardHeader>
       </Card>
 
+      {/* Subscription & Developer Access Cards */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <SubscriptionCard />
+        <DeveloperAccessCard />
+      </div>
+
       {/* Quick Access to Features */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
         <button
           onClick={() => navigate('/projects')}
           className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
@@ -568,6 +578,22 @@ export default function Dashboard() {
         >
           <FileText className="h-6 w-6 text-indigo-600" />
           <span className="text-sm font-medium">Reports</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/pricing')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <Crown className="h-6 w-6 text-amber-600" />
+          <span className="text-sm font-medium">Subscription</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/developers')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <Code className="h-6 w-6 text-purple-600" />
+          <span className="text-sm font-medium">Developer API</span>
         </button>
       </div>
 
