@@ -1,11 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeaders, jsonResponse, handleCors } from '../_shared/cors.ts';
+import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { generateSystemPrompt } from '../_shared/prompt-generator.ts';
-
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 interface Message {
     role: 'user' | 'assistant';
@@ -30,12 +26,9 @@ interface ChatRequest {
  */
 async function extractAndStoreFacts(userId: string, message: string): Promise<void> {
     try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL');
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        if (!userId) return;
 
-        if (!supabaseUrl || !supabaseKey || !userId) return;
-
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const supabase = getSupabaseAdmin();
 
         // Resolve auth_user_id to internal users.id (same fix as prompt-generator)
         let internalUserId = userId;
@@ -151,26 +144,20 @@ async function extractAndStoreFacts(userId: string, message: string): Promise<vo
 }
 
 serve(async (req) => {
-    if (req.method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders });
-    }
+    // Handle CORS preflight
+    const corsResponse = handleCors(req);
+    if (corsResponse) return corsResponse;
 
     try {
         const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
         if (!anthropicApiKey) {
-            return new Response(
-                JSON.stringify({ error: 'AI service not configured' }),
-                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+            return jsonResponse({ error: 'AI service not configured' }, 500);
         }
 
         const { message, history = [], context }: ChatRequest = await req.json();
 
         if (!message) {
-            return new Response(
-                JSON.stringify({ error: 'Message is required' }),
-                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+            return jsonResponse({ error: 'Message is required' }, 400);
         }
 
         // Extract and store facts from user message (async, non-blocking)
@@ -218,10 +205,7 @@ serve(async (req) => {
         if (!response.ok) {
             const errorText = await response.text();
             console.error('[chat-assist] Claude API error:', errorText);
-            return new Response(
-                JSON.stringify({ error: 'AI service unavailable' }),
-                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+            return jsonResponse({ error: 'AI service unavailable' }, 500);
         }
 
         const data = await response.json();
@@ -229,22 +213,16 @@ serve(async (req) => {
 
         console.log('[chat-assist] Response generated:', assistantMessage.substring(0, 50));
 
-        return new Response(
-            JSON.stringify({
-                response: assistantMessage,
-                usage: {
-                    input_tokens: data.usage?.input_tokens,
-                    output_tokens: data.usage?.output_tokens,
-                },
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({
+            response: assistantMessage,
+            usage: {
+                input_tokens: data.usage?.input_tokens,
+                output_tokens: data.usage?.output_tokens,
+            },
+        });
 
     } catch (error) {
         console.error('[chat-assist] Error:', error);
-        return new Response(
-            JSON.stringify({ error: 'Internal server error' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({ error: 'Internal server error' }, 500);
     }
 });

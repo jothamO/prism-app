@@ -1,11 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, jsonResponse, handleCors } from '../_shared/cors.ts';
+import { getSupabaseWithAuth } from '../_shared/supabase.ts';
 import { getTaxBands, TaxBand } from "../_shared/rules-client.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 /**
  * Nigeria Tax Act 2025 - Section 58 Progressive Tax Rates
@@ -171,36 +167,24 @@ function calculateProgressiveTax(chargeableIncome: number, taxBands: TaxBand[]):
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Handle CORS preflight
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-
     // ===== AUTHENTICATION CHECK =====
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       console.log('[income-tax-calculator] Missing authorization header');
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ error: 'Missing authorization header' }, 401);
     }
 
-    // Create client with user's token for auth check
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const supabase = getSupabaseWithAuth(authHeader.replace('Bearer ', ''));
 
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       console.log('[income-tax-calculator] Invalid token:', authError?.message);
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ error: 'Invalid token' }, 401);
     }
 
     console.log('[income-tax-calculator] User authenticated:', user.id);
@@ -259,9 +243,7 @@ serve(async (req) => {
       };
 
       console.log('Pension exempt result:', result);
-      return new Response(JSON.stringify(result), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse(result);
     }
 
     // Handle mixed income (pension + other income)
@@ -310,9 +292,7 @@ serve(async (req) => {
       };
 
       console.log('Minimum wage exempt:', result);
-      return new Response(JSON.stringify(result), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse(result);
     }
 
     // Calculate business expenses for freelancers (Section 20)
@@ -385,14 +365,9 @@ serve(async (req) => {
 
     console.log('Income Tax Calculation Result:', result);
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(result);
   } catch (error) {
     console.error('Error calculating income tax:', error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
   }
 });

@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders, jsonResponse, handleCors } from '../_shared/cors.ts';
+import { getSupabaseWithAuth, getUserFromAuth } from '../_shared/supabase.ts';
 
 const STANDARD_RATE = 0.075; // 7.5% per Tax Act 2025 Section 148
 
@@ -115,36 +111,24 @@ function calculateVAT(
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Handle CORS preflight
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-
     // ===== AUTHENTICATION CHECK =====
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       console.log('[vat-calculator] Missing authorization header');
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ error: 'Missing authorization header' }, 401);
     }
 
-    // Create client with user's token for auth check
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const supabase = getSupabaseWithAuth(authHeader.replace('Bearer ', ''));
 
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       console.log('[vat-calculator] Invalid token:', authError?.message);
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ error: 'Invalid token' }, 401);
     }
 
     console.log('[vat-calculator] User authenticated:', user.id);
@@ -183,9 +167,7 @@ serve(async (req) => {
         exemptCount: results.filter((r: any) => r.classification === 'exempt').length
       };
 
-      return new Response(JSON.stringify({ items: results, summary }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ items: results, summary });
     }
 
     // Single item mode
@@ -203,16 +185,11 @@ serve(async (req) => {
 
     console.log('VAT Calculation:', { input: { amount, includesVAT, itemDescription }, result });
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return jsonResponse(result);
 
   } catch (error) {
     console.error('VAT Calculator Error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return jsonResponse({ error: message }, 500);
   }
 });
