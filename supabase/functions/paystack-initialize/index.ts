@@ -10,11 +10,23 @@ const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-// Paystack plan codes - create these in your Paystack dashboard
-const PLAN_CODES: Record<string, string> = {
-  starter: Deno.env.get('PAYSTACK_PLAN_STARTER') || 'PLN_starter',
-  business: Deno.env.get('PAYSTACK_PLAN_BUSINESS') || 'PLN_business',
-  enterprise: Deno.env.get('PAYSTACK_PLAN_ENTERPRISE') || 'PLN_enterprise',
+// Paystack plan codes and amounts (in kobo) - create plans in Paystack dashboard
+const TIER_CONFIG: Record<string, { planCode: string; amountKobo: number; name: string }> = {
+  starter: { 
+    planCode: Deno.env.get('PAYSTACK_PLAN_STARTER') || 'PLN_starter',
+    amountKobo: 500000, // 5,000 NGN
+    name: 'API Starter'
+  },
+  business: { 
+    planCode: Deno.env.get('PAYSTACK_PLAN_BUSINESS') || 'PLN_business',
+    amountKobo: 5000000, // 50,000 NGN
+    name: 'API Business'
+  },
+  enterprise: { 
+    planCode: Deno.env.get('PAYSTACK_PLAN_ENTERPRISE') || 'PLN_enterprise',
+    amountKobo: 50000000, // 500,000 NGN
+    name: 'API Enterprise'
+  },
 };
 
 serve(async (req) => {
@@ -119,8 +131,9 @@ serve(async (req) => {
 
     // Generate unique reference
     const reference = `PRISM_API_${publicUser.id.substring(0, 8)}_${Date.now()}`;
+    const tierConfig = TIER_CONFIG[tier];
 
-    // Initialize subscription transaction
+    // Initialize subscription transaction with amount
     const initResponse = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -129,7 +142,8 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         email: publicUser.email,
-        plan: PLAN_CODES[tier],
+        amount: tierConfig.amountKobo, // Amount in kobo (required)
+        plan: tierConfig.planCode,
         reference,
         callback_url: callback_url || `${req.headers.get('origin')}/developers?subscription=success`,
         metadata: {
@@ -156,7 +170,7 @@ serve(async (req) => {
         tier: tier,
         status: 'inactive', // Will be activated by webhook
         paystack_customer_code: paystackCustomerCode,
-        paystack_plan_code: PLAN_CODES[tier],
+        paystack_plan_code: tierConfig.planCode,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'user_id',
