@@ -224,23 +224,36 @@ export default function AdminComplianceDocumentDetail() {
     try {
       // Check if this is a multi-part document
       if (document.is_multi_part) {
-        // Use the multi-part processor with mode: 'full'
-        const { error } = await supabase.functions.invoke("process-multipart-document", {
-          body: {
-            documentId: document.id,
-            mode: 'full',
-          },
-        });
+        // Reset all parts to pending - let the Processing tab handle sequential processing
+        const { error: resetError } = await supabase
+          .from("document_parts")
+          .update({ status: 'pending', metadata: null, provisions_count: null, rules_count: null })
+          .eq("parent_document_id", document.id);
 
-        if (error) throw error;
+        if (resetError) throw resetError;
+
+        // Clear abort flag if previously set
+        const currentMetadata = (document.metadata as Record<string, unknown>) || {};
+        const { abort_requested, ...cleanMetadata } = currentMetadata;
+        
+        await supabase
+          .from("legal_documents")
+          .update({
+            status: 'processing',
+            metadata: { ...cleanMetadata, sequential_processing: true },
+          })
+          .eq("id", document.id);
 
         toast({
-          title: "Full Reprocess Started",
-          description: "All parts are being reprocessed. Check the Processing tab for progress.",
+          title: "Ready for Sequential Processing",
+          description: "All parts reset. Click 'Start Processing All' in the Processing tab to begin.",
         });
 
-        // Switch to processing tab to show progress
+        // Switch to processing tab where auto-sequential processor takes over
         setActiveTab("processing");
+        setReprocessing(false);
+        fetchDocument();
+        return;
       } else {
         // Single document - use existing logic
         if (!document.raw_text) {
