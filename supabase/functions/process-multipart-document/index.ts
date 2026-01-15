@@ -59,6 +59,16 @@ const VALID_RULE_TYPES = [
     "procedure",
 ];
 
+// Rule categories for chunked extraction - prevents JSON truncation on large documents
+const RULE_CATEGORIES = [
+    { type: 'tax_rate', description: 'tax rates, percentages, and rate bands' },
+    { type: 'threshold', description: 'monetary thresholds, limits, and brackets' },
+    { type: 'exemption', description: 'exemptions, exclusions, and zero-rated items' },
+    { type: 'deadline', description: 'filing deadlines, due dates, and time limits' },
+    { type: 'penalty', description: 'penalties, interest rates, and fines' },
+    { type: 'relief', description: 'allowances, reliefs, deductions, and credits' },
+];
+
 serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
@@ -163,38 +173,53 @@ ${part.raw_text.substring(0, 60000)}`;
                     }
                 }
 
-                // Extract rules from this part
-                const rulesSystemPrompt = `You are a legal document analyst specializing in Nigerian tax law. Extract machine-readable tax rules and return them as structured JSON.`;
+                // Extract rules using chunked approach by category
+                // This prevents JSON truncation on large documents like Part 4 (VAT)
+                console.log(`[process-multipart] Part ${part.part_number}: Starting chunked rules extraction`);
                 
-                const rulesUserMessage = `Analyze Part ${part.part_number} of "${parentDoc.title}".
-Extract machine-readable tax rules from this text.
+                const partRules: ExtractedRule[] = [];
+                
+                for (const category of RULE_CATEGORIES) {
+                    console.log(`[process-multipart] Part ${part.part_number}: Extracting ${category.type} rules...`);
+                    
+                    const categorySystemPrompt = `You are a legal document analyst specializing in Nigerian tax law. Extract ONLY ${category.description} and return them as a JSON array.`;
+                    
+                    const categoryUserMessage = `Analyze Part ${part.part_number} of "${parentDoc.title}".
+Extract ONLY rules related to ${category.description}. Return maximum 15 rules for this category.
 
 For each rule, provide:
 - rule_code: Unique code (e.g., "PIT_BAND_1", "VAT_RATE_STANDARD")
 - rule_name: Human readable name
 - rule_type: One of [${VALID_RULE_TYPES.join(", ")}]
-- description: Brief description
+- description: Brief description (max 100 words)
 - conditions: JSON object of when this rule applies
 - parameters: JSON object of rule parameters (rates, thresholds, etc.)
 - actions: JSON object of what happens when rule applies
 
-Return JSON array of rules. If no rules found, return empty array [].
+Return JSON array of rules. If no ${category.description} found, return empty array [].
 
 Document text:
-${part.raw_text.substring(0, 60000)}`;
+${part.raw_text.substring(0, 50000)}`;
 
-                const rules = await callClaudeJSON<ExtractedRule[]>(rulesSystemPrompt, rulesUserMessage);
-
-                if (Array.isArray(rules)) {
-                    for (const rule of rules) {
-                        if (!VALID_RULE_TYPES.includes(rule.rule_type)) {
-                            rule.rule_type = "procedure";
+                    const categoryRules = await callClaudeJSON<ExtractedRule[]>(categorySystemPrompt, categoryUserMessage);
+                    
+                    if (Array.isArray(categoryRules) && categoryRules.length > 0) {
+                        console.log(`[process-multipart] Part ${part.part_number}: Found ${categoryRules.length} ${category.type} rules`);
+                        for (const rule of categoryRules) {
+                            if (!VALID_RULE_TYPES.includes(rule.rule_type)) {
+                                rule.rule_type = category.type; // Use category as fallback
+                            }
+                            partRules.push(rule);
                         }
-                        allRules.push({
-                            ...rule,
-                            source_part_id: part.id,
-                        });
                     }
+                }
+                
+                // Add rules with source part reference
+                for (const rule of partRules) {
+                    allRules.push({
+                        ...rule,
+                        source_part_id: part.id,
+                    });
                 }
 
                 // Update part as processed
@@ -203,13 +228,13 @@ ${part.raw_text.substring(0, 60000)}`;
                     .update({
                         status: "processed",
                         provisions_count: provisions?.length || 0,
-                        rules_count: rules?.length || 0,
+                        rules_count: partRules.length,
                         processed_at: new Date().toISOString(),
                     })
                     .eq("id", part.id);
 
                 console.log(
-                    `[process-multipart] Part ${part.part_number} complete: ${provisions?.length || 0} provisions, ${rules?.length || 0} rules`
+                    `[process-multipart] Part ${part.part_number} complete: ${provisions?.length || 0} provisions, ${partRules.length} rules`
                 );
             } catch (partError) {
                 console.error(`[process-multipart] Error processing part ${part.part_number}:`, partError);
