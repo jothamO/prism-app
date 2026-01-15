@@ -136,9 +136,9 @@ export default function DocumentPartsView({ documentId, onReprocessComplete }: D
                     .in("id", stuckProcessingIds);
             }
             
-            // Trigger full document reprocessing to pick up pending parts
+            // Trigger resume processing to pick up pending parts only
             const { error } = await supabase.functions.invoke("process-multipart-document", {
-                body: { documentId },
+                body: { documentId, mode: 'resume' },
             });
 
             if (error) throw error;

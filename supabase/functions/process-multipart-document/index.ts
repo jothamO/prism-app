@@ -12,6 +12,7 @@ import { callClaudeJSON } from "../_shared/claude-client.ts";
 interface ProcessRequest {
     documentId: string;
     reprocessPartId?: string; // If set, only reprocess this specific part
+    mode?: 'full' | 'resume'; // Processing mode: 'full' reprocesses all, 'resume' only pending parts
 }
 
 interface ExtractedProvision {
@@ -142,7 +143,7 @@ serve(async (req) => {
     const startTime = Date.now();
 
     try {
-        const { documentId, reprocessPartId }: ProcessRequest = await req.json();
+        const { documentId, reprocessPartId, mode }: ProcessRequest = await req.json();
 
         if (!documentId) {
             return jsonResponse({ error: "Missing documentId" }, 400);
@@ -152,12 +153,23 @@ serve(async (req) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        console.log(`[process-multipart] Starting processing for document: ${documentId}`);
+        // Determine processing mode for event tracking
+        const processingMode = reprocessPartId ? 'single_part' : (mode || 'full');
+        const modeLabel = processingMode === 'resume' 
+            ? 'Resuming processing (pending parts only)'
+            : processingMode === 'single_part' 
+            ? 'Reprocessing single part'
+            : 'Starting full document reprocess';
 
-        // Emit started event
+        console.log(`[process-multipart] ${modeLabel} for document: ${documentId}`);
+
+        // Emit started event with processing mode
         await emitEvent(supabase, documentId, null, 'started', null, 'in_progress', 
-            reprocessPartId ? 'Reprocessing single part' : 'Starting document processing',
-            { reprocessPartId }
+            modeLabel,
+            { 
+                reprocessPartId,
+                processing_mode: processingMode,
+            }
         );
 
         // Update document processing metadata

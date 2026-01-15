@@ -101,6 +101,10 @@ export default function DocumentProcessingStatusTab({
     .filter((e) => e.event_type === "stage_started" && e.status === "in_progress")
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.stage;
 
+  // Get the processing mode from the most recent 'started' event
+  const latestStartedEvent = events.find((e) => e.event_type === "started");
+  const processingMode = (latestStartedEvent?.details?.processing_mode as string) || null;
+
   // Fetch processing events and parts
   const fetchData = useCallback(async () => {
     try {
@@ -338,11 +342,26 @@ export default function DocumentProcessingStatusTab({
               )}
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">
-                {isProcessing ? "Processing in Progress" : 
-                 documentStatus === "pending" || documentStatus === "active" ? "Processing Complete" : 
-                 "Awaiting Processing"}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-foreground">
+                  {isProcessing ? "Processing in Progress" : 
+                   documentStatus === "pending" || documentStatus === "active" ? "Processing Complete" : 
+                   "Awaiting Processing"}
+                </h3>
+                {/* Processing Mode Badge */}
+                {processingMode && (
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-xs font-medium",
+                    processingMode === "full" && "bg-purple-500/20 text-purple-400 border border-purple-500/30",
+                    processingMode === "resume" && "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+                    processingMode === "single_part" && "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                  )}>
+                    {processingMode === "full" && "🔄 Full Reprocess"}
+                    {processingMode === "resume" && "▶️ Resume"}
+                    {processingMode === "single_part" && "🔁 Single Part"}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {isProcessing && currentStage
                   ? `Currently: ${currentStage.replace(/_/g, " ")}`
