@@ -1,10 +1,11 @@
 /**
  * Process Multi-Part Document Edge Function
  * Handles processing of documents split into multiple parts with deduplication
+ * Includes event emission for real-time processing status tracking
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { callClaudeJSON } from "../_shared/claude-client.ts";
 
@@ -31,6 +32,10 @@ interface ExtractedRule {
     parameters: Record<string, unknown>;
     actions: Record<string, unknown>;
 }
+
+type EventType = 'started' | 'stage_started' | 'stage_completed' | 'completed' | 'failed' | 'retried' | 'warning';
+type EventStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
+type ProcessingStage = 'upload' | 'text_extraction' | 'ocr' | 'provision_extraction' | 'rules_extraction' | 'summary_generation' | 'prism_impact' | 'deduplication' | 'finalization';
 
 const VALID_PROVISION_TYPES = [
     "definition",
@@ -69,10 +74,72 @@ const RULE_CATEGORIES = [
     { type: 'relief', description: 'allowances, reliefs, deductions, and credits' },
 ];
 
+/**
+ * Emit a processing event to the database for real-time tracking
+ */
+async function emitEvent(
+    supabase: SupabaseClient,
+    documentId: string,
+    partId: string | null,
+    eventType: EventType,
+    stage: ProcessingStage | null,
+    status: EventStatus,
+    message: string,
+    details: Record<string, unknown> = {}
+): Promise<void> {
+    try {
+        await supabase.from("document_processing_events").insert({
+            document_id: documentId,
+            part_id: partId,
+            event_type: eventType,
+            stage,
+            status,
+            message,
+            details: {
+                ...details,
+                timestamp: new Date().toISOString(),
+            },
+        });
+    } catch (error) {
+        console.error("[process-multipart] Failed to emit event:", error);
+        // Don't throw - event emission failure shouldn't stop processing
+    }
+}
+
+/**
+ * Update document processing metadata
+ */
+async function updateDocumentProcessingStatus(
+    supabase: SupabaseClient,
+    documentId: string,
+    updates: Record<string, unknown>
+): Promise<void> {
+    try {
+        const { data: doc } = await supabase
+            .from("legal_documents")
+            .select("metadata")
+            .eq("id", documentId)
+            .single();
+
+        const currentMetadata = (doc?.metadata as Record<string, unknown>) || {};
+        
+        await supabase
+            .from("legal_documents")
+            .update({
+                metadata: { ...currentMetadata, ...updates },
+            })
+            .eq("id", documentId);
+    } catch (error) {
+        console.error("[process-multipart] Failed to update document status:", error);
+    }
+}
+
 serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
     }
+
+    const startTime = Date.now();
 
     try {
         const { documentId, reprocessPartId }: ProcessRequest = await req.json();
@@ -87,6 +154,19 @@ serve(async (req) => {
 
         console.log(`[process-multipart] Starting processing for document: ${documentId}`);
 
+        // Emit started event
+        await emitEvent(supabase, documentId, null, 'started', null, 'in_progress', 
+            reprocessPartId ? 'Reprocessing single part' : 'Starting document processing',
+            { reprocessPartId }
+        );
+
+        // Update document processing metadata
+        await updateDocumentProcessingStatus(supabase, documentId, {
+            processing_started_at: new Date().toISOString(),
+            current_processing_stage: 'text_extraction',
+            processing_progress: 0,
+        });
+
         // Fetch parent document
         const { data: parentDoc, error: docError } = await supabase
             .from("legal_documents")
@@ -95,6 +175,8 @@ serve(async (req) => {
             .single();
 
         if (docError || !parentDoc) {
+            await emitEvent(supabase, documentId, null, 'failed', null, 'failed', 
+                `Document not found: ${documentId}`);
             throw new Error(`Document not found: ${documentId}`);
         }
 
@@ -115,6 +197,8 @@ serve(async (req) => {
         const { data: parts, error: partsError } = await partsQuery;
 
         if (partsError || !parts || parts.length === 0) {
+            await emitEvent(supabase, documentId, null, 'failed', null, 'failed', 
+                'No parts found for document');
             throw new Error("No parts found for document");
         }
 
@@ -124,19 +208,40 @@ serve(async (req) => {
         const allRules: (ExtractedRule & { source_part_id: string })[] = [];
 
         // Process each part
-        for (const part of parts) {
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            const progressPercent = Math.round(((i) / parts.length) * 80); // 0-80% for parts processing
+
             if (!part.raw_text || part.raw_text.trim().length < 50) {
                 console.log(`[process-multipart] Skipping part ${part.part_number}: no content`);
+                await emitEvent(supabase, documentId, part.id, 'warning', 'text_extraction', 'skipped',
+                    `Skipping part ${part.part_number}: insufficient content`,
+                    { part_number: part.part_number, content_length: part.raw_text?.length || 0 }
+                );
                 continue;
             }
 
             console.log(`[process-multipart] Processing part ${part.part_number}: ${part.part_title}`);
+
+            // Emit part started event
+            await emitEvent(supabase, documentId, part.id, 'stage_started', 'provision_extraction', 'in_progress',
+                `Processing part ${part.part_number}: ${part.part_title || 'Untitled'}`,
+                { part_number: part.part_number, part_title: part.part_title }
+            );
+
+            // Update progress
+            await updateDocumentProcessingStatus(supabase, documentId, {
+                current_processing_stage: `part_${part.part_number}_provisions`,
+                processing_progress: progressPercent,
+            });
 
             // Update part status
             await supabase
                 .from("document_parts")
                 .update({ status: "processing" })
                 .eq("id", part.id);
+
+            const partStartTime = Date.now();
 
             try {
                 // Extract provisions from this part
@@ -172,6 +277,21 @@ ${part.raw_text.substring(0, 60000)}`;
                         });
                     }
                 }
+
+                await emitEvent(supabase, documentId, part.id, 'stage_completed', 'provision_extraction', 'completed',
+                    `Extracted ${provisions?.length || 0} provisions from part ${part.part_number}`,
+                    { provisions_count: provisions?.length || 0, part_number: part.part_number }
+                );
+
+                // Update progress for rules extraction
+                await updateDocumentProcessingStatus(supabase, documentId, {
+                    current_processing_stage: `part_${part.part_number}_rules`,
+                });
+
+                await emitEvent(supabase, documentId, part.id, 'stage_started', 'rules_extraction', 'in_progress',
+                    `Extracting rules from part ${part.part_number}`,
+                    { part_number: part.part_number }
+                );
 
                 // Extract rules using chunked approach by category
                 // This prevents JSON truncation on large documents like Part 4 (VAT)
@@ -222,6 +342,21 @@ ${part.raw_text.substring(0, 50000)}`;
                     });
                 }
 
+                const partDuration = Date.now() - partStartTime;
+
+                await emitEvent(supabase, documentId, part.id, 'stage_completed', 'rules_extraction', 'completed',
+                    `Extracted ${partRules.length} rules from part ${part.part_number}`,
+                    { 
+                        rules_count: partRules.length, 
+                        part_number: part.part_number,
+                        processing_time_ms: partDuration,
+                        rules_by_category: RULE_CATEGORIES.map(c => ({
+                            type: c.type,
+                            count: partRules.filter(r => r.rule_type === c.type).length
+                        }))
+                    }
+                );
+
                 // Update part as processed
                 await supabase
                     .from("document_parts")
@@ -234,10 +369,16 @@ ${part.raw_text.substring(0, 50000)}`;
                     .eq("id", part.id);
 
                 console.log(
-                    `[process-multipart] Part ${part.part_number} complete: ${provisions?.length || 0} provisions, ${partRules.length} rules`
+                    `[process-multipart] Part ${part.part_number} complete: ${provisions?.length || 0} provisions, ${partRules.length} rules (${partDuration}ms)`
                 );
             } catch (partError) {
                 console.error(`[process-multipart] Error processing part ${part.part_number}:`, partError);
+                
+                await emitEvent(supabase, documentId, part.id, 'failed', 'rules_extraction', 'failed',
+                    `Failed to process part ${part.part_number}: ${String(partError)}`,
+                    { part_number: part.part_number, error: String(partError) }
+                );
+
                 await supabase
                     .from("document_parts")
                     .update({ status: "failed", metadata: { error: String(partError) } })
@@ -247,6 +388,17 @@ ${part.raw_text.substring(0, 50000)}`;
 
         console.log(`[process-multipart] Total extracted: ${allProvisions.length} provisions, ${allRules.length} rules`);
 
+        // Update progress for deduplication
+        await updateDocumentProcessingStatus(supabase, documentId, {
+            current_processing_stage: 'deduplication',
+            processing_progress: 85,
+        });
+
+        await emitEvent(supabase, documentId, null, 'stage_started', 'deduplication', 'in_progress',
+            'Deduplicating provisions and rules across parts',
+            { total_provisions: allProvisions.length, total_rules: allRules.length }
+        );
+
         // Deduplicate provisions
         const deduplicatedProvisions = deduplicateProvisions(allProvisions);
         console.log(`[process-multipart] After dedup: ${deduplicatedProvisions.length} provisions`);
@@ -254,6 +406,16 @@ ${part.raw_text.substring(0, 50000)}`;
         // Deduplicate rules
         const deduplicatedRules = deduplicateRules(allRules);
         console.log(`[process-multipart] After dedup: ${deduplicatedRules.length} rules`);
+
+        await emitEvent(supabase, documentId, null, 'stage_completed', 'deduplication', 'completed',
+            `Deduplicated to ${deduplicatedProvisions.length} provisions and ${deduplicatedRules.length} rules`,
+            { 
+                deduplicated_provisions: deduplicatedProvisions.length,
+                deduplicated_rules: deduplicatedRules.length,
+                removed_duplicate_provisions: allProvisions.length - deduplicatedProvisions.length,
+                removed_duplicate_rules: allRules.length - deduplicatedRules.length
+            }
+        );
 
         // If reprocessing single part, we need to delete only that part's provisions/rules first
         if (reprocessPartId) {
@@ -296,6 +458,15 @@ ${part.raw_text.substring(0, 50000)}`;
             });
         }
 
+        // Update progress for summary
+        await updateDocumentProcessingStatus(supabase, documentId, {
+            current_processing_stage: 'summary_generation',
+            processing_progress: 95,
+        });
+
+        await emitEvent(supabase, documentId, null, 'stage_started', 'summary_generation', 'in_progress',
+            'Generating document summary');
+
         // Generate consolidated summary
         const summarySystemPrompt = `You are a legal document analyst. Create professional summaries of legal documents suitable for tax professionals. Return JSON format.`;
         
@@ -324,10 +495,20 @@ Return JSON: {"summary": "..."}`;
         try {
             const summaryResult = await callClaudeJSON<{ summary: string }>(summarySystemPrompt, summaryUserMessage);
             summary = summaryResult?.summary || "";
+            
+            await emitEvent(supabase, documentId, null, 'stage_completed', 'summary_generation', 'completed',
+                'Document summary generated successfully');
         } catch (e) {
             console.error("[process-multipart] Summary generation failed:", e);
             summary = `Multi-part document with ${parts.length} parts containing ${deduplicatedProvisions.length} provisions and ${deduplicatedRules.length} rules.`;
+            
+            await emitEvent(supabase, documentId, null, 'warning', 'summary_generation', 'completed',
+                'Summary generation failed, using fallback summary',
+                { error: String(e) }
+            );
         }
+
+        const totalDuration = Date.now() - startTime;
 
         // Update parent document
         await supabase
@@ -338,15 +519,30 @@ Return JSON: {"summary": "..."}`;
                 needs_human_review: true,
                 metadata: {
                     ...((parentDoc.metadata as Record<string, unknown>) || {}),
+                    processing_started_at: new Date(startTime).toISOString(),
                     processing_completed_at: new Date().toISOString(),
+                    processing_progress: 100,
+                    current_processing_stage: null,
                     total_provisions: deduplicatedProvisions.length,
                     total_rules: deduplicatedRules.length,
                     parts_processed: parts.length,
+                    total_processing_time_ms: totalDuration,
                 },
             })
             .eq("id", documentId);
 
-        console.log(`[process-multipart] Document ${documentId} processing complete`);
+        // Emit completion event
+        await emitEvent(supabase, documentId, null, 'completed', 'finalization', 'completed',
+            `Document processing complete: ${deduplicatedProvisions.length} provisions, ${deduplicatedRules.length} rules`,
+            {
+                total_provisions: deduplicatedProvisions.length,
+                total_rules: deduplicatedRules.length,
+                parts_processed: parts.length,
+                total_processing_time_ms: totalDuration,
+            }
+        );
+
+        console.log(`[process-multipart] Document ${documentId} processing complete (${totalDuration}ms)`);
 
         return jsonResponse({
             success: true,
@@ -354,6 +550,7 @@ Return JSON: {"summary": "..."}`;
             partsProcessed: parts.length,
             provisionsExtracted: deduplicatedProvisions.length,
             rulesExtracted: deduplicatedRules.length,
+            processingTimeMs: totalDuration,
         });
     } catch (error) {
         console.error("[process-multipart] Error:", error);
