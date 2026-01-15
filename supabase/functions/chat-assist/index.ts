@@ -2,6 +2,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders, jsonResponse, handleCors } from '../_shared/cors.ts';
 import { getSupabaseAdmin } from '../_shared/supabase.ts';
 import { generateSystemPrompt } from '../_shared/prompt-generator.ts';
+import { callClaudeConversation, CLAUDE_MODELS } from '../_shared/claude-client.ts';
+import { buildConversationMessages } from '../_shared/history-service.ts';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -175,50 +177,23 @@ serve(async (req) => {
 
         console.log('[chat-assist] Generated dynamic system prompt with DB rules');
 
-        // Build messages array with history
-        const messages = [
-            ...history.map(m => ({
-                role: m.role as 'user' | 'assistant',
-                content: m.content,
-            })),
-            { role: 'user' as const, content: message },
-        ];
+        // Build messages array with history using shared helper
+        const messages = buildConversationMessages(history, message);
 
-        console.log('[chat-assist] Processing message:', message.substring(0, 50));
+        console.log('[chat-assist] Processing message with', messages.length, 'turns');
 
-        // Call Claude
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': anthropicApiKey,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-5-20250929',
-                max_tokens: 8000,
-                system: contextPrompt,
-                messages,
-            }),
-        });
+        // Call Claude using centralized client
+        const result = await callClaudeConversation(
+            contextPrompt,
+            messages,
+            { model: CLAUDE_MODELS.SONNET }
+        );
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[chat-assist] Claude API error:', errorText);
-            return jsonResponse({ error: 'AI service unavailable' }, 500);
-        }
-
-        const data = await response.json();
-        const assistantMessage = data.content[0]?.text || 'I apologize, but I could not generate a response.';
-
-        console.log('[chat-assist] Response generated:', assistantMessage.substring(0, 50));
+        console.log('[chat-assist] Response generated:', result.response.substring(0, 50));
 
         return jsonResponse({
-            response: assistantMessage,
-            usage: {
-                input_tokens: data.usage?.input_tokens,
-                output_tokens: data.usage?.output_tokens,
-            },
+            response: result.response,
+            usage: result.usage,
         });
 
     } catch (error) {

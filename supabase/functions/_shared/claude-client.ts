@@ -33,7 +33,18 @@ export const CLAUDE_MODELS = {
 export type ClaudeModel = typeof CLAUDE_MODELS[keyof typeof CLAUDE_MODELS];
 
 /**
- * Call Claude API
+ * Multi-turn conversation result
+ */
+export interface ConversationResult {
+    response: string;
+    usage: {
+        input_tokens: number;
+        output_tokens: number;
+    };
+}
+
+/**
+ * Call Claude API (single-turn)
  */
 export async function callClaude(
     systemPrompt: string,
@@ -94,6 +105,88 @@ export async function callClaude(
 }
 
 /**
+ * Call Claude API with multi-turn conversation history
+ * Use this for chat interfaces where context from previous turns matters
+ */
+export async function callClaudeConversation(
+    systemPrompt: string,
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    options: {
+        model?: ClaudeModel;
+        maxTokens?: number;
+        temperature?: number;
+    } = {}
+): Promise<ConversationResult> {
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+
+    if (!apiKey) {
+        console.warn('[claude-client] No ANTHROPIC_API_KEY');
+        throw new Error('ANTHROPIC_API_KEY not configured');
+    }
+
+    const {
+        model = CLAUDE_MODELS.SONNET,  // Default to Sonnet for conversations
+        maxTokens = 8000,
+        temperature = 0.5,  // Slightly higher for more natural conversation
+    } = options;
+
+    // Validate messages array
+    if (!messages || messages.length === 0) {
+        throw new Error('Messages array cannot be empty');
+    }
+
+    // Ensure last message is from user
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'user') {
+        throw new Error('Last message must be from user');
+    }
+
+    console.log(`[claude-client] Conversation with ${messages.length} turns`);
+
+    try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+                model,
+                max_tokens: maxTokens,
+                temperature,
+                system: systemPrompt,
+                messages: messages.map(m => ({
+                    role: m.role,
+                    content: m.content
+                })),
+            }),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('[claude-client] Conversation API error:', error);
+            throw new Error(`Claude API error: ${response.status}`);
+        }
+
+        const data: ClaudeResponse = await response.json();
+
+        console.log(`[claude-client] Conversation ${model} used ${data.usage.input_tokens}+${data.usage.output_tokens} tokens`);
+
+        return {
+            response: data.content[0]?.text || '',
+            usage: {
+                input_tokens: data.usage.input_tokens,
+                output_tokens: data.usage.output_tokens,
+            }
+        };
+    } catch (error) {
+        console.error('[claude-client] Error in conversation:', error);
+        throw error;
+    }
+}
+
+/**
  * Extract structured JSON from Claude response
  */
 export async function callClaudeJSON<T>(
@@ -126,7 +219,7 @@ export async function callClaudeJSON<T>(
         // Try to extract JSON array [...] or object {...} from response
         const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
         const objectMatch = cleaned.match(/\{[\s\S]*\}/);
-        
+
         if (arrayMatch && (!objectMatch || arrayMatch.index! <= objectMatch.index!)) {
             return JSON.parse(arrayMatch[0]) as T;
         }
@@ -136,7 +229,7 @@ export async function callClaudeJSON<T>(
         return JSON.parse(cleaned) as T;
     } catch (error) {
         console.error('[claude-client] Failed to parse JSON:', response.slice(0, 500));
-        
+
         // Try to recover partial JSON by closing unclosed brackets/braces
         try {
             let partial = response.trim();
@@ -145,23 +238,23 @@ export async function callClaudeJSON<T>(
             else if (partial.startsWith('```')) partial = partial.slice(3);
             if (partial.endsWith('```')) partial = partial.slice(0, -3);
             partial = partial.trim();
-            
+
             // Extract the JSON-like content
             const jsonStart = partial.indexOf('[') !== -1 ? partial.indexOf('[') : partial.indexOf('{');
             if (jsonStart !== -1) {
                 partial = partial.slice(jsonStart);
             }
-            
+
             // Count unclosed brackets
             const openBrackets = (partial.match(/\[/g) || []).length;
             const closeBrackets = (partial.match(/\]/g) || []).length;
             const openBraces = (partial.match(/\{/g) || []).length;
             const closeBraces = (partial.match(/\}/g) || []).length;
-            
+
             // Close unclosed structures
             for (let i = 0; i < openBraces - closeBraces; i++) partial += '}';
             for (let i = 0; i < openBrackets - closeBrackets; i++) partial += ']';
-            
+
             const recovered = JSON.parse(partial);
             console.warn('[claude-client] Recovered partial JSON with', Array.isArray(recovered) ? recovered.length : 1, 'items');
             return recovered as T;
@@ -171,3 +264,4 @@ export async function callClaudeJSON<T>(
         }
     }
 }
+
