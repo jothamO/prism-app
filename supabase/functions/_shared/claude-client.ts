@@ -136,6 +136,38 @@ export async function callClaudeJSON<T>(
         return JSON.parse(cleaned) as T;
     } catch (error) {
         console.error('[claude-client] Failed to parse JSON:', response.slice(0, 500));
-        return null;
+        
+        // Try to recover partial JSON by closing unclosed brackets/braces
+        try {
+            let partial = response.trim();
+            // Remove markdown if present
+            if (partial.startsWith('```json')) partial = partial.slice(7);
+            else if (partial.startsWith('```')) partial = partial.slice(3);
+            if (partial.endsWith('```')) partial = partial.slice(0, -3);
+            partial = partial.trim();
+            
+            // Extract the JSON-like content
+            const jsonStart = partial.indexOf('[') !== -1 ? partial.indexOf('[') : partial.indexOf('{');
+            if (jsonStart !== -1) {
+                partial = partial.slice(jsonStart);
+            }
+            
+            // Count unclosed brackets
+            const openBrackets = (partial.match(/\[/g) || []).length;
+            const closeBrackets = (partial.match(/\]/g) || []).length;
+            const openBraces = (partial.match(/\{/g) || []).length;
+            const closeBraces = (partial.match(/\}/g) || []).length;
+            
+            // Close unclosed structures
+            for (let i = 0; i < openBraces - closeBraces; i++) partial += '}';
+            for (let i = 0; i < openBrackets - closeBrackets; i++) partial += ']';
+            
+            const recovered = JSON.parse(partial);
+            console.warn('[claude-client] Recovered partial JSON with', Array.isArray(recovered) ? recovered.length : 1, 'items');
+            return recovered as T;
+        } catch {
+            console.error('[claude-client] JSON recovery failed');
+            return null;
+        }
     }
 }

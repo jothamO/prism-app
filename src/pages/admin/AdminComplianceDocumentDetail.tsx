@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import PRISMImpactSummaryTab from "@/components/admin/PRISMImpactSummaryTab";
+import DocumentPartsView from "@/components/admin/DocumentPartsView";
 
 interface PRISMImpactAnalysis {
   summary: string;
@@ -86,6 +87,7 @@ interface LegalDocument {
   impact_reviewed: boolean | null;
   impact_reviewed_at: string | null;
   metadata?: DocumentMetadata | null;
+  is_multi_part?: boolean | null;
 }
 
 interface Provision {
@@ -120,7 +122,7 @@ export default function AdminComplianceDocumentDetail() {
   const [document, setDocument] = useState<LegalDocument | null>(null);
   const [provisions, setProvisions] = useState<Provision[]>([]);
   const [rules, setRules] = useState<ComplianceRule[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "summary" | "provisions" | "rules" | "raw">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "summary" | "parts" | "provisions" | "rules" | "raw">("overview");
   const [updating, setUpdating] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -713,10 +715,13 @@ export default function AdminComplianceDocumentDetail() {
       {/* Tabs */}
       <div className="border-b border-border">
         <nav className="flex gap-4">
-          {(["overview", "summary", "provisions", "rules", "raw"] as const).map((tab) => (
+          {(document.is_multi_part 
+            ? ["overview", "summary", "parts", "provisions", "rules", "raw"] as const
+            : ["overview", "summary", "provisions", "rules", "raw"] as const
+          ).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => setActiveTab(tab as typeof activeTab)}
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize flex items-center gap-2",
                 activeTab === tab
@@ -725,6 +730,7 @@ export default function AdminComplianceDocumentDetail() {
               )}
             >
               {tab === "summary" && <Sparkles className="w-3 h-3" />}
+              {tab === "parts" && <FileText className="w-3 h-3" />}
               {tab === "raw" ? "Raw Text" : tab}
               {tab === "provisions" && ` (${provisions.length})`}
               {tab === "rules" && ` (${rules.length})`}
@@ -839,6 +845,13 @@ export default function AdminComplianceDocumentDetail() {
             impactReviewed={document.impact_reviewed || false}
             impactReviewedAt={document.impact_reviewed_at}
             onRefresh={fetchDocument}
+          />
+        )}
+
+        {activeTab === "parts" && document.is_multi_part && (
+          <DocumentPartsView 
+            documentId={document.id} 
+            onReprocessComplete={fetchDocument}
           />
         )}
 
