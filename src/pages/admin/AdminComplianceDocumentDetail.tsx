@@ -218,34 +218,57 @@ export default function AdminComplianceDocumentDetail() {
   }
 
   async function reprocessDocument() {
-    if (!document || !document.raw_text) {
-      toast({
-        title: "Cannot reprocess",
-        description: "No raw text available for this document",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!document) return;
 
     setReprocessing(true);
     try {
-      // Edge function now handles cleanup internally (idempotent)
-      // Call the edge function to reprocess
-      const { data, error } = await supabase.functions.invoke("process-compliance-document", {
-        body: {
-          documentId: document.id,
-          extractedText: document.raw_text,
-          documentType: document.document_type,
-          title: document.title,
-        },
-      });
+      // Check if this is a multi-part document
+      if (document.is_multi_part) {
+        // Use the multi-part processor with mode: 'full'
+        const { error } = await supabase.functions.invoke("process-multipart-document", {
+          body: {
+            documentId: document.id,
+            mode: 'full',
+          },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Reprocessing complete",
-        description: `Extracted ${data?.provisionsCount || 0} provisions and ${data?.rulesCount || 0} rules`,
-      });
+        toast({
+          title: "Full Reprocess Started",
+          description: "All parts are being reprocessed. Check the Processing tab for progress.",
+        });
+
+        // Switch to processing tab to show progress
+        setActiveTab("processing");
+      } else {
+        // Single document - use existing logic
+        if (!document.raw_text) {
+          toast({
+            title: "Cannot reprocess",
+            description: "No raw text available for this document",
+            variant: "destructive",
+          });
+          setReprocessing(false);
+          return;
+        }
+
+        const { data, error } = await supabase.functions.invoke("process-compliance-document", {
+          body: {
+            documentId: document.id,
+            extractedText: document.raw_text,
+            documentType: document.document_type,
+            title: document.title,
+          },
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: "Reprocessing complete",
+          description: `Extracted ${data?.provisionsCount || 0} provisions and ${data?.rulesCount || 0} rules`,
+        });
+      }
 
       // Refresh the document data
       fetchDocument();
