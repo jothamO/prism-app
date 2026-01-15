@@ -4916,6 +4916,7 @@ export type Database = {
         }
         Returns: string
       }
+      purge_expired_deleted_items: { Args: never; Returns: number }
       refresh_transaction_analytics: { Args: never; Returns: undefined }
       rollback_rule_to_version: {
         Args: { p_rule_id: string; p_version_number: number }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -14,11 +14,13 @@ import {
   Trash2,
   RotateCcw,
   Sparkles,
+  Undo2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import PRISMImpactSummaryTab from "@/components/admin/PRISMImpactSummaryTab";
 
 interface PRISMImpactAnalysis {
@@ -236,25 +238,170 @@ export default function AdminComplianceDocumentDetail() {
     }
   }
 
+  // Restore a soft-deleted document and its related data
+  const restoreDocument = useCallback(async (documentId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const restoredAt = new Date().toISOString();
+
+      // Find the soft-deleted document
+      const { data: deletedDoc, error: docError } = await supabase
+        .from("deleted_items")
+        .select("*")
+        .eq("item_type", "legal_document")
+        .eq("item_id", documentId)
+        .eq("restored", false)
+        .single();
+
+      if (docError || !deletedDoc) {
+        toast({
+          title: "Cannot restore",
+          description: "Document has already been permanently deleted or restored",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Restore the document
+      const { error: insertDocError } = await supabase
+        .from("legal_documents")
+        .insert(deletedDoc.item_data as Record<string, unknown>);
+
+      if (insertDocError) throw insertDocError;
+
+      // Mark document as restored
+      await supabase
+        .from("deleted_items")
+        .update({ restored: true, restored_at: restoredAt, restored_by: user?.id })
+        .eq("id", deletedDoc.id);
+
+      // Find and restore related provisions
+      const { data: deletedProvisions } = await supabase
+        .from("deleted_items")
+        .select("*")
+        .eq("item_type", "legal_provision")
+        .eq("restored", false);
+
+      const matchingProvisions = (deletedProvisions || []).filter(
+        (item) => (item.item_data as { document_id?: string })?.document_id === documentId
+      );
+
+      for (const item of matchingProvisions) {
+        await supabase.from("legal_provisions").insert(item.item_data as Record<string, unknown>);
+        await supabase
+          .from("deleted_items")
+          .update({ restored: true, restored_at: restoredAt, restored_by: user?.id })
+          .eq("id", item.id);
+      }
+
+      // Find and restore related rules
+      const { data: deletedRules } = await supabase
+        .from("deleted_items")
+        .select("*")
+        .eq("item_type", "compliance_rule")
+        .eq("restored", false);
+
+      const matchingRules = (deletedRules || []).filter(
+        (item) => (item.item_data as { document_id?: string })?.document_id === documentId
+      );
+
+      for (const item of matchingRules) {
+        await supabase.from("compliance_rules").insert(item.item_data as Record<string, unknown>);
+        await supabase
+          .from("deleted_items")
+          .update({ restored: true, restored_at: restoredAt, restored_by: user?.id })
+          .eq("id", item.id);
+      }
+
+      toast({
+        title: "Document restored",
+        description: `Restored document with ${matchingProvisions.length} provisions and ${matchingRules.length} rules`,
+      });
+
+      // Navigate back to the document
+      navigate(`/admin/compliance/documents/${documentId}`);
+      fetchDocument();
+    } catch (error) {
+      console.error("Error restoring document:", error);
+      toast({
+        title: "Restore failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  }, [navigate, toast]);
+
   async function deleteDocument() {
     if (!document) return;
 
     setDeleting(true);
     try {
-      // Delete related provisions first
-      await supabase.from("legal_provisions").delete().eq("document_id", document.id);
+      const { data: { user } } = await supabase.auth.getUser();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes grace period
+      const documentId = document.id;
 
-      // Delete related rules
-      await supabase.from("compliance_rules").delete().eq("document_id", document.id);
+      // 1. Snapshot and soft-delete provisions
+      const { data: provisionData } = await supabase
+        .from("legal_provisions")
+        .select("*")
+        .eq("document_id", documentId);
 
-      // Delete the document itself
-      const { error } = await supabase.from("legal_documents").delete().eq("id", document.id);
+      for (const provision of provisionData || []) {
+        await supabase.from("deleted_items").insert({
+          item_type: "legal_provision",
+          item_id: provision.id,
+          item_data: provision,
+          deleted_by: user?.id,
+          expires_at: expiresAt,
+        });
+      }
+
+      // Delete provisions from original table
+      await supabase.from("legal_provisions").delete().eq("document_id", documentId);
+
+      // 2. Snapshot and soft-delete rules
+      const { data: ruleData } = await supabase
+        .from("compliance_rules")
+        .select("*")
+        .eq("document_id", documentId);
+
+      for (const rule of ruleData || []) {
+        await supabase.from("deleted_items").insert({
+          item_type: "compliance_rule",
+          item_id: rule.id,
+          item_data: rule,
+          deleted_by: user?.id,
+          expires_at: expiresAt,
+        });
+      }
+
+      // Delete rules from original table
+      await supabase.from("compliance_rules").delete().eq("document_id", documentId);
+
+      // 3. Snapshot and soft-delete the document
+      await supabase.from("deleted_items").insert({
+        item_type: "legal_document",
+        item_id: documentId,
+        item_data: document,
+        deleted_by: user?.id,
+        expires_at: expiresAt,
+      });
+
+      // Delete document from original table
+      const { error } = await supabase.from("legal_documents").delete().eq("id", documentId);
 
       if (error) throw error;
 
+      // Show toast with Undo action
       toast({
         title: "Document deleted",
-        description: "The document and all related data have been removed",
+        description: `You have 5 minutes to undo. ${provisionData?.length || 0} provisions and ${ruleData?.length || 0} rules also removed.`,
+        action: (
+          <ToastAction altText="Undo deletion" onClick={() => restoreDocument(documentId)}>
+            <Undo2 className="w-4 h-4 mr-1" />
+            Undo
+          </ToastAction>
+        ),
       });
 
       // Navigate back to documents list
@@ -394,8 +541,8 @@ export default function AdminComplianceDocumentDetail() {
           <div className="bg-card border border-border rounded-lg p-6 max-w-md mx-4">
             <h3 className="text-lg font-semibold text-foreground mb-2">Delete Document?</h3>
             <p className="text-muted-foreground mb-4">
-              This will permanently delete "{document.title}" along with all {provisions.length} provisions
-              and {rules.length} compliance rules. This action cannot be undone.
+              This will delete "{document.title}" along with {provisions.length} provisions
+              and {rules.length} compliance rules. You'll have <strong>5 minutes</strong> to undo this action.
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={deleting}>
