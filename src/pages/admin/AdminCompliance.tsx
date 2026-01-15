@@ -4,11 +4,9 @@ import {
     Building2,
     Scale,
     AlertTriangle,
-    CheckCircle2,
     Clock,
     Upload,
     RefreshCw,
-    ChevronRight,
     BookOpen,
     Gavel,
     Search,
@@ -25,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import ComplianceSearchPanel from "@/components/admin/ComplianceSearchPanel";
 import ComplianceNotificationCenter from "@/components/admin/ComplianceNotificationCenter";
+import { ImportNigeriaTaxActButton } from "@/components/admin/ImportNigeriaTaxActButton";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -333,13 +332,16 @@ export default function AdminCompliance() {
                     <h1 className="text-2xl font-bold text-foreground">Compliance Knowledge Management</h1>
                     <p className="text-muted-foreground">Manage Nigerian tax laws and regulations for PRISM AI</p>
                 </div>
-                <button
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                    onClick={() => window.location.href = "/admin/compliance/documents?action=new"}
-                >
-                    <Upload className="w-4 h-4" />
-                    Add New Regulation
-                </button>
+                <div className="flex gap-2">
+                    <ImportNigeriaTaxActButton onSuccess={fetchData} />
+                    <button
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                        onClick={() => window.location.href = "/admin/compliance/documents?action=new"}
+                    >
+                        <Upload className="w-4 h-4" />
+                        Add New Regulation
+                    </button>
+                </div>
             </div>
 
             {/* Tabs */}
