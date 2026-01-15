@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Activity,
   CheckCircle2,
@@ -13,14 +13,17 @@ import {
   Sparkles,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Loader2,
   RotateCcw,
   Timer,
   Zap,
   StopCircle,
+  PlayCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,6 +47,7 @@ interface DocumentPart {
   provisions_count: number | null;
   rules_count: number | null;
   processed_at: string | null;
+  updated_at?: string;
   metadata: Record<string, unknown> | null;
 }
 
@@ -59,6 +63,22 @@ interface ProcessingStatusTabProps {
   onRefresh: () => void;
 }
 
+interface ProcessingLogEntry {
+  timestamp: string;
+  message: string;
+  type: "info" | "success" | "error" | "warning";
+}
+
+interface ProcessingStats {
+  totalParts: number;
+  completedParts: number;
+  failedParts: number;
+  currentPartNumber: number;
+  currentPartTitle: string;
+  startTime: Date | null;
+  partTimes: number[]; // Time taken per part in ms
+}
+
 // Define processing stages
 const PROCESSING_STAGES = [
   { key: "upload", label: "Upload", icon: FileText },
@@ -68,6 +88,22 @@ const PROCESSING_STAGES = [
   { key: "summary_generation", label: "Summary", icon: Sparkles },
   { key: "prism_impact", label: "PRISM Impact", icon: Zap },
 ];
+
+// Format duration from milliseconds
+function formatDuration(ms: number): string {
+  if (ms < 1000) return "< 1s";
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+  return `${seconds}s`;
+}
 
 export default function DocumentProcessingStatusTab({
   documentId,
@@ -87,54 +123,34 @@ export default function DocumentProcessingStatusTab({
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [reprocessingPart, setReprocessingPart] = useState<string | null>(null);
   const [stoppingProcessing, setStoppingProcessing] = useState(false);
+  
+  // Auto-sequential processing state
+  const [autoProcessing, setAutoProcessing] = useState(false);
+  const [stopRequested, setStopRequested] = useState(false);
+  const [processingStats, setProcessingStats] = useState<ProcessingStats>({
+    totalParts: 0,
+    completedParts: 0,
+    failedParts: 0,
+    currentPartNumber: 0,
+    currentPartTitle: "",
+    startTime: null,
+    partTimes: [],
+  });
+  const [processingLog, setProcessingLog] = useState<ProcessingLogEntry[]>([]);
+  const [logExpanded, setLogExpanded] = useState(true);
+  const partStartTimeRef = useRef<number>(0);
+  const processingRef = useRef(false);
 
   const isProcessing = documentStatus === "processing";
 
   // Detect if any parts are stuck in processing status (for showing Stop button)
   const hasStuckParts = parts.some(p => p.status === 'processing');
-  const showStopButton = isProcessing || hasStuckParts;
+  const showStopButton = isProcessing || hasStuckParts || autoProcessing;
 
   // Check for pending/failed parts for "Process Next Part" button
-  const hasPendingParts = parts.some(p => p.status === 'pending' || p.status === 'failed');
-
-  // Process a single pending/failed part
-  const processNextPart = async () => {
-    const nextPart = parts.find(p => p.status === 'pending' || p.status === 'failed');
-    
-    if (!nextPart) {
-      toast({
-        title: "All parts processed",
-        description: "There are no pending or failed parts to process.",
-      });
-      return;
-    }
-    
-    setReprocessingPart(nextPart.id);
-    try {
-      const { error } = await supabase.functions.invoke("process-multipart-document", {
-        body: { documentId, reprocessPartId: nextPart.id },
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: `Processing Part ${nextPart.part_number}`,
-        description: `${nextPart.part_title || 'Untitled'} is being processed.`,
-      });
-      
-      fetchData();
-      onRefresh();
-    } catch (error) {
-      console.error("Error processing next part:", error);
-      toast({
-        title: "Processing failed",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setReprocessingPart(null);
-    }
-  };
+  const pendingParts = parts.filter(p => p.status === 'pending' || p.status === 'failed');
+  const hasPendingParts = pendingParts.length > 0;
+  const completedPartsCount = parts.filter(p => p.status === 'processed').length;
 
   // Calculate derived state
   const completedStages = events
@@ -152,6 +168,241 @@ export default function DocumentProcessingStatusTab({
   // Get the processing mode from the most recent 'started' event
   const latestStartedEvent = events.find((e) => e.event_type === "started");
   const processingMode = (latestStartedEvent?.details?.processing_mode as string) || null;
+
+  // Add log entry
+  const addLogEntry = useCallback((message: string, type: ProcessingLogEntry["type"] = "info") => {
+    const entry: ProcessingLogEntry = {
+      timestamp: new Date().toLocaleTimeString(),
+      message,
+      type,
+    };
+    setProcessingLog(prev => [entry, ...prev].slice(0, 100)); // Keep last 100 entries
+  }, []);
+
+  // Process a single part
+  const processSinglePart = useCallback(async (part: DocumentPart): Promise<boolean> => {
+    partStartTimeRef.current = Date.now();
+    
+    setProcessingStats(prev => ({
+      ...prev,
+      currentPartNumber: part.part_number,
+      currentPartTitle: part.part_title || `Part ${part.part_number}`,
+    }));
+    
+    addLogEntry(`Starting Part ${part.part_number}: ${part.part_title || 'Untitled'}`, "info");
+    
+    try {
+      const { error } = await supabase.functions.invoke("process-multipart-document", {
+        body: { documentId, reprocessPartId: part.id },
+      });
+      
+      if (error) throw error;
+      
+      // Wait for the part to complete processing (poll for status change)
+      let attempts = 0;
+      const maxAttempts = 180; // 15 minutes max (5s intervals)
+      
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        
+        const { data: updatedPart } = await supabase
+          .from("document_parts")
+          .select("*")
+          .eq("id", part.id)
+          .single();
+        
+        if (updatedPart?.status === "processed") {
+          const elapsed = Date.now() - partStartTimeRef.current;
+          setProcessingStats(prev => ({
+            ...prev,
+            completedParts: prev.completedParts + 1,
+            partTimes: [...prev.partTimes, elapsed],
+          }));
+          addLogEntry(
+            `✓ Part ${part.part_number} completed in ${formatDuration(elapsed)} — ${updatedPart.provisions_count || 0} provisions, ${updatedPart.rules_count || 0} rules`,
+            "success"
+          );
+          return true;
+        }
+        
+        if (updatedPart?.status === "failed") {
+          setProcessingStats(prev => ({
+            ...prev,
+            failedParts: prev.failedParts + 1,
+          }));
+          addLogEntry(`✗ Part ${part.part_number} failed`, "error");
+          return false;
+        }
+        
+        // Check if stop was requested
+        if (stopRequested) {
+          addLogEntry("Stop requested, will halt after current part", "warning");
+          break;
+        }
+        
+        attempts++;
+      }
+      
+      if (attempts >= maxAttempts) {
+        addLogEntry(`⚠ Part ${part.part_number} timed out after 15 minutes`, "error");
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error processing part:", error);
+      addLogEntry(`✗ Part ${part.part_number} error: ${error instanceof Error ? error.message : 'Unknown error'}`, "error");
+      setProcessingStats(prev => ({
+        ...prev,
+        failedParts: prev.failedParts + 1,
+      }));
+      return false;
+    }
+  }, [documentId, addLogEntry, stopRequested]);
+
+  // Start auto-sequential processing
+  const startAutoProcessing = useCallback(async () => {
+    if (processingRef.current) return;
+    processingRef.current = true;
+    
+    const partsToProcess = parts.filter(p => p.status === 'pending' || p.status === 'failed');
+    
+    if (partsToProcess.length === 0) {
+      toast({
+        title: "No parts to process",
+        description: "All parts are already processed.",
+      });
+      processingRef.current = false;
+      return;
+    }
+    
+    setAutoProcessing(true);
+    setStopRequested(false);
+    setProcessingLog([]);
+    setProcessingStats({
+      totalParts: parts.length,
+      completedParts: parts.filter(p => p.status === 'processed').length,
+      failedParts: 0,
+      currentPartNumber: 0,
+      currentPartTitle: "",
+      startTime: new Date(),
+      partTimes: [],
+    });
+    
+    addLogEntry(`Starting sequential processing of ${partsToProcess.length} parts`, "info");
+    
+    // Update document status to processing
+    await supabase
+      .from("legal_documents")
+      .update({ status: 'processing' })
+      .eq("id", documentId);
+    
+    onRefresh();
+    
+    // Process parts sequentially
+    for (const part of partsToProcess) {
+      // Check stop flag
+      if (stopRequested) {
+        addLogEntry("Processing stopped by user", "warning");
+        break;
+      }
+      
+      const success = await processSinglePart(part);
+      
+      if (!success) {
+        addLogEntry(`Processing halted due to failure on Part ${part.part_number}. Use 'Process Next Part' to retry or skip.`, "error");
+        break;
+      }
+      
+      // Refresh parts data
+      await fetchData();
+    }
+    
+    // Check if all parts are processed
+    const { data: finalParts } = await supabase
+      .from("document_parts")
+      .select("status")
+      .eq("parent_document_id", documentId);
+    
+    const allProcessed = finalParts?.every(p => p.status === 'processed');
+    
+    if (allProcessed) {
+      addLogEntry("🎉 All parts processed successfully!", "success");
+      
+      // Update document status
+      await supabase
+        .from("legal_documents")
+        .update({ status: 'pending' })
+        .eq("id", documentId);
+      
+      toast({
+        title: "Processing Complete",
+        description: `All ${parts.length} parts have been processed successfully.`,
+      });
+    } else {
+      // Set status back to pending to allow manual intervention
+      await supabase
+        .from("legal_documents")
+        .update({ status: 'pending' })
+        .eq("id", documentId);
+    }
+    
+    setAutoProcessing(false);
+    processingRef.current = false;
+    onRefresh();
+  }, [parts, documentId, addLogEntry, processSinglePart, onRefresh, toast, stopRequested]);
+
+  // Stop auto-sequential processing
+  const stopAutoProcessing = useCallback(() => {
+    setStopRequested(true);
+    addLogEntry("Stop requested - will halt after current part completes", "warning");
+    toast({
+      title: "Stop Requested",
+      description: "Processing will stop after the current part completes.",
+    });
+  }, [addLogEntry, toast]);
+
+  // Process a single pending/failed part (manual step)
+  const processNextPart = async () => {
+    const nextPart = parts.find(p => p.status === 'pending' || p.status === 'failed');
+    
+    if (!nextPart) {
+      toast({
+        title: "All parts processed",
+        description: "There are no pending or failed parts to process.",
+      });
+      return;
+    }
+    
+    setReprocessingPart(nextPart.id);
+    addLogEntry(`Manually processing Part ${nextPart.part_number}`, "info");
+    
+    try {
+      const { error } = await supabase.functions.invoke("process-multipart-document", {
+        body: { documentId, reprocessPartId: nextPart.id },
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: `Processing Part ${nextPart.part_number}`,
+        description: `${nextPart.part_title || 'Untitled'} is being processed.`,
+      });
+      
+      fetchData();
+      onRefresh();
+    } catch (error) {
+      console.error("Error processing next part:", error);
+      addLogEntry(`Failed to start Part ${nextPart.part_number}: ${error instanceof Error ? error.message : 'Unknown error'}`, "error");
+      toast({
+        title: "Processing failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setReprocessingPart(null);
+    }
+  };
 
   // Fetch processing events and parts
   const fetchData = useCallback(async () => {
@@ -242,7 +493,7 @@ export default function DocumentProcessingStatusTab({
 
   // Polling fallback for when realtime isn't working
   useEffect(() => {
-    if (!isProcessing) return;
+    if (!isProcessing && !autoProcessing) return;
 
     const interval = setInterval(() => {
       fetchData();
@@ -250,7 +501,7 @@ export default function DocumentProcessingStatusTab({
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isProcessing, fetchData, onRefresh]);
+  }, [isProcessing, autoProcessing, fetchData, onRefresh]);
 
   const toggleEventExpanded = (eventId: string) => {
     setExpandedEvents((prev) => {
@@ -266,6 +517,11 @@ export default function DocumentProcessingStatusTab({
 
   const reprocessPart = async (partId: string) => {
     setReprocessingPart(partId);
+    const part = parts.find(p => p.id === partId);
+    if (part) {
+      addLogEntry(`Reprocessing Part ${part.part_number}`, "info");
+    }
+    
     try {
       const { error } = await supabase.functions.invoke("process-multipart-document", {
         body: { documentId, reprocessPartId: partId },
@@ -315,13 +571,21 @@ export default function DocumentProcessingStatusTab({
     const end = processingCompletedAt ? new Date(processingCompletedAt) : new Date();
     const durationMs = end.getTime() - start.getTime();
 
-    const minutes = Math.floor(durationMs / 60000);
-    const seconds = Math.floor((durationMs % 60000) / 1000);
+    return formatDuration(durationMs);
+  };
 
-    if (minutes > 0) {
-      return `${minutes}m ${seconds}s`;
+  // Calculate time estimates
+  const getTimeEstimates = () => {
+    if (processingStats.partTimes.length === 0) {
+      return { avgTime: 0, remainingTime: 0, elapsedTime: 0 };
     }
-    return `${seconds}s`;
+    
+    const avgTime = processingStats.partTimes.reduce((a, b) => a + b, 0) / processingStats.partTimes.length;
+    const remainingParts = processingStats.totalParts - processingStats.completedParts - processingStats.failedParts;
+    const remainingTime = remainingParts * avgTime;
+    const elapsedTime = processingStats.startTime ? Date.now() - processingStats.startTime.getTime() : 0;
+    
+    return { avgTime, remainingTime, elapsedTime };
   };
 
   const getStatusIcon = (status: string, isAnimated = false) => {
@@ -361,6 +625,7 @@ export default function DocumentProcessingStatusTab({
   };
 
   const progress = calculateProgress();
+  const timeEstimates = getTimeEstimates();
 
   if (loading) {
     return (
@@ -372,146 +637,285 @@ export default function DocumentProcessingStatusTab({
 
   return (
     <div className="space-y-6">
-      {/* Overall Progress Header */}
-      <div className="bg-muted/30 rounded-lg p-4 border border-border">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "p-2 rounded-full",
-              isProcessing ? "bg-primary/20" : 
-              documentStatus === "pending" ? "bg-green-500/20" : "bg-muted"
-            )}>
-              {isProcessing ? (
-                <Activity className="w-5 h-5 text-primary animate-pulse" />
-              ) : documentStatus === "pending" || documentStatus === "active" ? (
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
-              ) : (
-                <Clock className="w-5 h-5 text-muted-foreground" />
+      {/* Sequential Processing Progress (for multi-part documents) */}
+      {isMultiPart && (
+        <div className="bg-muted/30 rounded-lg p-4 border border-border">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2 rounded-full",
+                autoProcessing ? "bg-primary/20" : 
+                completedPartsCount === parts.length ? "bg-green-500/20" : "bg-muted"
+              )}>
+                {autoProcessing ? (
+                  <Activity className="w-5 h-5 text-primary animate-pulse" />
+                ) : completedPartsCount === parts.length ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                ) : (
+                  <Clock className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">
+                  {autoProcessing 
+                    ? `Processing Part ${processingStats.currentPartNumber} of ${parts.length}`
+                    : completedPartsCount === parts.length 
+                    ? "All Parts Processed"
+                    : `${completedPartsCount} of ${parts.length} parts complete`}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {autoProcessing && processingStats.currentPartTitle 
+                    ? processingStats.currentPartTitle
+                    : hasPendingParts 
+                    ? `${pendingParts.length} parts remaining`
+                    : "Ready for review"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Start Processing All Button */}
+              {!autoProcessing && hasPendingParts && (
+                <Button onClick={startAutoProcessing} className="gap-2">
+                  <PlayCircle className="w-4 h-4" />
+                  Start Processing All ({pendingParts.length} parts)
+                </Button>
+              )}
+              
+              {/* Stop Button */}
+              {autoProcessing && (
+                <Button 
+                  variant="destructive" 
+                  onClick={stopAutoProcessing}
+                  disabled={stopRequested}
+                  className="gap-2"
+                >
+                  {stopRequested ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <StopCircle className="w-4 h-4" />
+                  )}
+                  {stopRequested ? "Stopping..." : "Stop After Current Part"}
+                </Button>
+              )}
+              
+              {/* Manual single-step */}
+              {!autoProcessing && hasPendingParts && (
+                <Button 
+                  variant="outline" 
+                  onClick={processNextPart}
+                  disabled={reprocessingPart !== null}
+                  className="gap-2"
+                >
+                  {reprocessingPart ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4" />
+                  )}
+                  Process Next Part Only
+                </Button>
+              )}
+              
+              <Button variant="ghost" size="icon" onClick={fetchData}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Enhanced Progress Bar */}
+          <div className="space-y-2">
+            <Progress 
+              value={(completedPartsCount / parts.length) * 100} 
+              className="h-3"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{Math.round((completedPartsCount / parts.length) * 100)}% complete</span>
+              {processingStats.failedParts > 0 && (
+                <span className="text-destructive">{processingStats.failedParts} failed</span>
               )}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-foreground">
-                  {isProcessing ? "Processing in Progress" : 
-                   documentStatus === "pending" || documentStatus === "active" ? "Processing Complete" : 
-                   "Awaiting Processing"}
-                </h3>
-                {/* Processing Mode Badge */}
-                {processingMode && (
-                  <span className={cn(
-                    "px-2 py-0.5 rounded-full text-xs font-medium",
-                    processingMode === "full" && "bg-purple-500/20 text-purple-400 border border-purple-500/30",
-                    processingMode === "resume" && "bg-blue-500/20 text-blue-400 border border-blue-500/30",
-                    processingMode === "single_part" && "bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                  )}>
-                    {processingMode === "full" && "🔄 Full Reprocess"}
-                    {processingMode === "resume" && "▶️ Resume"}
-                    {processingMode === "single_part" && "🔁 Single Part"}
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {isProcessing && currentStage
-                  ? `Currently: ${currentStage.replace(/_/g, " ")}`
-                  : isMultiPart
-                  ? `${parts.filter((p) => p.status === "processed").length} of ${parts.length} parts processed`
-                  : documentStatus === "pending" || documentStatus === "active"
-                  ? "Document ready for review"
-                  : "Document has not been processed yet"}
-              </p>
-            </div>
           </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            {processingStartedAt && (
+
+          {/* Time Estimates */}
+          {autoProcessing && processingStats.partTimes.length > 0 && (
+            <div className="flex gap-4 text-sm text-muted-foreground mt-3 pt-3 border-t border-border">
               <div className="flex items-center gap-1">
-                <Timer className="w-4 h-4" />
-                {getProcessingDuration()}
+                <Timer className="w-3 h-3" />
+                <span>Avg/part: {formatDuration(timeEstimates.avgTime)}</span>
               </div>
-            )}
-            {showStopButton && (
-              <Button 
-                variant="destructive" 
-                size="sm" 
-                onClick={async () => {
-                  setStoppingProcessing(true);
-                  try {
-                    // Set abort flag in document metadata
-                    const { data: doc } = await supabase
-                      .from("legal_documents")
-                      .select("metadata")
-                      .eq("id", documentId)
-                      .single();
-                    
-                    const currentMetadata = (doc?.metadata as Record<string, unknown>) || {};
-                    
-                    await supabase
-                      .from("legal_documents")
-                      .update({
-                        metadata: { ...currentMetadata, abort_requested: true },
-                      })
-                      .eq("id", documentId);
-                    
-                    toast({
-                      title: "Stop Requested",
-                      description: "Processing will stop after the current part completes.",
-                    });
-                  } catch (error) {
-                    console.error("Error requesting stop:", error);
-                    toast({
-                      title: "Error",
-                      description: "Failed to request stop",
-                      variant: "destructive",
-                    });
-                  } finally {
-                    setStoppingProcessing(false);
-                  }
-                }}
-                disabled={stoppingProcessing}
-              >
-                {stoppingProcessing ? (
-                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                ) : (
-                  <StopCircle className="w-4 h-4 mr-1" />
-                )}
-                Stop Processing
-              </Button>
-            )}
-            {/* Process Next Part Button - for step-by-step processing */}
-            {isMultiPart && hasPendingParts && !isProcessing && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={processNextPart}
-                disabled={reprocessingPart !== null}
-                className="gap-1"
-              >
-                {reprocessingPart ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Zap className="w-4 h-4" />
-                )}
-                Process Next Part
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={fetchData}>
-              <RefreshCw className="w-4 h-4 mr-1" />
-              Refresh
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                <span>Est. remaining: {formatDuration(timeEstimates.remainingTime)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                <span>Elapsed: {formatDuration(timeEstimates.elapsedTime)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Live Processing Log */}
+      {isMultiPart && processingLog.length > 0 && (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <div 
+            className="p-3 bg-muted/30 flex items-center justify-between cursor-pointer"
+            onClick={() => setLogExpanded(!logExpanded)}
+          >
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Live Processing Log
+              <span className="text-xs text-muted-foreground">({processingLog.length} entries)</span>
+            </h4>
+            <Button variant="ghost" size="sm">
+              {logExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
           </div>
+          {logExpanded && (
+            <div className="p-3 max-h-[200px] overflow-y-auto font-mono text-xs space-y-1 bg-background">
+              {processingLog.map((entry, i) => (
+                <div 
+                  key={i} 
+                  className={cn(
+                    "flex gap-2",
+                    entry.type === 'error' && "text-destructive",
+                    entry.type === 'success' && "text-green-500",
+                    entry.type === 'warning' && "text-yellow-500",
+                    entry.type === 'info' && "text-muted-foreground"
+                  )}
+                >
+                  <span className="text-muted-foreground shrink-0">[{entry.timestamp}]</span>
+                  <span>{entry.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Progress Bar */}
-        <div className="w-full bg-muted rounded-full h-2 mb-2">
-          <div
-            className={cn(
-              "h-2 rounded-full transition-all duration-500",
-              progress >= 100 ? "bg-green-500" : "bg-primary"
-            )}
-            style={{ width: `${Math.min(progress, 100)}%` }}
-          />
+      {/* Overall Progress Header (for single documents or fallback) */}
+      {!isMultiPart && (
+        <div className="bg-muted/30 rounded-lg p-4 border border-border">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2 rounded-full",
+                isProcessing ? "bg-primary/20" : 
+                documentStatus === "pending" ? "bg-green-500/20" : "bg-muted"
+              )}>
+                {isProcessing ? (
+                  <Activity className="w-5 h-5 text-primary animate-pulse" />
+                ) : documentStatus === "pending" || documentStatus === "active" ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                ) : (
+                  <Clock className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-foreground">
+                    {isProcessing ? "Processing in Progress" : 
+                     documentStatus === "pending" || documentStatus === "active" ? "Processing Complete" : 
+                     "Awaiting Processing"}
+                  </h3>
+                  {/* Processing Mode Badge */}
+                  {processingMode && (
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-xs font-medium",
+                      processingMode === "full" && "bg-purple-500/20 text-purple-400 border border-purple-500/30",
+                      processingMode === "resume" && "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+                      processingMode === "single_part" && "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                    )}>
+                      {processingMode === "full" && "🔄 Full Reprocess"}
+                      {processingMode === "resume" && "▶️ Resume"}
+                      {processingMode === "single_part" && "🔁 Single Part"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {isProcessing && currentStage
+                    ? `Currently: ${currentStage.replace(/_/g, " ")}`
+                    : documentStatus === "pending" || documentStatus === "active"
+                    ? "Document ready for review"
+                    : "Document has not been processed yet"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              {processingStartedAt && (
+                <div className="flex items-center gap-1">
+                  <Timer className="w-4 h-4" />
+                  {getProcessingDuration()}
+                </div>
+              )}
+              {showStopButton && !isMultiPart && (
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={async () => {
+                    setStoppingProcessing(true);
+                    try {
+                      // Set abort flag in document metadata
+                      const { data: doc } = await supabase
+                        .from("legal_documents")
+                        .select("metadata")
+                        .eq("id", documentId)
+                        .single();
+                      
+                      const currentMetadata = (doc?.metadata as Record<string, unknown>) || {};
+                      
+                      await supabase
+                        .from("legal_documents")
+                        .update({
+                          metadata: { ...currentMetadata, abort_requested: true },
+                        })
+                        .eq("id", documentId);
+                      
+                      toast({
+                        title: "Stop Requested",
+                        description: "Processing will stop after the current part completes.",
+                      });
+                    } catch (error) {
+                      console.error("Error requesting stop:", error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to request stop",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setStoppingProcessing(false);
+                    }
+                  }}
+                  disabled={stoppingProcessing}
+                >
+                  {stoppingProcessing ? (
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <StopCircle className="w-4 h-4 mr-1" />
+                  )}
+                  Stop Processing
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={fetchData}>
+                <RefreshCw className="w-4 h-4 mr-1" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full bg-muted rounded-full h-2 mb-2">
+            <div
+              className={cn(
+                "h-2 rounded-full transition-all duration-500",
+                progress >= 100 ? "bg-green-500" : "bg-primary"
+              )}
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
+          </div>
+          <div className="text-xs text-muted-foreground text-right">{progress}% complete</div>
         </div>
-        <div className="text-xs text-muted-foreground text-right">{progress}% complete</div>
-      </div>
+      )}
 
       {/* Stage Pipeline */}
       <div>
@@ -592,8 +996,8 @@ export default function DocumentProcessingStatusTab({
                     ((part.provisions_count || 0) > 0 && (part.rules_count || 0) === 0);
 
                   // Detect stuck/timed-out parts (processing > 15 minutes)
-                  const updatedAt = (part as Record<string, unknown>).updated_at 
-                    ? new Date((part as Record<string, unknown>).updated_at as string).getTime() 
+                  const updatedAt = part.updated_at 
+                    ? new Date(part.updated_at).getTime() 
                     : 0;
                   const fifteenMinutes = 15 * 60 * 1000;
                   const isStuck = part.status === 'processing' && (Date.now() - updatedAt > fifteenMinutes);
@@ -652,7 +1056,7 @@ export default function DocumentProcessingStatusTab({
                           : "—"}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {(part.status === "failed" || hasIssue || isStuck) && (
+                        {(part.status === "failed" || hasIssue || isStuck || part.status === "pending") && !autoProcessing && (
                           <Button
                             variant="ghost"
                             size="sm"
