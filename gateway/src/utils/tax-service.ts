@@ -188,42 +188,42 @@ class TaxService {
      * Calculate Withholding Tax
      */
     async calculateWHT(params: WHTParams, userId?: string): Promise<WHTResult> {
-        return this.callTaxCalculate<WHTResult>('wht', params, userId);
+        return this.callTaxCalculate<WHTResult>('wht', params as Record<string, unknown>, userId);
     }
 
     /**
      * Calculate Capital Gains Tax
      */
     async calculateCGT(params: CGTParams, userId?: string): Promise<CGTResult> {
-        return this.callTaxCalculate<CGTResult>('cgt', params, userId);
+        return this.callTaxCalculate<CGTResult>('cgt', params as Record<string, unknown>, userId);
     }
 
     /**
      * Calculate Corporate Income Tax
      */
     async calculateCIT(params: CITParams, userId?: string): Promise<CITResult> {
-        return this.callTaxCalculate<CITResult>('cit', params, userId);
+        return this.callTaxCalculate<CITResult>('cit', params as Record<string, unknown>, userId);
     }
 
     /**
      * Calculate VAT
      */
     async calculateVAT(params: VATParams, userId?: string): Promise<VATResult> {
-        return this.callTaxCalculate<VATResult>('vat', params, userId);
+        return this.callTaxCalculate<VATResult>('vat', params as Record<string, unknown>, userId);
     }
 
     /**
      * Calculate Stamp Duty
      */
     async calculateStampDuty(params: StampDutyParams, userId?: string): Promise<StampDutyResult> {
-        return this.callTaxCalculate<StampDutyResult>('stamp', params, userId);
+        return this.callTaxCalculate<StampDutyResult>('stamp', params as Record<string, unknown>, userId);
     }
 
     /**
      * Calculate Minimum ETR
      */
     async calculateMETR(params: METRParams, userId?: string): Promise<METRResult> {
-        return this.callTaxCalculate<METRResult>('metr', params, userId);
+        return this.callTaxCalculate<METRResult>('metr', params as Record<string, unknown>, userId);
     }
 }
 
