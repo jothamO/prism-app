@@ -196,7 +196,7 @@ Return ONLY valid JSON array:
 
         console.log(`[process-compliance-document] Generated ${rules.length} rules`);
 
-        // Step 3: Generate summary and classification
+        // Step 3: Generate summary, classification, and extract dates from text
         const summaryPrompt = `Summarize this Nigerian tax document for administrators.
 
 TITLE: ${title}
@@ -206,6 +206,9 @@ PROVISIONS EXTRACTED: ${provisions.length}
 KEY PROVISIONS:
 ${provisions.slice(0, 5).map(p => `- ${p.sectionNumber}: ${p.plainLanguageSummary}`).join('\n')}
 
+DOCUMENT TEXT (for date extraction):
+${extractedText.slice(0, 5000)}
+
 Provide:
 1. A 2-3 sentence summary
 2. List of key provisions (just titles)
@@ -213,6 +216,8 @@ Provide:
 4. Tax types involved: ['pit', 'cit', 'vat', 'cgt', 'emtl', 'wht', 'stamp_duty']
 5. Whether human review is needed (true if complex rules or conflicts detected)
 6. If review needed, list reasons
+7. IMPORTANT: Extract the effective date mentioned in the document text (e.g., "effective from 1st March, 2025", "takes effect on March 1, 2025")
+8. Extract the publication/issue date if mentioned (e.g., "Dated: December 15, 2024")
 
 Return ONLY valid JSON:
 {
@@ -221,13 +226,25 @@ Return ONLY valid JSON:
   "affectedTaxpayers": ["..."],
   "taxTypes": ["..."],
   "needsReview": true,
-  "reviewReasons": ["Complex exemptions detected", "May conflict with existing rules"]
-}`;
+  "reviewReasons": ["Complex exemptions detected", "May conflict with existing rules"],
+  "effectiveDateFromText": "2025-03-01",
+  "publicationDateFromText": "2024-12-15",
+  "dateExtractionConfidence": "high"
+}
 
-        const classification = await callClaudeJSON<Partial<ProcessingResult>>(
-            'You are a tax document classifier.',
+For dates:
+- Return null if no date found
+- Use ISO format: YYYY-MM-DD
+- dateExtractionConfidence: "high" (explicit date), "medium" (inferred), "low" (uncertain)`;
+
+        const classification = await callClaudeJSON<Partial<ProcessingResult> & {
+            effectiveDateFromText?: string | null;
+            publicationDateFromText?: string | null;
+            dateExtractionConfidence?: string;
+        }>(
+            'You are a tax document classifier with expertise in date extraction.',
             summaryPrompt,
-            { model: CLAUDE_MODELS.HAIKU, maxTokens: 2000 }
+            { model: CLAUDE_MODELS.SONNET, maxTokens: 2000 }
         ) || {};
 
         // Step 4: Save to database
@@ -268,6 +285,30 @@ Return ONLY valid JSON:
         const documentEffectiveDate = docData?.effective_date || null;
         console.log(`[process-compliance-document] Document effective date: ${documentEffectiveDate}`);
 
+        // Check for date mismatch between admin-entered and AI-extracted
+        const aiExtractedDate = classification.effectiveDateFromText;
+        const adminEnteredDate = documentEffectiveDate ? documentEffectiveDate.split('T')[0] : null;
+        
+        let dateMismatchWarning = null;
+        let needsReviewDueToDate = false;
+        
+        if (aiExtractedDate && adminEnteredDate && aiExtractedDate !== adminEnteredDate) {
+            console.log(`[process-compliance-document] Date mismatch detected! Admin: ${adminEnteredDate}, AI: ${aiExtractedDate}`);
+            dateMismatchWarning = {
+                admin_entered: adminEnteredDate,
+                ai_extracted: aiExtractedDate,
+                confidence: classification.dateExtractionConfidence || 'medium',
+                detected_at: new Date().toISOString(),
+            };
+            needsReviewDueToDate = true;
+        }
+
+        // Combine review reasons
+        const reviewReasons = [...(classification.reviewReasons || [])];
+        if (needsReviewDueToDate) {
+            reviewReasons.push(`Date mismatch: You entered ${adminEnteredDate} but AI found ${aiExtractedDate} in document text`);
+        }
+
         // Update legal document with summary info and processing status
         await supabase
             .from('legal_documents')
@@ -276,14 +317,18 @@ Return ONLY valid JSON:
                 key_provisions: classification.keyProvisions,
                 affected_taxpayers: classification.affectedTaxpayers,
                 tax_types: classification.taxTypes,
-                needs_human_review: classification.needsReview ?? true,
-                review_notes: classification.reviewReasons?.join('; '),
+                needs_human_review: (classification.needsReview ?? true) || needsReviewDueToDate,
+                review_notes: reviewReasons.join('; '),
                 status: 'pending', // Processing complete, ready for review
                 updated_at: new Date().toISOString(),
                 metadata: {
                     processing_completed_at: new Date().toISOString(),
                     provisions_count: provisions.length,
                     rules_count: rules.length,
+                    ai_extracted_effective_date: aiExtractedDate,
+                    ai_extracted_publication_date: classification.publicationDateFromText,
+                    date_extraction_confidence: classification.dateExtractionConfidence,
+                    date_mismatch_warning: dateMismatchWarning,
                 },
             })
             .eq('id', documentId);
