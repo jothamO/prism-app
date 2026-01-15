@@ -27,8 +27,8 @@ interface PRISMImpactItem {
 interface PRISMImpactAnalysis {
   summary: string;
   prism_changes_required: PRISMImpactItem[];
-  tax_calendar_updates: { deadline: string; description: string; created?: boolean }[];
-  education_center_updates: { topic: string; suggested: boolean; created?: boolean }[];
+  tax_calendar_updates: { deadline: string; description: string; type?: string; provision_ids?: string[]; created?: boolean }[];
+  education_center_updates: { topic: string; category?: string; provision_ids?: string[]; suggested: boolean; created?: boolean }[];
   user_notifications: { required: boolean; message: string };
   ai_confidence: number;
   ai_generated_at: string;
@@ -185,6 +185,34 @@ export default function PRISMImpactSummaryTab({
     } finally {
       setRegenerating(false);
     }
+  };
+
+  // Build URL for education article creation with AI
+  const buildEducationUrl = (item: { topic: string; category?: string; provision_ids?: string[] }, withAi: boolean) => {
+    const params = new URLSearchParams({
+      prefill: 'true',
+      topic: item.topic,
+      document_id: documentId,
+    });
+    if (item.category) params.append('category', item.category);
+    if (item.provision_ids?.length) params.append('provision_ids', item.provision_ids.join(','));
+    if (withAi) params.append('generate_ai', 'true');
+    return `/admin/education?${params.toString()}`;
+  };
+
+  // Build URL for tax calendar creation with AI
+  const buildCalendarUrl = (item: { deadline: string; description: string; type?: string; provision_ids?: string[] }, withAi: boolean) => {
+    const params = new URLSearchParams({
+      prefill: 'true',
+      title: item.description,
+      date: item.deadline,
+      description: item.description,
+      document_id: documentId,
+    });
+    if (item.type) params.append('type', item.type);
+    if (item.provision_ids?.length) params.append('provision_ids', item.provision_ids.join(','));
+    if (withAi) params.append('generate_ai', 'true');
+    return `/admin/tax-calendar?${params.toString()}`;
   };
 
   const groupedActions = localAnalysis?.prism_changes_required?.reduce((acc, item) => {
@@ -352,19 +380,24 @@ export default function PRISMImpactSummaryTab({
           <div className="space-y-2">
             {localAnalysis.tax_calendar_updates.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
-                <div>
+                <div className="flex-1 min-w-0 mr-3">
                   <p className="text-sm text-foreground">{item.description}</p>
                   <p className="text-xs text-muted-foreground">Deadline: {item.deadline}</p>
                 </div>
-                <Button variant="outline" size="sm" asChild>
-                  <a 
-                    href={`/admin/tax-calendar?prefill=true&title=${encodeURIComponent(item.description)}&date=${encodeURIComponent(item.deadline)}&description=${encodeURIComponent(item.description)}`}
-                    className="flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Add
-                  </a>
-                </Button>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button variant="outline" size="sm" asChild className="gap-1">
+                    <a href={buildCalendarUrl(item, true)}>
+                      <Sparkles className="w-3 h-3 text-green-500" />
+                      Add with AI
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild className="gap-1">
+                    <a href={buildCalendarUrl(item, false)}>
+                      <ExternalLink className="w-3 h-3" />
+                      Add
+                    </a>
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -381,16 +414,26 @@ export default function PRISMImpactSummaryTab({
           <div className="space-y-2">
             {localAnalysis.education_center_updates.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
-                <p className="text-sm text-foreground">{item.topic}</p>
-                <Button variant="outline" size="sm" asChild>
-                  <a 
-                    href={`/admin/education?prefill=true&topic=${encodeURIComponent(item.topic)}`}
-                    className="flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Create
-                  </a>
-                </Button>
+                <div className="flex-1 min-w-0 mr-3">
+                  <p className="text-sm text-foreground">{item.topic}</p>
+                  {item.category && (
+                    <p className="text-xs text-muted-foreground">Category: {item.category}</p>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button variant="outline" size="sm" asChild className="gap-1">
+                    <a href={buildEducationUrl(item, true)}>
+                      <Sparkles className="w-3 h-3 text-purple-500" />
+                      Create with AI
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild className="gap-1">
+                    <a href={buildEducationUrl(item, false)}>
+                      <ExternalLink className="w-3 h-3" />
+                      Create
+                    </a>
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

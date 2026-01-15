@@ -31,6 +31,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ProvisionLinksDisplay } from "@/components/admin/ProvisionLinksDisplay";
 import {
   Plus,
   Pencil,
@@ -42,6 +43,7 @@ import {
   BookOpen,
   RefreshCw,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 
 interface EducationArticle {
@@ -114,6 +116,10 @@ export default function AdminEducation() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [generatingContent, setGeneratingContent] = useState(false);
+
+  // Track document context from URL
+  const [sourceDocumentId, setSourceDocumentId] = useState<string | null>(null);
 
   // Check for prefill params from Summary tab
   useEffect(() => {
@@ -121,18 +127,30 @@ export default function AdminEducation() {
     const topic = searchParams.get("topic");
     const provisionIds = searchParams.get("provision_ids");
     const category = searchParams.get("category");
+    const documentId = searchParams.get("document_id");
+    const generateAi = searchParams.get("generate_ai");
 
     if (prefill === "true") {
+      const linkedIds = provisionIds ? provisionIds.split(",").filter(Boolean) : [];
       setFormData((prev) => ({
         ...prev,
         title: topic ? decodeURIComponent(topic) : "",
         slug: topic ? generateSlug(decodeURIComponent(topic)) : "",
         category: category || "basics",
-        linked_provision_ids: provisionIds ? provisionIds.split(",") : [],
+        linked_provision_ids: linkedIds,
       }));
+      setSourceDocumentId(documentId || null);
       setIsModalOpen(true);
+      
       // Clear the URL params
       navigate("/admin/education", { replace: true });
+
+      // Auto-generate if requested
+      if (generateAi === "true" && topic) {
+        setTimeout(() => {
+          handleGenerateContent(decodeURIComponent(topic), category || "basics", linkedIds, documentId || undefined);
+        }, 500);
+      }
     }
   }, [searchParams, navigate]);
 
@@ -179,6 +197,58 @@ export default function AdminEducation() {
     }));
   }
 
+  async function handleGenerateContent(
+    topic?: string,
+    category?: string,
+    provisionIds?: string[],
+    documentId?: string
+  ) {
+    const useTopic = topic || formData.title;
+    const useCategory = category || formData.category;
+    const useProvisionIds = provisionIds || formData.linked_provision_ids;
+    const useDocumentId = documentId || sourceDocumentId;
+
+    if (!useTopic) {
+      toast({ title: "Enter a title first", variant: "destructive" });
+      return;
+    }
+
+    setGeneratingContent(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-article-content", {
+        body: {
+          topic: useTopic,
+          category: useCategory,
+          provisionIds: useProvisionIds,
+          documentId: useDocumentId,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.content) {
+        setFormData((prev) => ({
+          ...prev,
+          content: data.content,
+          description: data.description || prev.description,
+          read_time: data.read_time || prev.read_time,
+        }));
+        toast({ title: "Content generated!", description: `Used ${data.provisions_used || 0} legal provisions` });
+      } else {
+        throw new Error("No content generated");
+      }
+    } catch (error) {
+      console.error("Generate content error:", error);
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingContent(false);
+    }
+  }
+
   async function handleSave() {
     if (!formData.title || !formData.content) {
       toast({ title: "Title and content are required", variant: "destructive" });
@@ -212,6 +282,7 @@ export default function AdminEducation() {
       ({ error } = await supabase.from("education_articles").insert({
         ...payload,
         created_by: user?.id,
+        suggested_by_ai: generatingContent || formData.content.includes("##"),
       }));
     }
 
@@ -273,6 +344,7 @@ export default function AdminEducation() {
 
   function resetForm() {
     setEditingArticle(null);
+    setSourceDocumentId(null);
     setFormData({
       title: "",
       slug: "",
@@ -381,6 +453,7 @@ export default function AdminEducation() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Provisions</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -389,13 +462,13 @@ export default function AdminEducation() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : filteredArticles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     No articles found
                   </TableCell>
                 </TableRow>
@@ -415,6 +488,16 @@ export default function AdminEducation() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{article.category}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {article.linked_provision_ids && article.linked_provision_ids.length > 0 ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <Link2 className="h-3 w-3" />
+                          {article.linked_provision_ids.length}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -548,6 +631,28 @@ export default function AdminEducation() {
               />
             </div>
 
+            {/* AI Generate Button */}
+            <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-lg border border-purple-200/50">
+              <Button
+                variant="outline"
+                onClick={() => handleGenerateContent()}
+                disabled={generatingContent || !formData.title}
+                className="gap-2"
+              >
+                {generatingContent ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                )}
+                {generatingContent ? "Generating..." : "Generate with AI"}
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {formData.linked_provision_ids.length > 0
+                  ? `Uses ${formData.linked_provision_ids.length} linked provision(s) for context`
+                  : "Add provisions below for better content"}
+              </span>
+            </div>
+
             <div className="space-y-2">
               <Label>Content (Markdown)</Label>
               <Textarea
@@ -559,17 +664,26 @@ export default function AdminEducation() {
               />
             </div>
 
+            {/* Visual Provision Links Display */}
+            {formData.linked_provision_ids.length > 0 && (
+              <ProvisionLinksDisplay
+                provisionIds={formData.linked_provision_ids}
+                variant="compact"
+                showSource
+              />
+            )}
+
             {/* Linked Provisions */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Link2 className="h-4 w-4" />
-                Linked Legal Provisions
+                Link Legal Provisions
               </Label>
               <div className="border rounded-md p-3 max-h-[150px] overflow-y-auto space-y-2">
                 {provisions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No provisions available</p>
                 ) : (
-                  provisions.slice(0, 20).map((prov) => (
+                  provisions.slice(0, 30).map((prov) => (
                     <div key={prov.id} className="flex items-center gap-2">
                       <Checkbox
                         id={prov.id}

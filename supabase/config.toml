@@ -140,3 +140,9 @@ verify_jwt = false
 
 [functions.trigger-ml-training]
 verify_jwt = false
+
+[functions.generate-article-content]
+verify_jwt = false
+
+[functions.generate-deadline-content]
+verify_jwt = false
