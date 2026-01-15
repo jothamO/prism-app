@@ -40,6 +40,23 @@ interface PRISMImpactAnalysis {
 
 type Criticality = 'breaking_change' | 'rate_update' | 'new_requirement' | 'procedural_update' | 'advisory';
 
+interface DateMismatchWarning {
+  admin_entered: string;
+  ai_extracted: string;
+  confidence: string;
+  detected_at: string;
+}
+
+interface DocumentMetadata {
+  processing_completed_at?: string;
+  provisions_count?: number;
+  rules_count?: number;
+  ai_extracted_effective_date?: string | null;
+  ai_extracted_publication_date?: string | null;
+  date_extraction_confidence?: string;
+  date_mismatch_warning?: DateMismatchWarning | null;
+}
+
 interface LegalDocument {
   id: string;
   title: string;
@@ -68,6 +85,7 @@ interface LegalDocument {
   criticality: Criticality | null;
   impact_reviewed: boolean | null;
   impact_reviewed_at: string | null;
+  metadata?: DocumentMetadata | null;
 }
 
 interface Provision {
@@ -132,6 +150,7 @@ export default function AdminComplianceDocumentDetail() {
         ...doc,
         prism_impact_analysis: doc.prism_impact_analysis as PRISMImpactAnalysis | null,
         criticality: doc.criticality as Criticality | null,
+        metadata: doc.metadata as DocumentMetadata | null,
       };
       setDocument(typedDoc as LegalDocument);
 
@@ -419,6 +438,61 @@ export default function AdminComplianceDocumentDetail() {
     }
   }
 
+  // Update effective date with cascade to all related rules
+  async function updateEffectiveDateWithCascade(newDate: string) {
+    if (!document) return;
+    setUpdating(true);
+    try {
+      // Update the document's effective date
+      const { error: docError } = await supabase
+        .from("legal_documents")
+        .update({ 
+          effective_date: newDate,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", document.id);
+
+      if (docError) throw docError;
+
+      // Update all associated rules
+      const { error: rulesError } = await supabase
+        .from("compliance_rules")
+        .update({ effective_from: newDate })
+        .eq("document_id", document.id);
+
+      if (rulesError) throw rulesError;
+
+      // Clear the date mismatch warning from metadata
+      const currentMetadata = document.metadata || {};
+      const { date_mismatch_warning, ...cleanMetadata } = currentMetadata;
+      
+      await supabase
+        .from("legal_documents")
+        .update({ 
+          metadata: cleanMetadata,
+          needs_human_review: false,
+        })
+        .eq("id", document.id);
+
+      toast({
+        title: "Effective date updated",
+        description: `Document and ${rules.length} rules updated to ${new Date(newDate).toLocaleDateString()}`,
+      });
+
+      // Refresh the document data
+      fetchDocument();
+    } catch (error) {
+      console.error("Error updating effective date:", error);
+      toast({
+        title: "Update failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  }
+
   const statusBadgeColor = (status: string) => {
     switch (status) {
       case "active": return "bg-green-500/20 text-green-500";
@@ -560,6 +634,76 @@ export default function AdminComplianceDocumentDetail() {
                     Delete
                   </>
                 )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Date Mismatch Warning */}
+      {document.metadata?.date_mismatch_warning && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-foreground">Effective Date Mismatch Detected</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  AI found a different date in the document text than what was entered during upload.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-background/50 rounded p-2">
+                    <span className="text-muted-foreground">You entered:</span>
+                    <div className="font-medium text-foreground">
+                      {new Date(document.metadata.date_mismatch_warning.admin_entered).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </div>
+                  </div>
+                  <div className="bg-background/50 rounded p-2">
+                    <span className="text-muted-foreground">AI found in document:</span>
+                    <div className="font-medium text-yellow-500">
+                      {new Date(document.metadata.date_mismatch_warning.ai_extracted).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Confidence: {document.metadata.date_mismatch_warning.confidence}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={updating}
+                onClick={() => {
+                  // Clear warning without changing date
+                  const currentMetadata = document.metadata || {};
+                  const { date_mismatch_warning, ...cleanMetadata } = currentMetadata;
+                  supabase
+                    .from("legal_documents")
+                    .update({ metadata: cleanMetadata, needs_human_review: false })
+                    .eq("id", document.id)
+                    .then(() => fetchDocument());
+                  toast({ title: "Warning dismissed", description: "Keeping the original date" });
+                }}
+              >
+                Keep My Date
+              </Button>
+              <Button
+                size="sm"
+                disabled={updating}
+                onClick={() => updateEffectiveDateWithCascade(document.metadata!.date_mismatch_warning!.ai_extracted)}
+              >
+                {updating ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+                Use AI Date
               </Button>
             </div>
           </div>
