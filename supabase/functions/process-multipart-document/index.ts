@@ -192,21 +192,74 @@ serve(async (req) => {
             throw new Error(`Document not found: ${documentId}`);
         }
 
-        // Fetch all parts
-        let partsQuery = supabase
-            .from("document_parts")
-            .select("*")
-            .eq("parent_document_id", documentId)
-            .order("part_number");
+        // Fetch parts based on processing mode
+        let partsQuery;
 
         if (reprocessPartId) {
+            // Single part reprocess
             partsQuery = supabase
                 .from("document_parts")
                 .select("*")
                 .eq("id", reprocessPartId);
+        } else if (mode === 'resume') {
+            // RESUME MODE: Reset stuck parts (>15 min), then only fetch pending/failed
+            const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+            
+            // Reset stuck 'processing' parts to 'failed' with timeout error
+            const { data: stuckParts } = await supabase
+                .from("document_parts")
+                .update({ 
+                    status: 'failed', 
+                    metadata: { error: 'Processing timeout (>15 min)', timed_out_at: new Date().toISOString() } 
+                })
+                .eq("parent_document_id", documentId)
+                .eq("status", "processing")
+                .lt("updated_at", fifteenMinutesAgo)
+                .select();
+            
+            if (stuckParts && stuckParts.length > 0) {
+                console.log(`[process-multipart] Reset ${stuckParts.length} stuck parts to failed`);
+                await emitEvent(supabase, documentId, null, 'warning', null, 'in_progress',
+                    `Reset ${stuckParts.length} stuck part(s) due to timeout (>15 min)`,
+                    { reset_parts: stuckParts.map(p => p.part_number) }
+                );
+            }
+            
+            // Fetch only pending or failed parts
+            partsQuery = supabase
+                .from("document_parts")
+                .select("*")
+                .eq("parent_document_id", documentId)
+                .in("status", ["pending", "failed"])
+                .order("part_number");
+        } else {
+            // FULL REPROCESS: Reset ALL parts to pending first
+            await supabase
+                .from("document_parts")
+                .update({ status: 'pending', metadata: null })
+                .eq("parent_document_id", documentId);
+            
+            partsQuery = supabase
+                .from("document_parts")
+                .select("*")
+                .eq("parent_document_id", documentId)
+                .order("part_number");
         }
 
         const { data: parts, error: partsError } = await partsQuery;
+
+        // Handle resume mode with no pending parts gracefully
+        if (mode === 'resume' && (!parts || parts.length === 0)) {
+            await emitEvent(supabase, documentId, null, 'completed', null, 'completed', 
+                'Resume complete - all parts already processed');
+            
+            await supabase
+                .from("legal_documents")
+                .update({ status: "pending" })
+                .eq("id", documentId);
+            
+            return jsonResponse({ success: true, message: "All parts already processed" });
+        }
 
         if (partsError || !parts || parts.length === 0) {
             await emitEvent(supabase, documentId, null, 'failed', null, 'failed', 
@@ -214,7 +267,12 @@ serve(async (req) => {
             throw new Error("No parts found for document");
         }
 
-        console.log(`[process-multipart] Found ${parts.length} parts to process`);
+        const partsLogLabel = mode === 'resume' 
+            ? `Resuming (${parts.length} pending/failed parts)`
+            : reprocessPartId 
+            ? 'Reprocessing single part'
+            : `Full reprocess (${parts.length} parts)`;
+        console.log(`[process-multipart] Mode: ${partsLogLabel}`);
 
         const allProvisions: (ExtractedProvision & { source_part_id: string; source_part_number: number })[] = [];
         const allRules: (ExtractedRule & { source_part_id: string })[] = [];

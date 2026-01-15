@@ -90,6 +90,52 @@ export default function DocumentProcessingStatusTab({
 
   const isProcessing = documentStatus === "processing";
 
+  // Detect if any parts are stuck in processing status (for showing Stop button)
+  const hasStuckParts = parts.some(p => p.status === 'processing');
+  const showStopButton = isProcessing || hasStuckParts;
+
+  // Check for pending/failed parts for "Process Next Part" button
+  const hasPendingParts = parts.some(p => p.status === 'pending' || p.status === 'failed');
+
+  // Process a single pending/failed part
+  const processNextPart = async () => {
+    const nextPart = parts.find(p => p.status === 'pending' || p.status === 'failed');
+    
+    if (!nextPart) {
+      toast({
+        title: "All parts processed",
+        description: "There are no pending or failed parts to process.",
+      });
+      return;
+    }
+    
+    setReprocessingPart(nextPart.id);
+    try {
+      const { error } = await supabase.functions.invoke("process-multipart-document", {
+        body: { documentId, reprocessPartId: nextPart.id },
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: `Processing Part ${nextPart.part_number}`,
+        description: `${nextPart.part_title || 'Untitled'} is being processed.`,
+      });
+      
+      fetchData();
+      onRefresh();
+    } catch (error) {
+      console.error("Error processing next part:", error);
+      toast({
+        title: "Processing failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setReprocessingPart(null);
+    }
+  };
+
   // Calculate derived state
   const completedStages = events
     .filter((e) => e.event_type === "stage_completed" && e.status === "completed")
@@ -382,7 +428,7 @@ export default function DocumentProcessingStatusTab({
                 {getProcessingDuration()}
               </div>
             )}
-            {isProcessing && (
+            {showStopButton && (
               <Button 
                 variant="destructive" 
                 size="sm" 
@@ -428,6 +474,23 @@ export default function DocumentProcessingStatusTab({
                   <StopCircle className="w-4 h-4 mr-1" />
                 )}
                 Stop Processing
+              </Button>
+            )}
+            {/* Process Next Part Button - for step-by-step processing */}
+            {isMultiPart && hasPendingParts && !isProcessing && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={processNextPart}
+                disabled={reprocessingPart !== null}
+                className="gap-1"
+              >
+                {reprocessingPart ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Zap className="w-4 h-4" />
+                )}
+                Process Next Part
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={fetchData}>
@@ -523,17 +586,25 @@ export default function DocumentProcessingStatusTab({
                 </tr>
               </thead>
               <tbody>
-                {parts.map((part) => {
+              {parts.map((part) => {
                   const hasIssue =
                     part.status === "processed" &&
                     ((part.provisions_count || 0) > 0 && (part.rules_count || 0) === 0);
+
+                  // Detect stuck/timed-out parts (processing > 15 minutes)
+                  const updatedAt = (part as Record<string, unknown>).updated_at 
+                    ? new Date((part as Record<string, unknown>).updated_at as string).getTime() 
+                    : 0;
+                  const fifteenMinutes = 15 * 60 * 1000;
+                  const isStuck = part.status === 'processing' && (Date.now() - updatedAt > fifteenMinutes);
 
                   return (
                     <tr
                       key={part.id}
                       className={cn(
                         "border-t border-border",
-                        hasIssue && "bg-yellow-500/5"
+                        hasIssue && "bg-yellow-500/5",
+                        isStuck && "bg-destructive/5"
                       )}
                     >
                       <td className="px-4 py-3 text-sm font-medium text-foreground">
@@ -544,20 +615,21 @@ export default function DocumentProcessingStatusTab({
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          {getStatusIcon(part.status, part.status === "processing")}
+                          {getStatusIcon(part.status, part.status === "processing" && !isStuck)}
                           <span
                             className={cn(
                               "text-xs font-medium capitalize",
                               part.status === "processed"
                                 ? "text-green-500"
                                 : part.status === "processing"
-                                ? "text-primary"
+                                ? isStuck ? "text-destructive" : "text-primary"
                                 : part.status === "failed"
                                 ? "text-destructive"
                                 : "text-muted-foreground"
                             )}
                           >
                             {part.status}
+                            {isStuck && <span className="ml-1">(timed out)</span>}
                           </span>
                         </div>
                       </td>
@@ -580,7 +652,7 @@ export default function DocumentProcessingStatusTab({
                           : "—"}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {(part.status === "failed" || hasIssue) && (
+                        {(part.status === "failed" || hasIssue || isStuck) && (
                           <Button
                             variant="ghost"
                             size="sm"
