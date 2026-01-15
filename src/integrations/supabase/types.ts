@@ -2049,6 +2049,57 @@ export type Database = {
           },
         ]
       }
+      document_processing_events: {
+        Row: {
+          created_at: string
+          details: Json | null
+          document_id: string
+          event_type: string
+          id: string
+          message: string
+          part_id: string | null
+          stage: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          document_id: string
+          event_type: string
+          id?: string
+          message: string
+          part_id?: string | null
+          stage?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          document_id?: string
+          event_type?: string
+          id?: string
+          message?: string
+          part_id?: string | null
+          stage?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_processing_events_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_processing_events_part_id_fkey"
+            columns: ["part_id"]
+            isOneToOne: false
+            referencedRelation: "document_parts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_processing_jobs: {
         Row: {
           api_key_id: string | null
@@ -2620,6 +2671,7 @@ export type Database = {
           ai_summary: string | null
           created_at: string | null
           criticality: string | null
+          current_processing_stage: string | null
           document_number: string | null
           document_type: string
           effective_date: string | null
@@ -2635,6 +2687,9 @@ export type Database = {
           needs_human_review: boolean | null
           parts_received: number | null
           prism_impact_analysis: Json | null
+          processing_completed_at: string | null
+          processing_progress: number | null
+          processing_started_at: string | null
           processing_strategy: string | null
           publication_date: string | null
           raw_text: string | null
@@ -2655,6 +2710,7 @@ export type Database = {
           ai_summary?: string | null
           created_at?: string | null
           criticality?: string | null
+          current_processing_stage?: string | null
           document_number?: string | null
           document_type: string
           effective_date?: string | null
@@ -2670,6 +2726,9 @@ export type Database = {
           needs_human_review?: boolean | null
           parts_received?: number | null
           prism_impact_analysis?: Json | null
+          processing_completed_at?: string | null
+          processing_progress?: number | null
+          processing_started_at?: string | null
           processing_strategy?: string | null
           publication_date?: string | null
           raw_text?: string | null
@@ -2690,6 +2749,7 @@ export type Database = {
           ai_summary?: string | null
           created_at?: string | null
           criticality?: string | null
+          current_processing_stage?: string | null
           document_number?: string | null
           document_type?: string
           effective_date?: string | null
@@ -2705,6 +2765,9 @@ export type Database = {
           needs_human_review?: boolean | null
           parts_received?: number | null
           prism_impact_analysis?: Json | null
+          processing_completed_at?: string | null
+          processing_progress?: number | null
+          processing_started_at?: string | null
           processing_strategy?: string | null
           publication_date?: string | null
           raw_text?: string | null
