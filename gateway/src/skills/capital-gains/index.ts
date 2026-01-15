@@ -1,20 +1,78 @@
 /**
  * Capital Gains Tax Skill
- * Handles CGT calculations per Nigeria Tax Act 2025
+ * Handles CGT calculations via central tax-calculate edge function
+ * NTA 2025 compliant
  */
 
 import { logger } from '../../utils/logger';
 import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
+import { taxService, CGTResult } from '../../utils/tax-service';
 
-// CGT Exemptions per NTA 2025
+// CGT Exemptions for display only (actual calculation in tax-calculate)
 const PERSONAL_CHATTELS_LIMIT = 5000000; // ₦5M
-const VEHICLE_LIMIT_PER_YEAR = 2;
 
 export class CapitalGainsSkill {
     private formatCurrency(amount: number): string {
         return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+    }
+
+    /**
+     * Detect asset type from message for exemption hints
+     */
+    private detectAssetType(message: string): 'shares' | 'property' | 'business' | 'other' {
+        const lower = message.toLowerCase();
+        if (lower.includes('share') || lower.includes('stock') || lower.includes('equity')) return 'shares';
+        if (lower.includes('house') || lower.includes('property') || lower.includes('land') || lower.includes('residence')) return 'property';
+        if (lower.includes('business') || lower.includes('company')) return 'business';
+        return 'other';
+    }
+
+    /**
+     * Format CGT result for user display
+     */
+    private formatResult(result: CGTResult, isPrincipalResidence: boolean, isVehicle: boolean, isChattels: boolean): string {
+        const isGain = !result.is_loss && result.taxable_gain > 0;
+
+        let response = `📈 Capital Gains Tax Calculation\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Disposal Value: ${this.formatCurrency(result.proceeds)}\n` +
+            `Cost Basis: ${this.formatCurrency(result.cost_basis)}\n`;
+
+        if (result.expenses > 0) {
+            response += `Expenses: ${this.formatCurrency(result.expenses)}\n`;
+        }
+
+        response += `\n📊 Gain/Loss: ${result.is_loss ? '-' : ''}${this.formatCurrency(Math.abs(result.gross_gain))}\n\n`;
+
+        // Apply exemption messaging
+        if (result.is_loss) {
+            response += `✅ *NO TAX LIABILITY*\n` +
+                `Capital loss - no CGT applies.\n` +
+                `Loss may be carried forward against future gains.\n\n`;
+        } else if (isPrincipalResidence) {
+            response += `✅ *PRINCIPAL RESIDENCE EXEMPTION*\n` +
+                `One-time exemption for primary residence.\n` +
+                `Chargeable Gain: ₦0\n\n` +
+                `⚠️ This exemption can only be used once in a lifetime.\n\n`;
+        } else if (isVehicle) {
+            response += `✅ *PRIVATE VEHICLE EXEMPTION*\n` +
+                `Private motor vehicles (max 2/year) are exempt.\n` +
+                `Chargeable Gain: ₦0\n\n`;
+        } else if (isChattels && result.proceeds <= PERSONAL_CHATTELS_LIMIT) {
+            response += `✅ *PERSONAL CHATTELS EXEMPTION*\n` +
+                `Disposal ≤ ${this.formatCurrency(PERSONAL_CHATTELS_LIMIT)} is exempt.\n` +
+                `Chargeable Gain: ₦0\n\n`;
+        } else if (isGain) {
+            response += `💰 *CHARGEABLE GAIN*\n` +
+                `CGT Rate: ${(result.cgt_rate * 100).toFixed(0)}%\n` +
+                `CGT Payable: ${this.formatCurrency(result.cgt)}\n\n` +
+                `This gain is included in your assessable income.\n\n`;
+        }
+
+        response += `Reference: Sections 51-53 NTA 2025`;
+        return response;
     }
 
     async handle(
@@ -36,60 +94,35 @@ export class CapitalGainsSkill {
                 const costBasis = parseInt(costMatch[1].replace(/,/g, ''));
                 const improvements = improvementMatch ? parseInt(improvementMatch[1].replace(/,/g, '')) : 0;
 
-                const gain = disposalValue - costBasis - improvements;
-                const isGain = gain > 0;
-
-                // Check exemptions
+                // Detect exemption contexts
                 const isPrincipalResidence = lowerMessage.includes('residence') || lowerMessage.includes('home') || lowerMessage.includes('house');
                 const isVehicle = lowerMessage.includes('car') || lowerMessage.includes('vehicle');
                 const isChattels = lowerMessage.includes('chattel') || lowerMessage.includes('furniture') || lowerMessage.includes('personal');
 
-                let response = `📈 Capital Gains Tax Calculation\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `Disposal Value: ${this.formatCurrency(disposalValue)}\n` +
-                    `Cost Basis: ${this.formatCurrency(costBasis)}\n`;
+                // Call central tax-calculate via taxService
+                const result = await taxService.calculateCGT(
+                    {
+                        proceeds: disposalValue,
+                        cost_basis: costBasis,
+                        expenses: improvements,
+                        asset_type: this.detectAssetType(message)
+                    },
+                    context.userId
+                );
 
-                if (improvements > 0) {
-                    response += `Improvements: ${this.formatCurrency(improvements)}\n`;
-                }
-
-                response += `\n📊 Gain/Loss: ${isGain ? '' : '-'}${this.formatCurrency(Math.abs(gain))}\n\n`;
-
-                // Apply exemptions
-                if (!isGain) {
-                    response += `✅ *NO TAX LIABILITY*\n` +
-                        `Capital loss - no CGT applies.\n` +
-                        `Loss may be carried forward against future gains.\n\n`;
-                } else if (isPrincipalResidence) {
-                    response += `✅ *PRINCIPAL RESIDENCE EXEMPTION*\n` +
-                        `One-time exemption for primary residence.\n` +
-                        `Chargeable Gain: ₦0\n\n` +
-                        `⚠️ This exemption can only be used once in a lifetime.\n\n`;
-                } else if (isVehicle) {
-                    response += `✅ *PRIVATE VEHICLE EXEMPTION*\n` +
-                        `Private motor vehicles (max ${VEHICLE_LIMIT_PER_YEAR}/year) are exempt.\n` +
-                        `Chargeable Gain: ₦0\n\n`;
-                } else if (isChattels && disposalValue <= PERSONAL_CHATTELS_LIMIT) {
-                    response += `✅ *PERSONAL CHATTELS EXEMPTION*\n` +
-                        `Disposal ≤ ${this.formatCurrency(PERSONAL_CHATTELS_LIMIT)} is exempt.\n` +
-                        `Chargeable Gain: ₦0\n\n`;
-                } else {
-                    response += `💰 *CHARGEABLE GAIN*\n` +
-                        `This gain is included in your assessable income.\n` +
-                        `Tax is calculated at your marginal income tax rate.\n\n` +
-                        `If annual income + gain > ₦50M: 25% rate applies\n\n`;
-                }
-
-                response += `Reference: Sections 51-53 NTA 2025`;
+                logger.info('[CGT Skill] Calculation complete via tax-calculate', {
+                    userId: context.userId,
+                    proceeds: disposalValue,
+                    gain: result.gross_gain,
+                    cgt: result.cgt
+                });
 
                 return {
-                    message: response,
+                    message: this.formatResult(result, isPrincipalResidence, isVehicle, isChattels),
                     metadata: {
                         skill: 'capital-gains',
-                        disposalValue,
-                        costBasis,
-                        improvements,
-                        gain,
+                        source: 'tax-calculate',
+                        ...result,
                         isPrincipalResidence,
                         isVehicle,
                         isChattels

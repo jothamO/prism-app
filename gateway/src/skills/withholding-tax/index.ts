@@ -1,24 +1,26 @@
 /**
  * Withholding Tax Skill
- * Handles WHT calculations per Nigeria Tax Act 2025
+ * Handles WHT calculations via central tax-calculate edge function
+ * NTA 2025 compliant
  */
 
 import { logger } from '../../utils/logger';
 import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
+import { taxService, WHTResult } from '../../utils/tax-service';
 
-// WHT Rates per NTA 2025
-const WHT_RATES: Record<string, { rate: number; label: string; isFinal: boolean }> = {
-    dividend: { rate: 0.10, label: 'Dividends', isFinal: false },
-    interest: { rate: 0.10, label: 'Interest', isFinal: false },
-    royalty: { rate: 0.10, label: 'Royalties', isFinal: false },
-    rent: { rate: 0.10, label: 'Rent', isFinal: false },
-    director: { rate: 0.10, label: "Director's Fees", isFinal: true },
-    contract: { rate: 0.05, label: 'Contract/Supply', isFinal: false },
-    consultancy: { rate: 0.05, label: 'Consultancy', isFinal: false },
-    professional: { rate: 0.05, label: 'Professional Fees', isFinal: false },
-    commission: { rate: 0.05, label: 'Commission', isFinal: false },
+// Payment type mappings for user-friendly display
+const PAYMENT_LABELS: Record<string, { label: string; isFinal: boolean }> = {
+    dividend: { label: 'Dividends', isFinal: false },
+    interest: { label: 'Interest', isFinal: false },
+    royalty: { label: 'Royalties', isFinal: false },
+    rent: { label: 'Rent', isFinal: false },
+    director: { label: "Director's Fees", isFinal: true },
+    contract: { label: 'Contract/Supply', isFinal: false },
+    consultancy: { label: 'Consultancy', isFinal: false },
+    professional: { label: 'Professional Fees', isFinal: false },
+    commission: { label: 'Commission', isFinal: false },
 };
 
 export class WithholdingTaxSkill {
@@ -49,6 +51,37 @@ export class WithholdingTaxSkill {
     }
 
     /**
+     * Format WHT result for user display
+     */
+    private formatResult(result: WHTResult, paymentType: string): string {
+        const labelInfo = PAYMENT_LABELS[paymentType] || { label: paymentType, isFinal: false };
+
+        let response = `🏛️ Withholding Tax Calculation\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Payment Type: ${labelInfo.label}\n` +
+            `Gross Amount: ${this.formatCurrency(result.gross_amount)}\n\n` +
+            `📋 WHT Breakdown:\n` +
+            `├─ WHT Rate: ${(result.wht_rate * 100).toFixed(0)}%\n` +
+            `├─ WHT Deducted: ${this.formatCurrency(result.wht_amount)}\n` +
+            `└─ Net Payment: ${this.formatCurrency(result.net_amount)}\n\n`;
+
+        if (labelInfo.isFinal) {
+            response += `⚠️ *FINAL TAX*\n` +
+                `This WHT is a final tax - no further tax liability.\n\n`;
+        } else {
+            response += `💡 This WHT is *creditable* against final tax liability.\n` +
+                `Recipient should claim credit when filing returns.\n\n`;
+        }
+
+        response += `📅 Remittance:\n` +
+            `• Due: 14th of following month\n` +
+            `• To: FIRS or relevant state authority\n\n` +
+            `Reference: Section 20 NTA 2025`;
+
+        return response;
+    }
+
+    /**
      * Handle WHT calculation
      */
     async handle(
@@ -64,43 +97,30 @@ export class WithholdingTaxSkill {
 
             if (amountMatch && paymentType) {
                 const grossAmount = parseInt(amountMatch[1].replace(/,/g, ''));
-                const rateInfo = WHT_RATES[paymentType];
 
-                const whtAmount = grossAmount * rateInfo.rate;
-                const netAmount = grossAmount - whtAmount;
+                // Call central tax-calculate via taxService
+                const result = await taxService.calculateWHT(
+                    {
+                        amount: grossAmount,
+                        payment_type: paymentType as any
+                    },
+                    context.userId
+                );
 
-                let response = `🏛️ Withholding Tax Calculation\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `Payment Type: ${rateInfo.label}\n` +
-                    `Gross Amount: ${this.formatCurrency(grossAmount)}\n\n` +
-                    `📋 WHT Breakdown:\n` +
-                    `├─ WHT Rate: ${(rateInfo.rate * 100).toFixed(0)}%\n` +
-                    `├─ WHT Deducted: ${this.formatCurrency(whtAmount)}\n` +
-                    `└─ Net Payment: ${this.formatCurrency(netAmount)}\n\n`;
-
-                if (rateInfo.isFinal) {
-                    response += `⚠️ *FINAL TAX*\n` +
-                        `This WHT is a final tax - no further tax liability.\n\n`;
-                } else {
-                    response += `💡 This WHT is *creditable* against final tax liability.\n` +
-                        `Recipient should claim credit when filing returns.\n\n`;
-                }
-
-                response += `📅 Remittance:\n` +
-                    `• Due: 14th of following month\n` +
-                    `• To: FIRS or relevant state authority\n\n` +
-                    `Reference: Section 20 NTA 2025`;
+                logger.info('[WHT Skill] Calculation complete via tax-calculate', {
+                    userId: context.userId,
+                    paymentType,
+                    grossAmount,
+                    whtAmount: result.wht_amount
+                });
 
                 return {
-                    message: response,
+                    message: this.formatResult(result, paymentType),
                     metadata: {
                         skill: 'withholding-tax',
+                        source: 'tax-calculate', // Indicates centralized calculation
                         paymentType,
-                        grossAmount,
-                        whtAmount,
-                        netAmount,
-                        rate: rateInfo.rate,
-                        isFinal: rateInfo.isFinal
+                        ...result
                     }
                 };
             }
@@ -109,25 +129,19 @@ export class WithholdingTaxSkill {
             if (amountMatch && !paymentType) {
                 const amount = parseInt(amountMatch[1].replace(/,/g, ''));
 
-                // Calculate all rates for comparison
-                const calculations = Object.entries(WHT_RATES).map(([key, info]) => ({
-                    type: info.label,
-                    rate: info.rate,
-                    wht: amount * info.rate,
-                    net: amount - (amount * info.rate)
-                }));
-
-                const calc5 = calculations.filter(c => c.rate === 0.05);
-                const calc10 = calculations.filter(c => c.rate === 0.10);
-
                 return {
                     message: `🏛️ Withholding Tax - Select Type\n` +
                         `━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
                         `Amount: ${this.formatCurrency(amount)}\n\n` +
                         `📋 5% WHT (${this.formatCurrency(amount * 0.05)}):\n` +
-                        calc5.map(c => `├─ ${c.type}`).join('\n') + `\n\n` +
+                        `├─ Contract/Supply\n` +
+                        `├─ Consultancy\n` +
+                        `├─ Professional Fees\n` +
+                        `└─ Commission\n\n` +
                         `📋 10% WHT (${this.formatCurrency(amount * 0.10)}):\n` +
-                        calc10.map(c => `├─ ${c.type}`).join('\n') + `\n\n` +
+                        `├─ Dividends, Interest, Royalties\n` +
+                        `├─ Rent\n` +
+                        `└─ Director's Fees (final tax)\n\n` +
                         `Specify type for exact calculation:\n` +
                         `e.g., "WHT dividend 1000000"`,
                     metadata: { skill: 'withholding-tax', needsType: true }

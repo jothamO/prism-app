@@ -1,21 +1,61 @@
 /**
  * Minimum Effective Tax Rate Skill
- * Handles 15% minimum ETR per Nigeria Tax Act 2025
+ * Handles 15% minimum ETR via central tax-calculate edge function
+ * NTA 2025 compliant
  */
 
 import { logger } from '../../utils/logger';
 import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
+import { taxService, METRResult } from '../../utils/tax-service';
 
-const MINIMUM_ETR = 0.15; // 15%
+// Display constants (calculation in tax-calculate)
 const LARGE_COMPANY_TURNOVER = 20000000000; // ₦20B
-const DEPRECIATION_EXCLUSION = 0.05; // 5%
-const PERSONNEL_EXCLUSION = 0.05; // 5%
 
 export class MinimumETRSkill {
     private formatCurrency(amount: number): string {
         return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
+    }
+
+    /**
+     * Format METR result for user display
+     */
+    private formatResult(result: METRResult, isMNE: boolean): string {
+        // Check if minimum ETR applies
+        if (!result.is_large_company && !isMNE) {
+            return `📊 Minimum Effective Tax Rate\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `Turnover: ${this.formatCurrency(result.turnover)}\n\n` +
+                `✅ *NOT APPLICABLE*\n` +
+                `Minimum 15% ETR only applies to:\n` +
+                `• MNE group members\n` +
+                `• Companies with turnover ≥ ${this.formatCurrency(LARGE_COMPANY_TURNOVER)}\n\n` +
+                `Your turnover is below the threshold.\n\n` +
+                `Reference: Section 59 NTA 2025`;
+        }
+
+        let response = `📊 Minimum Effective Tax Rate\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+            `Qualifying Profits: ${this.formatCurrency(result.profits)}\n` +
+            `Adjusted Profits: ${this.formatCurrency(result.adjusted_profits)}\n`;
+
+        if (result.losses_brought_forward > 0) {
+            response += `Losses B/F: ${this.formatCurrency(result.losses_brought_forward)}\n`;
+        }
+
+        response += `Turnover: ${this.formatCurrency(result.turnover)}\n\n` +
+            `📊 ETR Analysis:\n` +
+            `├─ Minimum ETR: ${(result.minimum_etr * 100).toFixed(0)}%\n` +
+            `├─ Minimum Tax: ${this.formatCurrency(result.minimum_tax)}\n` +
+            `└─ Status: ${result.is_large_company ? '⚠️ SUBJECT TO MIN ETR' : '✅ Below threshold'}\n\n` +
+            `${result.note}\n\n` +
+            `💡 Note:\n` +
+            `• EDTCs may offset top-up tax\n` +
+            `• Review with tax advisor for complex structures\n\n` +
+            `Reference: Section 59 NTA 2025`;
+
+        return response;
     }
 
     async handle(
@@ -29,92 +69,40 @@ export class MinimumETRSkill {
 
             // Parse values
             const profitMatch = message.match(/(?:profit|income)[:\s]*[₦n]?([\d,]+)/i);
-            const taxMatch = message.match(/(?:tax\s*paid|covered\s*tax)[:\s]*[₦n]?([\d,]+)/i);
+            const lossMatch = message.match(/(?:loss|losses?)[:\s]*[₦n]?([\d,]+)/i);
             const turnoverMatch = message.match(/turnover[:\s]*[₦n]?([\d,]+)/i);
-            const depreciationMatch = message.match(/depreciation[:\s]*[₦n]?([\d,]+)/i);
-            const personnelMatch = message.match(/personnel[:\s]*[₦n]?([\d,]+)/i);
 
             const isMNE = lowerMessage.includes('mne') || lowerMessage.includes('multinational');
 
-            if (profitMatch && taxMatch) {
+            if (profitMatch) {
                 const profits = parseInt(profitMatch[1].replace(/,/g, ''));
-                const taxPaid = parseInt(taxMatch[1].replace(/,/g, ''));
-                const turnover = turnoverMatch ? parseInt(turnoverMatch[1].replace(/,/g, '')) : 0;
-                const depreciation = depreciationMatch ? parseInt(depreciationMatch[1].replace(/,/g, '')) : 0;
-                const personnel = personnelMatch ? parseInt(personnelMatch[1].replace(/,/g, '')) : 0;
+                const losses = lossMatch ? parseInt(lossMatch[1].replace(/,/g, '')) : 0;
+                const turnover = turnoverMatch ? parseInt(turnoverMatch[1].replace(/,/g, '')) : profits * 1.2;
 
-                // Check if minimum ETR applies
-                const appliesMinETR = isMNE || turnover >= LARGE_COMPANY_TURNOVER;
+                // Call central tax-calculate via taxService
+                const result = await taxService.calculateMETR(
+                    {
+                        profits,
+                        losses_brought_forward: losses,
+                        turnover
+                    },
+                    context.userId
+                );
 
-                if (!appliesMinETR && turnover > 0) {
-                    return {
-                        message: `📊 Minimum Effective Tax Rate\n` +
-                            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                            `Turnover: ${this.formatCurrency(turnover)}\n\n` +
-                            `✅ *NOT APPLICABLE*\n` +
-                            `Minimum 15% ETR only applies to:\n` +
-                            `• MNE group members\n` +
-                            `• Companies with turnover ≥ ${this.formatCurrency(LARGE_COMPANY_TURNOVER)}\n\n` +
-                            `Your turnover is below the threshold.\n\n` +
-                            `Reference: Section 59 NTA 2025`,
-                        metadata: { skill: 'minimum-etr', applicable: false }
-                    };
-                }
-
-                // Calculate adjusted profits
-                const depreciationExclusion = depreciation * DEPRECIATION_EXCLUSION;
-                const personnelExclusion = personnel * PERSONNEL_EXCLUSION;
-                const adjustedProfits = profits - depreciationExclusion - personnelExclusion;
-
-                // Calculate ETR
-                const currentETR = adjustedProfits > 0 ? taxPaid / adjustedProfits : 0;
-                const meetsMinimum = currentETR >= MINIMUM_ETR;
-                const topUpTax = meetsMinimum ? 0 : adjustedProfits * (MINIMUM_ETR - currentETR);
-
-                let response = `📊 Minimum Effective Tax Rate\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `Qualifying Profits: ${this.formatCurrency(profits)}\n` +
-                    `Covered Tax Paid: ${this.formatCurrency(taxPaid)}\n\n`;
-
-                if (depreciation > 0 || personnel > 0) {
-                    response += `📋 Substance Exclusions (5% each):\n`;
-                    if (depreciation > 0) {
-                        response += `├─ Depreciation: -${this.formatCurrency(depreciationExclusion)}\n`;
-                    }
-                    if (personnel > 0) {
-                        response += `├─ Personnel: -${this.formatCurrency(personnelExclusion)}\n`;
-                    }
-                    response += `└─ Adjusted Profits: ${this.formatCurrency(adjustedProfits)}\n\n`;
-                }
-
-                response += `📊 ETR Calculation:\n` +
-                    `├─ Current ETR: ${(currentETR * 100).toFixed(2)}%\n` +
-                    `├─ Minimum ETR: 15%\n`;
-
-                if (meetsMinimum) {
-                    response += `└─ Status: ✅ COMPLIANT\n\n` +
-                        `No top-up tax required.\n`;
-                } else {
-                    response += `└─ Status: ⚠️ BELOW MINIMUM\n\n` +
-                        `💰 Top-Up Tax Required: ${this.formatCurrency(topUpTax)}\n\n` +
-                        `This ensures total tax = 15% of adjusted profits.\n`;
-                }
-
-                response += `\n💡 Note:\n` +
-                    `• EDTCs may offset top-up tax\n` +
-                    `• Review with tax advisor for complex structures\n\n` +
-                    `Reference: Section 59 NTA 2025`;
+                logger.info('[MinETR] Calculation complete via tax-calculate', {
+                    userId: context.userId,
+                    profits,
+                    isLargeCompany: result.is_large_company,
+                    minimumTax: result.minimum_tax
+                });
 
                 return {
-                    message: response,
+                    message: this.formatResult(result, isMNE),
                     metadata: {
                         skill: 'minimum-etr',
-                        profits,
-                        taxPaid,
-                        adjustedProfits,
-                        currentETR,
-                        meetsMinimum,
-                        topUpTax
+                        source: 'tax-calculate',
+                        isMNE,
+                        ...result
                     }
                 };
             }
@@ -127,13 +115,11 @@ export class MinimumETRSkill {
                     `├─ MNE group members\n` +
                     `└─ Turnover ≥ ${this.formatCurrency(LARGE_COMPANY_TURNOVER)}\n\n` +
                     `Commands:\n` +
-                    `• *minimum tax profit [X] tax paid [Y]*\n` +
-                    `• *etr profit [X] tax paid [Y] turnover [Z]*\n\n` +
-                    `Optional adjustments:\n` +
-                    `• depreciation [amount]\n` +
-                    `• personnel [amount]\n\n` +
+                    `• *minimum tax profit [X]*\n` +
+                    `• *etr profit [X] turnover [Z]*\n` +
+                    `• *etr profit [X] losses [Y]*\n\n` +
                     `Example:\n` +
-                    `minimum tax profit 500000000 tax paid 50000000 turnover 25000000000`,
+                    `minimum tax profit 500000000 turnover 25000000000`,
                 metadata: { skill: 'minimum-etr' }
             };
         } catch (error) {
