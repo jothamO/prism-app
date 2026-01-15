@@ -2035,7 +2035,7 @@ serve(async (req) => {
       .from("legal_documents")
       .insert({
         title: "Nigeria Tax Act 2025",
-        document_type: "legislation",
+        document_type: "act",
         regulatory_body_id: firsBody.id,
         effective_date: "2026-01-01",
         is_multi_part: true,
