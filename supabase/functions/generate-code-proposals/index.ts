@@ -265,7 +265,7 @@ Output ONLY valid JSON with structure:
   "db_changes": [{"table": "compliance_rules", "column": "parameters", "new_value": "..."}]
 }`,
               prompt,
-              { model: CLAUDE_MODELS.SONNET, maxTokens: 4000 }
+              { model: CLAUDE_MODELS.OPUS, maxTokens: 4000 }
             );
 
             if (aiResult) {
