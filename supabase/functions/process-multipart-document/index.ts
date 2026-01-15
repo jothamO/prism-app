@@ -417,15 +417,98 @@ ${part.raw_text.substring(0, 50000)}`;
             }
         );
 
-        // If reprocessing single part, we need to delete only that part's provisions/rules first
+        // If reprocessing single part, we need special handling
         if (reprocessPartId) {
+            // Delete only this part's provisions/rules
             await supabase.from("legal_provisions").delete().eq("source_part_id", reprocessPartId);
             await supabase.from("compliance_rules").delete().eq("source_part_id", reprocessPartId);
-        } else {
-            // Delete all existing provisions and rules for this document
-            await supabase.from("legal_provisions").delete().eq("document_id", documentId);
-            await supabase.from("compliance_rules").delete().eq("document_id", documentId);
+            
+            // Insert ONLY the new part's provisions/rules (not deduplicated against other parts)
+            for (const provision of allProvisions) {
+                await supabase.from("legal_provisions").insert({
+                    document_id: documentId,
+                    source_part_id: provision.source_part_id,
+                    section_number: provision.section_number,
+                    title: provision.title,
+                    content: provision.content,
+                    provision_type: provision.provision_type,
+                    applies_to: provision.applies_to,
+                    key_terms: provision.key_terms,
+                });
+            }
+            
+            for (const rule of allRules) {
+                await supabase.from("compliance_rules").insert({
+                    document_id: documentId,
+                    source_part_id: rule.source_part_id,
+                    rule_code: rule.rule_code,
+                    rule_name: rule.rule_name,
+                    rule_type: rule.rule_type,
+                    description: rule.description,
+                    conditions: rule.conditions,
+                    parameters: rule.parameters,
+                    actions: rule.actions,
+                    is_active: false,
+                    effective_from: parentDoc.effective_date || new Date().toISOString(),
+                });
+            }
+            
+            // Get TOTAL counts from ALL parts (not just reprocessed one)
+            const { count: totalProvisions } = await supabase
+                .from("legal_provisions")
+                .select("*", { count: "exact", head: true })
+                .eq("document_id", documentId);
+            
+            const { count: totalRules } = await supabase
+                .from("compliance_rules")
+                .select("*", { count: "exact", head: true })
+                .eq("document_id", documentId);
+            
+            const totalDuration = Date.now() - startTime;
+            
+            // Update only this part's counts and document metadata
+            await supabase
+                .from("legal_documents")
+                .update({
+                    metadata: {
+                        ...((parentDoc.metadata as Record<string, unknown>) || {}),
+                        processing_completed_at: new Date().toISOString(),
+                        processing_progress: 100,
+                        current_processing_stage: null,
+                        total_provisions: totalProvisions || 0,
+                        total_rules: totalRules || 0,
+                        last_reprocessed_part: reprocessPartId,
+                        last_reprocessed_at: new Date().toISOString(),
+                    },
+                })
+                .eq("id", documentId);
+            
+            await emitEvent(supabase, documentId, reprocessPartId, 'completed', 'finalization', 'completed',
+                `Part reprocessed: ${allProvisions.length} provisions, ${allRules.length} rules. Document totals: ${totalProvisions} provisions, ${totalRules} rules`,
+                {
+                    part_provisions: allProvisions.length,
+                    part_rules: allRules.length,
+                    total_provisions: totalProvisions,
+                    total_rules: totalRules,
+                    processing_time_ms: totalDuration,
+                }
+            );
+            
+            return jsonResponse({
+                success: true,
+                documentId,
+                partId: reprocessPartId,
+                partProvisionsExtracted: allProvisions.length,
+                partRulesExtracted: allRules.length,
+                totalProvisions: totalProvisions,
+                totalRules: totalRules,
+                processingTimeMs: totalDuration,
+            });
         }
+        
+        // Full document processing: Delete all existing and insert deduplicated
+        await supabase.from("legal_provisions").delete().eq("document_id", documentId);
+        await supabase.from("compliance_rules").delete().eq("document_id", documentId);
 
         // Insert deduplicated provisions
         for (const provision of deduplicatedProvisions) {

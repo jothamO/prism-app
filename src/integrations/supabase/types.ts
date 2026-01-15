@@ -2003,6 +2003,7 @@ export type Database = {
           part_number: number
           part_title: string | null
           processed_at: string | null
+          processing_started_at: string | null
           provisions_count: number | null
           raw_text: string | null
           rules_count: number | null
@@ -2018,6 +2019,7 @@ export type Database = {
           part_number: number
           part_title?: string | null
           processed_at?: string | null
+          processing_started_at?: string | null
           provisions_count?: number | null
           raw_text?: string | null
           rules_count?: number | null
@@ -2033,6 +2035,7 @@ export type Database = {
           part_number?: number
           part_title?: string | null
           processed_at?: string | null
+          processing_started_at?: string | null
           provisions_count?: number | null
           raw_text?: string | null
           rules_count?: number | null
