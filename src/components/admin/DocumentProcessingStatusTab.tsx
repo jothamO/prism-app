@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Timer,
   Zap,
+  StopCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,7 @@ export default function DocumentProcessingStatusTab({
   const [loading, setLoading] = useState(true);
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [reprocessingPart, setReprocessingPart] = useState<string | null>(null);
+  const [stoppingProcessing, setStoppingProcessing] = useState(false);
 
   const isProcessing = documentStatus === "processing";
 
@@ -379,6 +381,54 @@ export default function DocumentProcessingStatusTab({
                 <Timer className="w-4 h-4" />
                 {getProcessingDuration()}
               </div>
+            )}
+            {isProcessing && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={async () => {
+                  setStoppingProcessing(true);
+                  try {
+                    // Set abort flag in document metadata
+                    const { data: doc } = await supabase
+                      .from("legal_documents")
+                      .select("metadata")
+                      .eq("id", documentId)
+                      .single();
+                    
+                    const currentMetadata = (doc?.metadata as Record<string, unknown>) || {};
+                    
+                    await supabase
+                      .from("legal_documents")
+                      .update({
+                        metadata: { ...currentMetadata, abort_requested: true },
+                      })
+                      .eq("id", documentId);
+                    
+                    toast({
+                      title: "Stop Requested",
+                      description: "Processing will stop after the current part completes.",
+                    });
+                  } catch (error) {
+                    console.error("Error requesting stop:", error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to request stop",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setStoppingProcessing(false);
+                  }
+                }}
+                disabled={stoppingProcessing}
+              >
+                {stoppingProcessing ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <StopCircle className="w-4 h-4 mr-1" />
+                )}
+                Stop Processing
+              </Button>
             )}
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="w-4 h-4 mr-1" />
