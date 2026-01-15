@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders, jsonResponse, handleCors } from "../_shared/cors.ts";
 
 interface SearchRequest {
   query: string;
@@ -42,7 +38,7 @@ serve(async (req) => {
 
     // Generate embedding for the query using Lovable AI
     console.log("[compliance-search] Generating embedding for query:", query);
-    
+
     const embeddingResponse = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
       method: "POST",
       headers: {
@@ -121,7 +117,7 @@ serve(async (req) => {
     // Also do a text-based fallback search if no vector results
     if (results.documents.length === 0 && results.provisions.length === 0) {
       console.log("[compliance-search] No vector results, falling back to text search");
-      
+
       const { data: textDocs } = await supabase
         .from("legal_documents")
         .select("id, title, document_type, summary, status")

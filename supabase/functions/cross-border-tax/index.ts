@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders, jsonResponse, handleCors } from "../_shared/cors.ts";
 
 // WHT Rates per Nigeria Tax Act 2025
 const WHT_RATES: Record<string, number> = {
@@ -147,13 +143,13 @@ serve(async (req) => {
     } catch (parseError) {
       console.error('[cross-border-tax] JSON parse error:', parseError);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Invalid request body. Expected JSON with annualTurnover, foreignPayments, etc.' 
+        JSON.stringify({
+          success: false,
+          error: 'Invalid request body. Expected JSON with annualTurnover, foreignPayments, etc.'
         }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -249,7 +245,7 @@ serve(async (req) => {
 
     // 3. Calculate professional services tax breakdown if applicable
     let professionalServicesTax: ProfessionalServicesTaxBreakdown | undefined;
-    
+
     if (isProfessionalServices && !classification.qualifiesForZeroTax) {
       const taxableProfit = annualTurnover - estimatedExpenses;
       const grossCompanyTax = taxableProfit * (classification.taxRate / 100);
@@ -257,7 +253,7 @@ serve(async (req) => {
       const vatCollected = annualTurnover * VAT_RATE;
       const inputVAT = estimatedExpenses * VAT_RATE * 0.1; // Assume ~10% of expenses have VAT
       const netVATPayable = vatCollected - inputVAT;
-      
+
       professionalServicesTax = {
         grossIncome: annualTurnover,
         allowableExpenses: estimatedExpenses,
@@ -274,12 +270,12 @@ serve(async (req) => {
 
     // 3b. Calculate agricultural tax breakdown if applicable
     let agriculturalTax: AgriculturalTaxBreakdown | undefined;
-    
+
     if (isAgricultural) {
       const taxableProfit = annualTurnover - estimatedExpenses;
       const yearsRemaining = Math.max(0, 5 - agricultureYearsActive);
       const exemptionActive = agricultureYearsActive > 0 && agricultureYearsActive <= 5;
-      
+
       // Tax that would apply without agricultural exemption
       let taxRateWithoutExemption = 30; // Default to large company rate
       if (annualTurnover <= SMALL_COMPANY_TURNOVER_THRESHOLD && fixedAssets <= SMALL_COMPANY_ASSETS_THRESHOLD) {
@@ -290,17 +286,17 @@ serve(async (req) => {
       const taxWithoutExemption = taxableProfit * (taxRateWithoutExemption / 100);
       const taxWithExemption = exemptionActive ? 0 : taxWithoutExemption;
       const taxSavings = taxWithoutExemption - taxWithExemption;
-      
+
       // Zero-rated VAT for agricultural products (Section 187)
       const vatCollected = 0; // Zero-rated supplies
       const vatRefundDue = inputVATClaimable; // Input VAT is refundable for zero-rated suppliers
-      
+
       // Product breakdown (typical for cattle ranching)
       const products = [
         { name: 'Live Cattle Sales', amount: annualTurnover * 0.8125, vatTreatment: 'Zero-rated (Section 187)' },
         { name: 'Fresh Milk Sales', amount: annualTurnover * 0.1875, vatTreatment: 'Zero-rated (Section 187)' },
       ];
-      
+
       agriculturalTax = {
         isAgricultural: true,
         yearsActive: agricultureYearsActive,
@@ -325,10 +321,10 @@ serve(async (req) => {
       totalVATOnImports: paymentBreakdowns.reduce((sum, p) => sum + p.annualVAT, 0),
       totalWHTRemitted: paymentBreakdowns.reduce((sum, p) => sum + p.annualWHT, 0),
       totalRemittance: paymentBreakdowns.reduce((sum, p) => sum + p.annualRemittance, 0),
-      companyTax: agriculturalTax 
+      companyTax: agriculturalTax
         ? agriculturalTax.taxWithExemption
-        : professionalServicesTax 
-          ? professionalServicesTax.grossCompanyTax 
+        : professionalServicesTax
+          ? professionalServicesTax.grossCompanyTax
           : (classification.qualifiesForZeroTax ? 0 : annualTurnover * (classification.taxRate / 100) * 0.3),
       netTaxPayable: agriculturalTax ? 0 : professionalServicesTax?.netTaxPayable,
       vatCollected: agriculturalTax ? 0 : professionalServicesTax?.vatCollected,
@@ -347,7 +343,7 @@ serve(async (req) => {
 
     // 6. Compliance checklist
     const complianceChecklist: string[] = [];
-    
+
     if (isAgricultural && agriculturalTax?.exemptionActive) {
       complianceChecklist.push(`✓ Section 163(1)(p): Agricultural income exemption active (Year ${agricultureYearsActive} of 5)`);
       complianceChecklist.push('✓ Thirteenth Schedule: Livestock/dairy production qualifies');
@@ -386,27 +382,27 @@ serve(async (req) => {
 
     // 7. Act references
     const actReferences: string[] = [];
-    
+
     if (isAgricultural) {
       actReferences.push('Section 163(1)(p): Agricultural income exemption');
       actReferences.push('Thirteenth Schedule: Exempt agricultural activities');
       actReferences.push('Section 187: Zero-rated VAT on agricultural products');
       actReferences.push('Section 156: Input VAT credit for zero-rated suppliers');
     }
-    
+
     if (isProfessionalServices) {
       actReferences.push('Section 57: Professional services exclusion');
       actReferences.push('Section 30: Allowable deductions for businesses');
       actReferences.push('Section 148: VAT at 7.5% on services');
     }
-    
+
     actReferences.push('Section 56: Small Company classification');
-    
+
     if (foreignPayments.length > 0) {
       actReferences.push('Section 151: VAT on imported services');
       actReferences.push('Section 79: Withholding Tax on payments to non-residents');
     }
-    
+
     if (isLabelledStartup) {
       actReferences.push('Nigeria Startup Act 2022: Labelled Startup benefits');
       actReferences.push('Section 165: R&D deductions');
@@ -436,13 +432,13 @@ serve(async (req) => {
   } catch (error) {
     console.error('[cross-border-tax] Error:', error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
