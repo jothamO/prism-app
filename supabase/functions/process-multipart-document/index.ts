@@ -219,8 +219,55 @@ serve(async (req) => {
         const allProvisions: (ExtractedProvision & { source_part_id: string; source_part_number: number })[] = [];
         const allRules: (ExtractedRule & { source_part_id: string })[] = [];
 
+        // Helper function to check if abort has been requested
+        async function checkAbortRequested(): Promise<boolean> {
+            try {
+                const { data } = await supabase
+                    .from("legal_documents")
+                    .select("metadata")
+                    .eq("id", documentId)
+                    .single();
+                
+                const metadata = data?.metadata as Record<string, unknown> | null;
+                return metadata?.abort_requested === true;
+            } catch {
+                return false;
+            }
+        }
+
         // Process each part
         for (let i = 0; i < parts.length; i++) {
+            // Check for abort request between parts
+            const abortRequested = await checkAbortRequested();
+            if (abortRequested) {
+                console.log(`[process-multipart] Abort requested - stopping after ${i} parts`);
+                
+                // Clear abort flag and update status
+                await updateDocumentProcessingStatus(supabase, documentId, {
+                    abort_requested: false,
+                    processing_stopped_at: new Date().toISOString(),
+                });
+                
+                await emitEvent(supabase, documentId, null, 'warning', null, 'completed',
+                    `Processing stopped by user after ${i} of ${parts.length} parts`,
+                    { parts_completed: i, total_parts: parts.length, stopped_by: 'user_request' }
+                );
+                
+                // Update document status to allow resume
+                await supabase
+                    .from("legal_documents")
+                    .update({ status: "pending" })
+                    .eq("id", documentId);
+                
+                return jsonResponse({
+                    success: true,
+                    stopped: true,
+                    message: `Processing stopped after ${i} parts. You can resume later.`,
+                    partsCompleted: i,
+                    totalParts: parts.length,
+                });
+            }
+
             const part = parts[i];
             const progressPercent = Math.round(((i) / parts.length) * 80); // 0-80% for parts processing
 
