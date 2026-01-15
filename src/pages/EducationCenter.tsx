@@ -103,6 +103,8 @@ export default function EducationCenter() {
     };
 
     if (selectedArticle) {
+        const linkedProvisionIds = (selectedArticle as any).linked_provision_ids || [];
+        
         return (
             <div className="min-h-screen bg-gray-50">
                 <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -140,7 +142,7 @@ export default function EducationCenter() {
                                         return <li key={i} className="ml-4">{line.replace('- ', '')}</li>;
                                     }
                                     if (line.startsWith('| ')) {
-                                        return null; // Skip table lines for simple rendering
+                                        return null;
                                     }
                                     if (line.trim() === '') {
                                         return <br key={i} />;
@@ -148,11 +150,25 @@ export default function EducationCenter() {
                                     return <p key={i} className="mb-2">{line}</p>;
                                 })}
                             </div>
+
+                            {/* Legal References Section */}
+                            {linkedProvisionIds.length > 0 && (
+                                <div className="mt-8 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                                    <h4 className="text-sm font-semibold text-indigo-900 mb-3 flex items-center gap-2">
+                                        <FileText className="w-4 h-4" />
+                                        Legal References
+                                    </h4>
+                                    <p className="text-xs text-indigo-700">
+                                        This article references {linkedProvisionIds.length} legal provision(s) from Nigerian tax law.
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </main>
             </div>
         );
+    }
     }
 
     return (

@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ProvisionLinksDisplay } from "@/components/admin/ProvisionLinksDisplay";
 import {
   Plus,
   Pencil,
@@ -41,6 +42,8 @@ import {
   Bell,
   Link2,
   AlertCircle,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 
 interface TaxDeadline {
@@ -107,6 +110,10 @@ export default function AdminTaxCalendar() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [generatingContent, setGeneratingContent] = useState(false);
+
+  // Track document context from URL
+  const [sourceDocumentId, setSourceDocumentId] = useState<string | null>(null);
 
   // Check for prefill params from Summary tab
   useEffect(() => {
@@ -115,8 +122,12 @@ export default function AdminTaxCalendar() {
     const date = searchParams.get("date");
     const description = searchParams.get("description");
     const type = searchParams.get("type");
+    const provisionIds = searchParams.get("provision_ids");
+    const documentId = searchParams.get("document_id");
+    const generateAi = searchParams.get("generate_ai");
 
     if (prefill === "true") {
+      const linkedIds = provisionIds ? provisionIds.split(",").filter(Boolean) : [];
       setFormData((prev) => ({
         ...prev,
         title: title ? decodeURIComponent(title) : "",
@@ -124,9 +135,18 @@ export default function AdminTaxCalendar() {
         deadline_type: type || "other",
         recurrence: date ? "specific_date" : "monthly",
         specific_date: date || "",
+        linked_provision_ids: linkedIds,
       }));
+      setSourceDocumentId(documentId || null);
       setIsModalOpen(true);
       navigate("/admin/tax-calendar", { replace: true });
+
+      // Auto-generate if requested
+      if (generateAi === "true" && title) {
+        setTimeout(() => {
+          handleGenerateContent(decodeURIComponent(title), type || "other", linkedIds, documentId || undefined);
+        }, 500);
+      }
     }
   }, [searchParams, navigate]);
 
@@ -185,6 +205,60 @@ export default function AdminTaxCalendar() {
     }
     
     return "—";
+  }
+
+  async function handleGenerateContent(
+    title?: string,
+    deadlineType?: string,
+    provisionIds?: string[],
+    documentId?: string
+  ) {
+    const useTitle = title || formData.title;
+    const useType = deadlineType || formData.deadline_type;
+    const useProvisionIds = provisionIds || formData.linked_provision_ids;
+    const useDocumentId = documentId || sourceDocumentId;
+
+    if (!useTitle) {
+      toast({ title: "Enter a title first", variant: "destructive" });
+      return;
+    }
+
+    setGeneratingContent(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-deadline-content", {
+        body: {
+          title: useTitle,
+          deadlineType: useType,
+          provisionIds: useProvisionIds,
+          documentId: useDocumentId,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.description) {
+        setFormData((prev) => ({
+          ...prev,
+          description: data.description,
+          message_template: data.message_template || prev.message_template,
+          recurrence: data.suggested_recurrence || prev.recurrence,
+          day_of_month: data.suggested_day || prev.day_of_month,
+          month_of_year: data.suggested_month || prev.month_of_year,
+        }));
+        toast({ title: "Content generated!", description: `Used ${data.provisions_used || 0} legal provisions` });
+      } else {
+        throw new Error("No content generated");
+      }
+    } catch (error) {
+      console.error("Generate content error:", error);
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingContent(false);
+    }
   }
 
   async function handleSave() {
@@ -287,6 +361,7 @@ export default function AdminTaxCalendar() {
 
   function resetForm() {
     setEditingDeadline(null);
+    setSourceDocumentId(null);
     setFormData({
       deadline_type: "vat",
       title: "",
@@ -392,6 +467,7 @@ export default function AdminTaxCalendar() {
                 <TableHead>Type</TableHead>
                 <TableHead>Recurrence</TableHead>
                 <TableHead>Next Due</TableHead>
+                <TableHead>Provisions</TableHead>
                 <TableHead>Notifications</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -400,13 +476,13 @@ export default function AdminTaxCalendar() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : filteredDeadlines.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No deadlines found
                   </TableCell>
                 </TableRow>
@@ -436,6 +512,16 @@ export default function AdminTaxCalendar() {
                     <TableCell className="capitalize">{deadline.recurrence.replace("_", " ")}</TableCell>
                     <TableCell className="font-mono text-sm">
                       {getNextDeadlineDate(deadline)}
+                    </TableCell>
+                    <TableCell>
+                      {deadline.linked_provision_ids && deadline.linked_provision_ids.length > 0 ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <Link2 className="h-3 w-3" />
+                          {deadline.linked_provision_ids.length}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {deadline.notification_config?.days_before?.length ? (
@@ -527,6 +613,28 @@ export default function AdminTaxCalendar() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* AI Generate Button */}
+            <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-green-500/10 to-blue-500/10 rounded-lg border border-green-200/50">
+              <Button
+                variant="outline"
+                onClick={() => handleGenerateContent()}
+                disabled={generatingContent || !formData.title}
+                className="gap-2"
+              >
+                {generatingContent ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-green-500" />
+                )}
+                {generatingContent ? "Generating..." : "Generate with AI"}
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {formData.linked_provision_ids.length > 0
+                  ? `Uses ${formData.linked_provision_ids.length} linked provision(s) for context`
+                  : "Add provisions below for better content"}
+              </span>
             </div>
 
             <div className="space-y-2">
@@ -667,17 +775,26 @@ export default function AdminTaxCalendar() {
               </div>
             </div>
 
+            {/* Visual Provision Links Display */}
+            {formData.linked_provision_ids.length > 0 && (
+              <ProvisionLinksDisplay
+                provisionIds={formData.linked_provision_ids}
+                variant="compact"
+                showSource
+              />
+            )}
+
             {/* Linked Provisions */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <Link2 className="h-4 w-4" />
-                Linked Legal Provisions
+                Link Legal Provisions
               </Label>
               <div className="border rounded-md p-3 max-h-[120px] overflow-y-auto space-y-2">
                 {provisions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No provisions available</p>
                 ) : (
-                  provisions.slice(0, 15).map((prov) => (
+                  provisions.slice(0, 20).map((prov) => (
                     <div key={prov.id} className="flex items-center gap-2">
                       <Checkbox
                         id={`prov-${prov.id}`}
