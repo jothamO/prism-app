@@ -1,10 +1,17 @@
+/**
+ * Generate Code Proposals - Enhanced Version
+ * 
+ * Features:
+ * - Risk classification (low/medium/high/critical)
+ * - Auto-apply eligibility detection
+ * - Centralization-aware (most changes are DB-only now)
+ * - Batches similar rules into single proposals
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders, jsonResponse, handleCors } from "../_shared/cors.ts";
+import { callClaudeJSON, CLAUDE_MODELS } from "../_shared/claude-client.ts";
 
 interface QueueItem {
   id: string;
@@ -22,62 +29,119 @@ interface ComplianceRule {
   document_id: string;
 }
 
-// Known hardcoded locations in the codebase that might need updates
-const CODE_PATTERNS: Record<string, { files: string[]; pattern: string; description: string }> = {
+interface RiskClassification {
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  auto_apply_eligible: boolean;
+  change_type: 'db_only' | 'prompt_only' | 'code_and_db';
+}
+
+interface AICodeSuggestion {
+  affected_files: string[];
+  changes: Array<{
+    file: string;
+    line_hint: string;
+    current_pattern: string;
+    suggested_change: string;
+    reason: string;
+  }>;
+  summary: string;
+  db_changes?: {
+    table: string;
+    column: string;
+    old_value?: string;
+    new_value: string;
+  }[];
+}
+
+// Risk classification based on rule type
+function classifyRisk(ruleType: string): RiskClassification {
+  switch (ruleType) {
+    case 'vat_rate':
+    case 'tax_rate':
+    case 'threshold':
+      return { risk_level: 'low', auto_apply_eligible: true, change_type: 'db_only' };
+
+    case 'tax_band':
+      return { risk_level: 'medium', auto_apply_eligible: false, change_type: 'db_only' };
+
+    case 'relief':
+      return { risk_level: 'medium', auto_apply_eligible: false, change_type: 'prompt_only' };
+
+    case 'exemption':
+    case 'penalty':
+      return { risk_level: 'high', auto_apply_eligible: false, change_type: 'prompt_only' };
+
+    case 'emtl':
+      return { risk_level: 'critical', auto_apply_eligible: false, change_type: 'code_and_db' };
+
+    default:
+      return { risk_level: 'medium', auto_apply_eligible: false, change_type: 'prompt_only' };
+  }
+}
+
+// Get priority based on risk level
+function getPriorityFromRisk(riskLevel: string): 'low' | 'medium' | 'high' | 'critical' {
+  switch (riskLevel) {
+    case 'critical': return 'critical';
+    case 'high': return 'high';
+    case 'medium': return 'medium';
+    default: return 'low';
+  }
+}
+
+// Files that might need updates (now centralization-aware)
+const AFFECTED_FILES_MAP: Record<string, {
+  files: string[];
+  description: string;
+  isCentralized: boolean;
+}> = {
   vat_rate: {
-    files: [
-      "prism-api/src/services/vat-calculator.service.ts",
-      "gateway/src/skills/vat-calculation/index.ts",
-      "supabase/functions/vat-calculator/index.ts"
-    ],
-    pattern: "VAT_RATE|vatRate|0\\.075|7\\.5%",
-    description: "VAT rate calculation logic"
+    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
+    description: 'VAT rate - centralized in tax-calculate',
+    isCentralized: true  // No code changes needed, just DB
   },
-  tax_band: {
-    files: [
-      "prism-api/src/services/pit-calculator.service.ts",
-      "prism-api/src/services/enhanced-pit-calculator.service.ts",
-      "supabase/functions/income-tax-calculator/index.ts"
-    ],
-    pattern: "TAX_BANDS|taxBands|brackets",
-    description: "Personal income tax band definitions"
+  tax_rate: {
+    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
+    description: 'Tax rates - centralized via rules-client',
+    isCentralized: true
   },
   threshold: {
-    files: [
-      "prism-api/src/services/business-classification.service.ts",
-      "gateway/src/skills/document-processing/classifiers/business-pattern.ts"
-    ],
-    pattern: "THRESHOLD|turnover|revenue_limit",
-    description: "Business classification thresholds"
+    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
+    description: 'Thresholds - centralized via rules-client',
+    isCentralized: true
+  },
+  tax_band: {
+    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
+    description: 'Tax bands - read from compliance_rules',
+    isCentralized: true
+  },
+  relief: {
+    files: ['_shared/prompt-generator.ts', 'supabase/functions/chat-assist/index.ts'],
+    description: 'Tax reliefs - may need prompt updates',
+    isCentralized: false
+  },
+  exemption: {
+    files: ['_shared/prompt-generator.ts', 'gateway/src/skills/vat-calculation/index.ts'],
+    description: 'Exemptions - may affect classification logic',
+    isCentralized: false
   },
   emtl: {
     files: [
-      "prism-api/src/services/emtl-detector.service.ts",
-      "gateway/src/skills/document-processing/nigerian-detectors/index.ts"
+      '_shared/prompt-generator.ts',
+      'gateway/src/skills/document-processing/nigerian-detectors/index.ts'
     ],
-    pattern: "EMTL|emtl|electronic.*levy|₦50",
-    description: "Electronic Money Transfer Levy logic"
-  },
-  relief: {
-    files: [
-      "prism-api/src/services/enhanced-pit-calculator.service.ts",
-      "prism-api/src/services/tax-rule-registry.service.ts"
-    ],
-    pattern: "RELIEF|relief|allowance|deduction",
-    description: "Tax relief and allowance calculations"
+    description: 'EMTL - may need detector updates',
+    isCentralized: false
   }
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get pending items from queue
@@ -85,18 +149,20 @@ serve(async (req) => {
       .from("code_proposal_queue")
       .select("*")
       .eq("status", "pending")
-      .limit(5);
+      .limit(20);  // Process more items at once
 
     if (queueError) throw queueError;
 
     if (!queueItems || queueItems.length === 0) {
-      return new Response(
-        JSON.stringify({ message: "No pending items in queue" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ message: "No pending items in queue", processed: 0 });
     }
 
-    const results = [];
+    console.log(`[generate-code-proposals] Processing ${queueItems.length} queue items`);
+
+    const results: Array<{ rule_id: string; status: string; proposal_id?: string; error?: string }> = [];
+
+    // Group items by rule_type for batching
+    const rulesByType = new Map<string, { queueItem: QueueItem; rule: ComplianceRule }[]>();
 
     for (const item of queueItems as QueueItem[]) {
       // Mark as processing
@@ -105,190 +171,202 @@ serve(async (req) => {
         .update({ status: "processing" })
         .eq("id", item.id);
 
-      try {
-        // Get the rule details
-        const { data: rule, error: ruleError } = await supabase
-          .from("compliance_rules")
-          .select("*")
-          .eq("id", item.rule_id)
-          .single();
+      // Get the rule details
+      const { data: rule, error: ruleError } = await supabase
+        .from("compliance_rules")
+        .select("*")
+        .eq("id", item.rule_id)
+        .single();
 
-        if (ruleError || !rule) {
-          throw new Error(`Rule not found: ${item.rule_id}`);
-        }
-
-        const typedRule = rule as ComplianceRule;
-        const codePattern = CODE_PATTERNS[typedRule.rule_type];
-
-        if (!codePattern) {
-          // No code pattern for this rule type, mark as completed
-          await supabase
-            .from("code_proposal_queue")
-            .update({ 
-              status: "completed", 
-              processed_at: new Date().toISOString(),
-              error_message: "No code patterns defined for this rule type"
-            })
-            .eq("id", item.id);
-          continue;
-        }
-
-        // Generate proposal using AI if available
-        let codeDiff: Record<string, unknown>;
-        let description: string;
-
-        const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-        if (anthropicApiKey) {
-          // Use Anthropic Claude Opus for intelligent code suggestions
-          const aiResponse = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": anthropicApiKey,
-              "anthropic-version": "2023-06-01",
-            },
-            body: JSON.stringify({
-              model: "claude-opus-4-5-20251101",
-              max_tokens: 8000,
-              system: `You are a code review assistant for a Nigerian tax compliance system (PRISM).
-Generate a JSON object with code change suggestions when tax rules change.
-Output ONLY valid JSON with this structure:
-{
-  "affected_files": ["file1.ts", "file2.ts"],
-  "changes": [
-    {
-      "file": "path/to/file.ts",
-      "line_hint": "around line 45",
-      "current_pattern": "old code pattern",
-      "suggested_change": "new code pattern",
-      "reason": "why this change is needed"
-    }
-  ],
-  "summary": "brief description of all changes"
-}`,
-              messages: [
-                {
-                  role: "user",
-                  content: `A compliance rule has been activated:
-
-Rule: ${typedRule.rule_name}
-Type: ${typedRule.rule_type}
-Code: ${typedRule.rule_code}
-Parameters: ${JSON.stringify(typedRule.parameters)}
-Description: ${typedRule.description}
-
-Known affected files: ${codePattern.files.join(", ")}
-Pattern to look for: ${codePattern.pattern}
-Area: ${codePattern.description}
-
-Generate code change suggestions to ensure the codebase reflects this rule.`
-                }
-              ]
-            })
-          });
-
-          if (aiResponse.ok) {
-            const aiData = await aiResponse.json();
-            const content = aiData.content?.[0]?.text || "";
-            
-            // Parse AI response
-            try {
-              const jsonMatch = content.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                codeDiff = JSON.parse(jsonMatch[0]);
-                description = `AI-generated code changes for ${typedRule.rule_name}`;
-              } else {
-                throw new Error("No JSON in AI response");
-              }
-            } catch {
-              // Fallback to template-based suggestion
-              codeDiff = generateTemplateDiff(typedRule, codePattern);
-              description = `Template-based suggestion for ${typedRule.rule_name}`;
-            }
-          } else {
-            codeDiff = generateTemplateDiff(typedRule, codePattern);
-            description = `Template-based suggestion for ${typedRule.rule_name}`;
-          }
-        } else {
-          // No AI key, use template-based suggestions
-          codeDiff = generateTemplateDiff(typedRule, codePattern);
-          description = `Template-based suggestion for ${typedRule.rule_name}`;
-        }
-
-        // Insert the proposal
-        const { error: insertError } = await supabase
-          .from("code_change_proposals")
-          .insert({
-            title: `Update code for: ${typedRule.rule_name}`,
-            description,
-            code_diff: codeDiff,
-            affected_files: codePattern.files,
-            rule_id: typedRule.id,
-            status: "pending",
-            priority: typedRule.rule_type === "vat_rate" ? "high" : "medium",
-            generated_by: "system"
-          });
-
-        if (insertError) throw insertError;
-
-        // Mark queue item as completed
+      if (ruleError || !rule) {
         await supabase
           .from("code_proposal_queue")
-          .update({ 
-            status: "completed", 
-            processed_at: new Date().toISOString() 
-          })
-          .eq("id", item.id);
-
-        results.push({ rule_id: item.rule_id, status: "completed" });
-
-      } catch (itemError) {
-        // Mark as failed
-        await supabase
-          .from("code_proposal_queue")
-          .update({ 
-            status: "failed", 
-            error_message: itemError instanceof Error ? itemError.message : "Unknown error",
+          .update({
+            status: "failed",
+            error_message: `Rule not found: ${item.rule_id}`,
             processed_at: new Date().toISOString()
           })
           .eq("id", item.id);
+        results.push({ rule_id: item.rule_id, status: "failed", error: "Rule not found" });
+        continue;
+      }
 
-        results.push({ 
-          rule_id: item.rule_id, 
-          status: "failed", 
-          error: itemError instanceof Error ? itemError.message : "Unknown error"
-        });
+      const typedRule = rule as ComplianceRule;
+      const existing = rulesByType.get(typedRule.rule_type) || [];
+      existing.push({ queueItem: item, rule: typedRule });
+      rulesByType.set(typedRule.rule_type, existing);
+    }
+
+    // Process each rule type batch
+    for (const [ruleType, items] of rulesByType) {
+      try {
+        const fileMapping = AFFECTED_FILES_MAP[ruleType] || {
+          files: ['_shared/prompt-generator.ts'],
+          description: 'Unknown rule type',
+          isCentralized: false
+        };
+
+        const classification = classifyRisk(ruleType);
+
+        // For multiple rules of same type, create a batched proposal
+        const ruleNames = items.map(i => i.rule.rule_name).join(', ');
+        const ruleCodes = items.map(i => i.rule.rule_code || i.rule.id).slice(0, 5);
+
+        let description: string;
+        let codeDiff: Record<string, unknown>;
+
+        if (fileMapping.isCentralized) {
+          // DB-only change - no code changes needed!
+          description = `${items.length} ${ruleType} rule(s) updated. No code changes required - values are read from compliance_rules table at runtime.`;
+          codeDiff = {
+            type: 'db_only',
+            affected_files: [],
+            db_changes: items.map(i => ({
+              table: 'compliance_rules',
+              rule_id: i.rule.id,
+              rule_name: i.rule.rule_name,
+              parameters: i.rule.parameters
+            })),
+            summary: `Update ${items.length} ${ruleType} rule(s) in compliance_rules table. The application will automatically use the new values via rules-client.ts.`,
+            verification: 'Test by calling tax-calculate edge function with relevant parameters.'
+          };
+        } else {
+          // May need code/prompt changes - use AI
+          const prompt = `A batch of ${items.length} ${ruleType} compliance rules have been activated/updated:
+
+${items.slice(0, 5).map(i => `
+Rule: ${i.rule.rule_name}
+Code: ${i.rule.rule_code || 'N/A'}
+Parameters: ${JSON.stringify(i.rule.parameters)}
+Description: ${i.rule.description || 'No description'}
+`).join('\n---\n')}
+
+Known affected files: ${fileMapping.files.join(', ')}
+Area: ${fileMapping.description}
+
+Generate code change suggestions. The system uses:
+- compliance_rules table as source of truth
+- _shared/rules-client.ts to fetch rules
+- _shared/prompt-generator.ts for AI chat context
+
+Most rate/threshold changes are DB-only. Focus on:
+1. Prompt template updates if new concepts are introduced
+2. Classification logic if new exemptions/categories are added`;
+
+          try {
+            const aiResult = await callClaudeJSON<AICodeSuggestion>(
+              `You are a code review assistant for PRISM (Nigerian tax compliance system).
+Generate JSON with code change suggestions. Be specific about what needs to change.
+Output ONLY valid JSON with structure:
+{
+  "affected_files": ["file1.ts"],
+  "changes": [{"file": "path", "line_hint": "line ~50", "current_pattern": "old", "suggested_change": "new", "reason": "why"}],
+  "summary": "brief description",
+  "db_changes": [{"table": "compliance_rules", "column": "parameters", "new_value": "..."}]
+}`,
+              prompt,
+              { model: CLAUDE_MODELS.SONNET, maxTokens: 4000 }
+            );
+
+            if (aiResult) {
+              codeDiff = aiResult;
+              description = aiResult.summary || `AI-generated changes for ${ruleType} rules`;
+            } else {
+              throw new Error('AI returned null');
+            }
+          } catch (aiError) {
+            // Fallback to template
+            codeDiff = {
+              type: 'prompt_review',
+              affected_files: fileMapping.files,
+              changes: fileMapping.files.map(f => ({
+                file: f,
+                action: 'review',
+                reason: `Review for ${ruleType} changes: ${ruleNames}`
+              })),
+              summary: `Review required for ${items.length} ${ruleType} rule(s)`
+            };
+            description = `Template-based suggestion for ${items.length} ${ruleType} rule(s)`;
+          }
+        }
+
+        // Insert the proposal
+        const { data: proposal, error: insertError } = await supabase
+          .from("code_change_proposals")
+          .insert({
+            title: fileMapping.isCentralized
+              ? `DB Update: ${items.length} ${ruleType} rule(s)`
+              : `Code Review: ${items.length} ${ruleType} rule(s)`,
+            description,
+            code_diff: codeDiff,
+            affected_files: fileMapping.files,
+            rule_id: items[0].rule.id,  // Primary rule
+            status: "pending",
+            priority: getPriorityFromRisk(classification.risk_level),
+            risk_level: classification.risk_level,
+            auto_apply_eligible: classification.auto_apply_eligible,
+            change_type: classification.change_type,
+            generated_by: "system"
+          })
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+
+        // Mark all queue items as completed
+        for (const { queueItem } of items) {
+          await supabase
+            .from("code_proposal_queue")
+            .update({
+              status: "completed",
+              processed_at: new Date().toISOString()
+            })
+            .eq("id", queueItem.id);
+
+          results.push({
+            rule_id: queueItem.rule_id,
+            status: "completed",
+            proposal_id: proposal?.id
+          });
+        }
+
+      } catch (batchError) {
+        console.error(`Error processing ${ruleType} batch:`, batchError);
+
+        // Mark all items in batch as failed
+        for (const { queueItem } of items) {
+          await supabase
+            .from("code_proposal_queue")
+            .update({
+              status: "failed",
+              error_message: batchError instanceof Error ? batchError.message : "Unknown error",
+              processed_at: new Date().toISOString()
+            })
+            .eq("id", queueItem.id);
+
+          results.push({
+            rule_id: queueItem.rule_id,
+            status: "failed",
+            error: batchError instanceof Error ? batchError.message : "Unknown error"
+          });
+        }
       }
     }
 
-    return new Response(
-      JSON.stringify({ processed: results.length, results }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    console.log(`[generate-code-proposals] Completed: ${results.filter(r => r.status === 'completed').length}/${results.length}`);
+
+    return jsonResponse({
+      processed: results.length,
+      completed: results.filter(r => r.status === 'completed').length,
+      failed: results.filter(r => r.status === 'failed').length,
+      results
+    });
 
   } catch (error) {
-    console.error("Error processing code proposals:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    console.error("[generate-code-proposals] Error:", error);
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500
     );
   }
 });
-
-function generateTemplateDiff(
-  rule: ComplianceRule, 
-  pattern: { files: string[]; pattern: string; description: string }
-): Record<string, unknown> {
-  return {
-    affected_files: pattern.files,
-    changes: pattern.files.map(file => ({
-      file,
-      line_hint: "Search for pattern",
-      current_pattern: pattern.pattern,
-      suggested_change: `Update to reflect: ${rule.rule_name}`,
-      reason: `Compliance rule ${rule.rule_code || rule.id} has been activated. ${rule.description || ""}`
-    })),
-    parameters: rule.parameters,
-    summary: `Review ${pattern.description} to ensure alignment with ${rule.rule_name}`
-  };
-}
