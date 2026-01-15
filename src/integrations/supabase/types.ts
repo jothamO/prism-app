@@ -1729,6 +1729,7 @@ export type Database = {
           rule_name: string
           rule_type: string
           sector: string | null
+          source_part_id: string | null
           tax_types: string[] | null
           updated_at: string | null
           version: number | null
@@ -1752,6 +1753,7 @@ export type Database = {
           rule_name: string
           rule_type: string
           sector?: string | null
+          source_part_id?: string | null
           tax_types?: string[] | null
           updated_at?: string | null
           version?: number | null
@@ -1775,6 +1777,7 @@ export type Database = {
           rule_name?: string
           rule_type?: string
           sector?: string | null
+          source_part_id?: string | null
           tax_types?: string[] | null
           updated_at?: string | null
           version?: number | null
@@ -1792,6 +1795,13 @@ export type Database = {
             columns: ["provision_id"]
             isOneToOne: false
             referencedRelation: "legal_provisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_rules_source_part_id_fkey"
+            columns: ["source_part_id"]
+            isOneToOne: false
+            referencedRelation: "document_parts"
             referencedColumns: ["id"]
           },
         ]
@@ -1979,6 +1989,62 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_parts: {
+        Row: {
+          created_at: string | null
+          file_url: string | null
+          id: string
+          metadata: Json | null
+          parent_document_id: string
+          part_number: number
+          part_title: string | null
+          processed_at: string | null
+          provisions_count: number | null
+          raw_text: string | null
+          rules_count: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_url?: string | null
+          id?: string
+          metadata?: Json | null
+          parent_document_id: string
+          part_number: number
+          part_title?: string | null
+          processed_at?: string | null
+          provisions_count?: number | null
+          raw_text?: string | null
+          rules_count?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_url?: string | null
+          id?: string
+          metadata?: Json | null
+          parent_document_id?: string
+          part_number?: number
+          part_title?: string | null
+          processed_at?: string | null
+          provisions_count?: number | null
+          raw_text?: string | null
+          rules_count?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_parts_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -2563,10 +2629,13 @@ export type Database = {
           id: string
           impact_reviewed: boolean | null
           impact_reviewed_at: string | null
+          is_multi_part: boolean | null
           key_provisions: string[] | null
           metadata: Json | null
           needs_human_review: boolean | null
+          parts_received: number | null
           prism_impact_analysis: Json | null
+          processing_strategy: string | null
           publication_date: string | null
           raw_text: string | null
           regulatory_body_id: string | null
@@ -2578,6 +2647,7 @@ export type Database = {
           summary: string | null
           tax_types: string[] | null
           title: string
+          total_parts: number | null
           updated_at: string | null
         }
         Insert: {
@@ -2594,10 +2664,13 @@ export type Database = {
           id?: string
           impact_reviewed?: boolean | null
           impact_reviewed_at?: string | null
+          is_multi_part?: boolean | null
           key_provisions?: string[] | null
           metadata?: Json | null
           needs_human_review?: boolean | null
+          parts_received?: number | null
           prism_impact_analysis?: Json | null
+          processing_strategy?: string | null
           publication_date?: string | null
           raw_text?: string | null
           regulatory_body_id?: string | null
@@ -2609,6 +2682,7 @@ export type Database = {
           summary?: string | null
           tax_types?: string[] | null
           title: string
+          total_parts?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -2625,10 +2699,13 @@ export type Database = {
           id?: string
           impact_reviewed?: boolean | null
           impact_reviewed_at?: string | null
+          is_multi_part?: boolean | null
           key_provisions?: string[] | null
           metadata?: Json | null
           needs_human_review?: boolean | null
+          parts_received?: number | null
           prism_impact_analysis?: Json | null
+          processing_strategy?: string | null
           publication_date?: string | null
           raw_text?: string | null
           regulatory_body_id?: string | null
@@ -2640,6 +2717,7 @@ export type Database = {
           summary?: string | null
           tax_types?: string[] | null
           title?: string
+          total_parts?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -2668,6 +2746,7 @@ export type Database = {
           provision_type: string | null
           related_provisions: string[] | null
           section_number: string | null
+          source_part_id: string | null
           tax_implications: string | null
           title: string | null
           updated_at: string | null
@@ -2687,6 +2766,7 @@ export type Database = {
           provision_type?: string | null
           related_provisions?: string[] | null
           section_number?: string | null
+          source_part_id?: string | null
           tax_implications?: string | null
           title?: string | null
           updated_at?: string | null
@@ -2706,6 +2786,7 @@ export type Database = {
           provision_type?: string | null
           related_provisions?: string[] | null
           section_number?: string | null
+          source_part_id?: string | null
           tax_implications?: string | null
           title?: string | null
           updated_at?: string | null
@@ -2716,6 +2797,13 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_provisions_source_part_id_fkey"
+            columns: ["source_part_id"]
+            isOneToOne: false
+            referencedRelation: "document_parts"
             referencedColumns: ["id"]
           },
         ]

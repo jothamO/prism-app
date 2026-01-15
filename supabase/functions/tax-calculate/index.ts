@@ -395,28 +395,28 @@ serve(async (req: Request) => {
 
         switch (tax_type) {
             case "pit":
-                result = await calculatePIT(params);
+                result = await calculatePIT(params as { gross_income: number; annual?: boolean; deductions?: number });
                 break;
             case "cit":
-                result = await calculateCIT(params);
+                result = await calculateCIT(params as { profits: number; turnover?: number; assets?: number });
                 break;
             case "vat":
-                result = await calculateVAT(params);
+                result = await calculateVAT(params as { amount: number; is_vatable?: boolean; supply_type?: "goods" | "services" | "exports" });
                 break;
             case "wht":
-                result = await calculateWHT(params);
+                result = await calculateWHT(params as { amount: number; payment_type: "rent" | "dividend" | "interest" | "contract" | "royalty" | "professional" | "director"; payee_type?: "individual" | "company"; is_resident?: boolean });
                 break;
             case "cgt":
-                result = await calculateCGT(params);
+                result = await calculateCGT(params as { proceeds: number; cost_basis: number; expenses?: number; asset_type?: "property" | "shares" | "business" | "other" });
                 break;
             case "stamp":
-                result = await calculateStampDuty(params);
+                result = await calculateStampDuty(params as { amount: number; instrument_type: "receipt" | "transfer" | "lease" | "deed" | "policy" });
                 break;
             case "levy":
-                result = await calculateDevLevy(params);
+                result = await calculateDevLevy(params as { cit_amount: number });
                 break;
             case "metr":
-                result = await calculateMETR(params);
+                result = await calculateMETR(params as { profits: number; losses_brought_forward?: number; turnover?: number });
                 break;
             default:
                 return jsonResponse({ error: `Unknown tax_type: ${tax_type}` }, 400);

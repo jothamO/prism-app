@@ -14,10 +14,12 @@ import {
     ChevronRight,
     Building2,
     Calendar,
+    Layers,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import MultiPartUploadModal from "@/components/admin/MultiPartUploadModal";
 
 interface LegalDocument {
     id: string;
@@ -77,6 +79,7 @@ export default function AdminComplianceDocuments() {
 
     // Upload modal state
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [showMultiPartModal, setShowMultiPartModal] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [uploadForm, setUploadForm] = useState({
         regulatoryBodyId: "",
@@ -333,13 +336,22 @@ export default function AdminComplianceDocuments() {
                     <h1 className="text-2xl font-bold text-foreground">Legal Documents</h1>
                     <p className="text-muted-foreground">Manage Nigerian tax regulations and compliance documents</p>
                 </div>
-                <button
-                    onClick={() => setShowUploadModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                >
-                    <Upload className="w-4 h-4" />
-                    Upload Document
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowMultiPartModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/90 transition-colors"
+                    >
+                        <Layers className="w-4 h-4" />
+                        Multi-Part Upload
+                    </button>
+                    <button
+                        onClick={() => setShowUploadModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                        <Upload className="w-4 h-4" />
+                        Upload Document
+                    </button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -589,6 +601,15 @@ export default function AdminComplianceDocuments() {
                     </div>
                 </div>
             )}
+
+            {/* Multi-Part Upload Modal */}
+            <MultiPartUploadModal
+                isOpen={showMultiPartModal}
+                onClose={() => setShowMultiPartModal(false)}
+                onSuccess={fetchData}
+                regulatoryBodies={regulatoryBodies}
+                documentTypes={DOCUMENT_TYPES}
+            />
         </div>
     );
 }
