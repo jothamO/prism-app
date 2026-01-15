@@ -9,6 +9,7 @@ import {
     RotateCcw,
     ChevronDown,
     ChevronUp,
+    Play,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +26,7 @@ interface DocumentPart {
     rules_count: number;
     created_at: string;
     processed_at: string | null;
+    processing_started_at: string | null;
     metadata: Record<string, unknown> | null;
 }
 
@@ -65,13 +67,16 @@ export default function DocumentPartsView({ documentId, onReprocessComplete }: D
     async function reprocessPart(partId: string) {
         setReprocessingPart(partId);
         try {
-            // Update part status to processing
+            // Update part status to processing with timestamp
             await supabase
                 .from("document_parts")
-                .update({ status: "processing" })
+                .update({ 
+                    status: "processing",
+                    processing_started_at: new Date().toISOString(),
+                })
                 .eq("id", partId);
 
-            // Trigger reprocessing (we'll use the single part reprocess endpoint)
+            // Trigger reprocessing
             const { error } = await supabase.functions.invoke("process-multipart-document", {
                 body: {
                     documentId,
@@ -98,6 +103,62 @@ export default function DocumentPartsView({ documentId, onReprocessComplete }: D
             });
         } finally {
             setReprocessingPart(null);
+        }
+    }
+
+    // Detect stuck or pending parts that need processing
+    const stuckParts = parts.filter((p) => {
+        if (p.status === "pending") return true;
+        if (p.status === "processing" && p.processing_started_at) {
+            const startedAt = new Date(p.processing_started_at).getTime();
+            const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+            return startedAt < tenMinutesAgo;
+        }
+        return false;
+    });
+
+    const [resuming, setResuming] = useState(false);
+
+    async function resumeProcessing() {
+        if (stuckParts.length === 0) return;
+        setResuming(true);
+        
+        try {
+            // Reset stuck processing parts to pending
+            const stuckProcessingIds = stuckParts
+                .filter((p) => p.status === "processing")
+                .map((p) => p.id);
+            
+            if (stuckProcessingIds.length > 0) {
+                await supabase
+                    .from("document_parts")
+                    .update({ status: "pending", processing_started_at: null })
+                    .in("id", stuckProcessingIds);
+            }
+            
+            // Trigger full document reprocessing to pick up pending parts
+            const { error } = await supabase.functions.invoke("process-multipart-document", {
+                body: { documentId },
+            });
+
+            if (error) throw error;
+
+            toast({
+                title: "Processing resumed",
+                description: `Processing ${stuckParts.length} pending/stuck parts.`,
+            });
+
+            fetchParts();
+            onReprocessComplete?.();
+        } catch (error) {
+            console.error("Resume error:", error);
+            toast({
+                title: "Resume failed",
+                description: error instanceof Error ? error.message : "Unknown error",
+                variant: "destructive",
+            });
+        } finally {
+            setResuming(false);
         }
     }
 
@@ -145,6 +206,36 @@ export default function DocumentPartsView({ documentId, onReprocessComplete }: D
 
     return (
         <div className="space-y-3">
+            {/* Resume Processing Banner */}
+            {stuckParts.length > 0 && (
+                <div className="flex items-center justify-between p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <div className="flex items-center gap-3">
+                        <AlertCircle className="w-5 h-5 text-yellow-500" />
+                        <div>
+                            <p className="font-medium text-foreground">
+                                {stuckParts.length} part{stuckParts.length > 1 ? "s" : ""} need processing
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {stuckParts.filter((p) => p.status === "pending").length} pending, {" "}
+                                {stuckParts.filter((p) => p.status === "processing").length} stuck
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={resumeProcessing}
+                        disabled={resuming}
+                        className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-black font-medium rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50"
+                    >
+                        {resuming ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Play className="w-4 h-4" />
+                        )}
+                        Resume Processing
+                    </button>
+                </div>
+            )}
+
             {/* Summary Stats */}
             <div className="grid grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
                 <div className="text-center">
