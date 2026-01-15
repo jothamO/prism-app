@@ -6,6 +6,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse, handleCors } from "../_shared/cors.ts";
+import { getChatHistory, storeMessage } from "../_shared/history-service.ts";
 
 const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_TOKEN");
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
@@ -75,25 +76,7 @@ async function sendWhatsAppMessage(to: string, text: string, buttons?: { id: str
 }
 
 // ============= Chat History =============
-
-async function getChatHistory(userId: string, limit: number = 6) {
-    const { data } = await supabase
-        .from('chat_messages')
-        .select('role, content')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-    return (data || []).reverse();
-}
-
-async function storeMessage(userId: string, platform: string, role: string, content: string) {
-    await supabase.from('chat_messages').insert({
-        user_id: userId,
-        platform,
-        role,
-        content
-    });
-}
+// Using shared history-service.ts for getChatHistory and storeMessage
 
 // ============= Chat Assist Integration =============
 
