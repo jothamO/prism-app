@@ -61,6 +61,7 @@ const statusIcons = {
     approved: CheckCircle,
     rejected: XCircle,
     implemented: GitBranch,
+    needs_revision: AlertTriangle,
 };
 
 export default function AdminCodeProposals() {
@@ -84,7 +85,7 @@ export default function AdminCodeProposals() {
         });
     };
 
-    const handleStatusUpdate = async (status: 'approved' | 'rejected' | 'implemented') => {
+    const handleStatusUpdate = async (status: 'approved' | 'rejected' | 'implemented' | 'needs_revision') => {
         if (!selectedProposal) return;
 
         try {

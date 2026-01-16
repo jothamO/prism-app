@@ -89,6 +89,7 @@ export interface VATParams {
     amount: number;
     is_vatable?: boolean;
     supply_type?: 'goods' | 'services' | 'exports';
+    description?: string; // For NLU exemption classification
 }
 
 export interface VATResult {
@@ -96,6 +97,10 @@ export interface VATResult {
     vat_rate: number;
     vat_amount: number;
     total_amount: number;
+    classification?: 'standard' | 'zero-rated' | 'exempt';
+    matched_keyword?: string;
+    act_reference?: string;
+    can_claim_input_vat?: boolean;
     note?: string;
 }
 

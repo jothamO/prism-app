@@ -149,16 +149,102 @@ async function calculateCIT(params: {
 
 /**
  * VAT (Value Added Tax) Calculator
+ * Includes centralized exemption NLU - moved from Gateway skill
  */
+
+// Zero-rated items per Tax Act 2025 Section 186
+const ZERO_RATED_KEYWORDS = [
+    'rice', 'beans', 'yam', 'cassava', 'maize', 'millet', 'sorghum', 'wheat',
+    'bread', 'flour', 'garri', 'plantain', 'potato', 'tomato', 'onion', 'pepper',
+    'palm oil', 'groundnut oil', 'vegetable oil', 'salt', 'milk', 'baby food',
+    'medicine', 'drug', 'pharmaceutical', 'medical equipment', 'hospital',
+    'vaccine', 'syringe', 'bandage', 'first aid', 'diagnostic',
+    'textbook', 'exercise book', 'pencil', 'pen', 'school uniform', 'educational',
+    'fertilizer', 'seedling', 'pesticide', 'herbicide', 'tractor', 'farm equipment',
+    'export', 'exported', 'foreign buyer', 'international shipment'
+];
+
+// Exempt items per Tax Act 2025 Section 187
+const EXEMPT_KEYWORDS = [
+    'land', 'building', 'property', 'real estate', 'rent', 'lease',
+    'bank charges', 'interest', 'insurance premium', 'forex', 'stock trading',
+    'public transport', 'bus fare', 'train ticket', 'ferry',
+    'medical consultation', 'hospital services', 'diagnostic services',
+    'school fees', 'tuition', 'training course'
+];
+
+// Stamp duty exemptions per NTA 2025
+const STAMP_DUTY_EXEMPTIONS = [
+    { keywords: ['spouse', 'husband', 'wife', 'married'], rule: 'SD_EXEMPTION_SPOUSE_TRANSFER', description: 'Spouse property transfer' },
+    { keywords: ['bank loan', 'loan agreement', 'mortgage'], rule: 'SD_EXEMPTION_BANK_LOAN_AGREEMENT', description: 'Bank loan agreements' },
+    { keywords: ['same account', 'own account', 'self transfer'], rule: 'SD_ELECTRONIC_RECEIPT_EXEMPTION_SAME_ACCOUNT', description: 'Same account transfers' },
+];
+
+interface VATClassification {
+    category: 'standard' | 'zero-rated' | 'exempt';
+    rate: number;
+    matched_keyword?: string;
+    act_reference: string;
+    can_claim_input_vat: boolean;
+}
+
+function classifyVATSupply(description?: string): VATClassification {
+    if (!description) {
+        return {
+            category: 'standard',
+            rate: -1, // Use dynamic rate
+            act_reference: 'Section 148',
+            can_claim_input_vat: true
+        };
+    }
+
+    const lowerDesc = description.toLowerCase();
+
+    // Check zero-rated first
+    for (const keyword of ZERO_RATED_KEYWORDS) {
+        if (lowerDesc.includes(keyword)) {
+            return {
+                category: 'zero-rated',
+                rate: 0,
+                matched_keyword: keyword,
+                act_reference: 'Section 186',
+                can_claim_input_vat: true
+            };
+        }
+    }
+
+    // Check exempt
+    for (const keyword of EXEMPT_KEYWORDS) {
+        if (lowerDesc.includes(keyword)) {
+            return {
+                category: 'exempt',
+                rate: 0,
+                matched_keyword: keyword,
+                act_reference: 'Section 187',
+                can_claim_input_vat: false
+            };
+        }
+    }
+
+    // Default to standard
+    return {
+        category: 'standard',
+        rate: -1, // Use dynamic rate
+        act_reference: 'Section 148',
+        can_claim_input_vat: true
+    };
+}
+
 async function calculateVAT(params: {
     amount: number;
     is_vatable?: boolean;
     supply_type?: "goods" | "services" | "exports";
+    description?: string; // NEW: For exemption NLU
 }): Promise<Record<string, any>> {
-    const { amount, is_vatable = true, supply_type = "goods" } = params;
+    const { amount, is_vatable = true, supply_type = "goods", description } = params;
 
-    // VAT rate from rules
-    const vatRate = await getVATRate();
+    // Classify using NLU if description provided
+    const classification = description ? classifyVATSupply(description) : null;
 
     // Exports are zero-rated
     if (supply_type === "exports") {
@@ -167,21 +253,57 @@ async function calculateVAT(params: {
             vat_rate: 0,
             vat_amount: 0,
             total_amount: amount,
+            classification: 'zero-rated',
             note: "Exports are zero-rated for VAT",
+            act_reference: "Section 186"
         };
     }
 
-    // Non-vatable items
+    // Check NLU classification first
+    if (classification) {
+        if (classification.category === 'exempt') {
+            return {
+                base_amount: amount,
+                vat_rate: 0,
+                vat_amount: 0,
+                total_amount: amount,
+                classification: 'exempt',
+                matched_keyword: classification.matched_keyword,
+                note: `Item is VAT-exempt (${classification.matched_keyword})`,
+                act_reference: classification.act_reference,
+                can_claim_input_vat: false
+            };
+        }
+        if (classification.category === 'zero-rated') {
+            return {
+                base_amount: amount,
+                vat_rate: 0,
+                vat_amount: 0,
+                total_amount: amount,
+                classification: 'zero-rated',
+                matched_keyword: classification.matched_keyword,
+                note: `Zero-rated item (${classification.matched_keyword})`,
+                act_reference: classification.act_reference,
+                can_claim_input_vat: true
+            };
+        }
+    }
+
+    // Non-vatable items (explicit flag)
     if (!is_vatable) {
         return {
             base_amount: amount,
             vat_rate: 0,
             vat_amount: 0,
             total_amount: amount,
+            classification: 'exempt',
             note: "Item is VAT-exempt",
+            can_claim_input_vat: false
         };
     }
 
+    // Standard VAT - get rate from rules engine
+    const vatRate = await getVATRate();
     const vatAmount = amount * vatRate;
 
     return {
@@ -189,6 +311,9 @@ async function calculateVAT(params: {
         vat_rate: vatRate,
         vat_amount: Math.round(vatAmount * 100) / 100,
         total_amount: Math.round((amount + vatAmount) * 100) / 100,
+        classification: 'standard',
+        act_reference: 'Section 148',
+        can_claim_input_vat: true
     };
 }
 

@@ -89,51 +89,86 @@ function getPriorityFromRisk(riskLevel: string): 'low' | 'medium' | 'high' | 'cr
   }
 }
 
-// Files that might need updates (now centralization-aware)
-const AFFECTED_FILES_MAP: Record<string, {
-  files: string[];
-  description: string;
-  isCentralized: boolean;
-}> = {
-  vat_rate: {
-    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
-    description: 'VAT rate - centralized in tax-calculate',
-    isCentralized: true  // No code changes needed, just DB
-  },
-  tax_rate: {
-    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
-    description: 'Tax rates - centralized via rules-client',
-    isCentralized: true
-  },
-  threshold: {
-    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
-    description: 'Thresholds - centralized via rules-client',
-    isCentralized: true
-  },
-  tax_band: {
-    files: ['compliance_rules (DB)', '_shared/prompt-generator.ts'],
-    description: 'Tax bands - read from compliance_rules',
-    isCentralized: true
-  },
-  relief: {
-    files: ['_shared/prompt-generator.ts', 'supabase/functions/chat-assist/index.ts'],
-    description: 'Tax reliefs - may need prompt updates',
-    isCentralized: false
-  },
-  exemption: {
-    files: ['_shared/prompt-generator.ts', 'gateway/src/skills/vat-calculation/index.ts'],
-    description: 'Exemptions - may affect classification logic',
-    isCentralized: false
-  },
-  emtl: {
-    files: [
-      '_shared/prompt-generator.ts',
-      'gateway/src/skills/document-processing/nigerian-detectors/index.ts'
-    ],
-    description: 'EMTL - may need detector updates',
-    isCentralized: false
+// Get affected files from codebase_registry database table
+// Falls back to static map if DB query fails
+async function getFilesForRuleType(
+  supabase: ReturnType<typeof createClient>,
+  ruleType: string
+): Promise<{ files: string[]; description: string; isCentralized: boolean }> {
+  try {
+    // Query the codebase_registry table
+    const { data: files, error } = await supabase
+      .rpc('get_files_for_rule_type', { p_rule_type: ruleType });
+
+    if (error || !files || files.length === 0) {
+      console.log(`[generate-code-proposals] No registry entries for ${ruleType}, using fallback`);
+      return getFallbackFiles(ruleType);
+    }
+
+    const filePaths = files.map((f: { file_path: string }) => f.file_path);
+    const descriptions = files.map((f: { description: string }) => f.description).filter(Boolean);
+
+    // Check if centralized (DB-only is first file)
+    const isCentralized = filePaths[0]?.includes('(DB)') ||
+      ['vat_rate', 'tax_rate', 'threshold', 'tax_band'].includes(ruleType);
+
+    return {
+      files: filePaths,
+      description: descriptions[0] || `Files for ${ruleType}`,
+      isCentralized
+    };
+  } catch (error) {
+    console.error('[generate-code-proposals] Error fetching codebase registry:', error);
+    return getFallbackFiles(ruleType);
   }
-};
+}
+
+// Fallback in case codebase_registry isn't populated yet
+function getFallbackFiles(ruleType: string): { files: string[]; description: string; isCentralized: boolean } {
+  const FALLBACK_MAP: Record<string, { files: string[]; description: string; isCentralized: boolean }> = {
+    vat_rate: {
+      files: ['compliance_rules (DB)', 'supabase/functions/_shared/prompt-generator.ts'],
+      description: 'VAT rate - centralized in tax-calculate',
+      isCentralized: true
+    },
+    tax_rate: {
+      files: ['compliance_rules (DB)', 'supabase/functions/_shared/prompt-generator.ts'],
+      description: 'Tax rates - centralized via rules-client',
+      isCentralized: true
+    },
+    threshold: {
+      files: ['compliance_rules (DB)', 'supabase/functions/_shared/prompt-generator.ts'],
+      description: 'Thresholds - centralized via rules-client',
+      isCentralized: true
+    },
+    tax_band: {
+      files: ['compliance_rules (DB)', 'supabase/functions/_shared/prompt-generator.ts'],
+      description: 'Tax bands - read from compliance_rules',
+      isCentralized: true
+    },
+    relief: {
+      files: ['supabase/functions/_shared/prompt-generator.ts'],
+      description: 'Tax reliefs - may need prompt updates',
+      isCentralized: false
+    },
+    exemption: {
+      files: ['supabase/functions/_shared/prompt-generator.ts', 'supabase/functions/tax-calculate/index.ts'],
+      description: 'Exemptions - NLU in tax-calculate',
+      isCentralized: false
+    },
+    emtl: {
+      files: ['supabase/functions/_shared/prompt-generator.ts', 'gateway/src/skills/document-processing/nigerian-detectors/index.ts'],
+      description: 'EMTL - may need detector updates',
+      isCentralized: false
+    }
+  };
+
+  return FALLBACK_MAP[ruleType] || {
+    files: ['supabase/functions/_shared/prompt-generator.ts'],
+    description: 'Unknown rule type',
+    isCentralized: false
+  };
+}
 
 serve(async (req) => {
   const corsResponse = handleCors(req);
@@ -200,11 +235,8 @@ serve(async (req) => {
     // Process each rule type batch
     for (const [ruleType, items] of rulesByType) {
       try {
-        const fileMapping = AFFECTED_FILES_MAP[ruleType] || {
-          files: ['_shared/prompt-generator.ts'],
-          description: 'Unknown rule type',
-          isCentralized: false
-        };
+        // Get files from codebase registry (or fallback)
+        const fileMapping = await getFilesForRuleType(supabase, ruleType);
 
         const classification = classifyRisk(ruleType);
 
