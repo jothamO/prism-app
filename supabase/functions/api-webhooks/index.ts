@@ -287,12 +287,4 @@ async function hashKey(key: string): Promise<string> {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * JSON response helper
- */
-function jsonResponse(data: any, status: number): Response {
-    return new Response(JSON.stringify(data), {
-        status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-}
+// jsonResponse is imported from _shared/cors.ts

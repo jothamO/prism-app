@@ -1450,7 +1450,11 @@ export type Database = {
       code_change_proposals: {
         Row: {
           affected_files: string[]
+          applied_at: string | null
+          applied_by: string | null
+          auto_apply_eligible: boolean | null
           change_log_id: string | null
+          change_type: string | null
           code_diff: Json
           created_at: string
           description: string | null
@@ -1461,6 +1465,7 @@ export type Database = {
           priority: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          risk_level: string | null
           rule_id: string | null
           status: string
           title: string
@@ -1468,7 +1473,11 @@ export type Database = {
         }
         Insert: {
           affected_files?: string[]
+          applied_at?: string | null
+          applied_by?: string | null
+          auto_apply_eligible?: boolean | null
           change_log_id?: string | null
+          change_type?: string | null
           code_diff?: Json
           created_at?: string
           description?: string | null
@@ -1479,6 +1488,7 @@ export type Database = {
           priority?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          risk_level?: string | null
           rule_id?: string | null
           status?: string
           title: string
@@ -1486,7 +1496,11 @@ export type Database = {
         }
         Update: {
           affected_files?: string[]
+          applied_at?: string | null
+          applied_by?: string | null
+          auto_apply_eligible?: boolean | null
           change_log_id?: string | null
+          change_type?: string | null
           code_diff?: Json
           created_at?: string
           description?: string | null
@@ -1497,6 +1511,7 @@ export type Database = {
           priority?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          risk_level?: string | null
           rule_id?: string | null
           status?: string
           title?: string
@@ -4991,6 +5006,14 @@ export type Database = {
           conflict_type: string
           overlap_end: string
           overlap_start: string
+        }[]
+      }
+      classify_proposal_risk: {
+        Args: { p_parameters: Json; p_rule_type: string }
+        Returns: {
+          auto_apply_eligible: boolean
+          change_type: string
+          risk_level: string
         }[]
       }
       cleanup_api_rate_limits: { Args: never; Returns: undefined }
