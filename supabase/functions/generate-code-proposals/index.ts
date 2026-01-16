@@ -91,22 +91,24 @@ function getPriorityFromRisk(riskLevel: string): 'low' | 'medium' | 'high' | 'cr
 
 // Get affected files from codebase_registry database table
 // Falls back to static map if DB query fails
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getFilesForRuleType(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   ruleType: string
 ): Promise<{ files: string[]; description: string; isCentralized: boolean }> {
   try {
-    // Query the codebase_registry table
-    const { data: files, error } = await supabase
-      .rpc('get_files_for_rule_type', { p_rule_type: ruleType });
+    // Query the codebase_registry table directly
+    const { data: registryFiles, error } = await supabase
+      .from('codebase_registry')
+      .select('file_path, value_type, current_value')
+      .eq('value_type', ruleType);
 
-    if (error || !files || files.length === 0) {
+    if (error || !registryFiles || registryFiles.length === 0) {
       console.log(`[generate-code-proposals] No registry entries for ${ruleType}, using fallback`);
       return getFallbackFiles(ruleType);
     }
 
-    const filePaths = files.map((f: { file_path: string }) => f.file_path);
-    const descriptions = files.map((f: { description: string }) => f.description).filter(Boolean);
+    const filePaths = registryFiles.map((f: { file_path: string }) => f.file_path);
 
     // Check if centralized (DB-only is first file)
     const isCentralized = filePaths[0]?.includes('(DB)') ||
@@ -114,7 +116,7 @@ async function getFilesForRuleType(
 
     return {
       files: filePaths,
-      description: descriptions[0] || `Files for ${ruleType}`,
+      description: `Files for ${ruleType}`,
       isCentralized
     };
   } catch (error) {
