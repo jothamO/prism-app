@@ -97,11 +97,9 @@ async function getFilesForRuleType(
   ruleType: string
 ): Promise<{ files: string[]; description: string; isCentralized: boolean }> {
   try {
-    // Query the codebase_registry table directly
+    // Query the codebase_registry using RPC that handles array column
     const { data: registryFiles, error } = await supabase
-      .from('codebase_registry')
-      .select('file_path, value_type, current_value')
-      .eq('value_type', ruleType);
+      .rpc('get_files_for_rule_type', { p_rule_type: ruleType });
 
     if (error || !registryFiles || registryFiles.length === 0) {
       console.log(`[generate-code-proposals] No registry entries for ${ruleType}, using fallback`);
@@ -109,6 +107,7 @@ async function getFilesForRuleType(
     }
 
     const filePaths = registryFiles.map((f: { file_path: string }) => f.file_path);
+    const descriptions = registryFiles.map((f: { description: string }) => f.description).filter(Boolean);
 
     // Check if centralized (DB-only is first file)
     const isCentralized = filePaths[0]?.includes('(DB)') ||
@@ -116,7 +115,7 @@ async function getFilesForRuleType(
 
     return {
       files: filePaths,
-      description: `Files for ${ruleType}`,
+      description: descriptions[0] || `Files for ${ruleType}`,
       isCentralized
     };
   } catch (error) {
