@@ -1461,6 +1461,7 @@ export type Database = {
           generated_by: string | null
           id: string
           implemented_at: string | null
+          needs_revision: boolean | null
           notes: string | null
           priority: string | null
           reviewed_at: string | null
@@ -1484,6 +1485,7 @@ export type Database = {
           generated_by?: string | null
           id?: string
           implemented_at?: string | null
+          needs_revision?: boolean | null
           notes?: string | null
           priority?: string | null
           reviewed_at?: string | null
@@ -1507,6 +1509,7 @@ export type Database = {
           generated_by?: string | null
           id?: string
           implemented_at?: string | null
+          needs_revision?: boolean | null
           notes?: string | null
           priority?: string | null
           reviewed_at?: string | null
@@ -1593,6 +1596,67 @@ export type Database = {
           },
           {
             foreignKeyName: "code_proposal_queue_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "upcoming_tax_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      codebase_registry: {
+        Row: {
+          created_at: string | null
+          current_value: Json | null
+          file_path: string
+          id: string
+          last_scanned_at: string | null
+          line_number: number | null
+          needs_update: boolean | null
+          rule_id: string | null
+          updated_at: string | null
+          value_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_value?: Json | null
+          file_path: string
+          id?: string
+          last_scanned_at?: string | null
+          line_number?: number | null
+          needs_update?: boolean | null
+          rule_id?: string | null
+          updated_at?: string | null
+          value_type: string
+        }
+        Update: {
+          created_at?: string | null
+          current_value?: Json | null
+          file_path?: string
+          id?: string
+          last_scanned_at?: string | null
+          line_number?: number | null
+          needs_update?: boolean | null
+          rule_id?: string | null
+          updated_at?: string | null
+          value_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "codebase_registry_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "active_tax_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "codebase_registry_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "codebase_registry_rule_id_fkey"
             columns: ["rule_id"]
             isOneToOne: false
             referencedRelation: "upcoming_tax_rules"
