@@ -584,16 +584,4 @@ async function validateSubscription(
     };
 }
 
-/**
- * JSON response helper
- */
-function jsonResponse(data: any, status: number, extraHeaders: Record<string, string> = {}): Response {
-    return new Response(JSON.stringify(data), {
-        status,
-        headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-            ...extraHeaders
-        }
-    });
-}
+// jsonResponse is imported from _shared/cors.ts

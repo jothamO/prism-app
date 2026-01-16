@@ -185,9 +185,4 @@ serve(async (req) => {
   }
 });
 
-function jsonResponse(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+// jsonResponse is imported from _shared/cors.ts

@@ -269,7 +269,7 @@ Output ONLY valid JSON with structure:
             );
 
             if (aiResult) {
-              codeDiff = aiResult;
+              codeDiff = aiResult as unknown as Record<string, unknown>;
               description = aiResult.summary || `AI-generated changes for ${ruleType} rules`;
             } else {
               throw new Error('AI returned null');
