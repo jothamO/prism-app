@@ -240,14 +240,14 @@ export default function AdminCodeProposals() {
 
             {/* Filter Tabs */}
             <div className="flex gap-2">
-                {['pending', 'approved', 'implemented', 'rejected', 'all'].map((status) => (
+                {['pending', 'approved', 'implemented', 'rejected', 'needs_revision', 'all'].map((status) => (
                     <Button
                         key={status}
                         variant={filter === status ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => setFilter(status)}
                     >
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                        {status === 'needs_revision' ? 'Needs Revision' : status.charAt(0).toUpperCase() + status.slice(1)}
                     </Button>
                 ))}
             </div>
@@ -437,6 +437,15 @@ export default function AdminCodeProposals() {
                                         >
                                             <XCircle className="h-4 w-4 mr-1" />
                                             Reject
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="border-yellow-500 text-yellow-700 hover:bg-yellow-500/10"
+                                            onClick={() => handleStatusUpdate('needs_revision')}
+                                            disabled={updateStatus.isPending}
+                                        >
+                                            <AlertTriangle className="h-4 w-4 mr-1" />
+                                            Needs Revision
                                         </Button>
                                         {selectedProposal.auto_apply_eligible && (
                                             <Button
