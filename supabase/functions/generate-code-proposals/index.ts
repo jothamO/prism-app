@@ -27,6 +27,8 @@ interface ComplianceRule {
   parameters: Record<string, unknown>;
   description: string;
   document_id: string;
+  section_reference: string;
+  extraction_confidence: number;
 }
 
 interface RiskClassification {
@@ -228,6 +230,14 @@ serve(async (req) => {
       }
 
       const typedRule = rule as ComplianceRule;
+
+      // FACT-GROUNDED AI: Verify rule has source document
+      if (!typedRule.document_id) {
+        console.warn(`[generate-code-proposals] Rule ${typedRule.rule_code} has no source document - flagging`);
+        // Still process but mark as unverified
+        (typedRule as any)._unverified = true;
+      }
+
       const existing = rulesByType.get(typedRule.rule_type) || [];
       existing.push({ queueItem: item, rule: typedRule });
       rulesByType.set(typedRule.rule_type, existing);
@@ -323,22 +333,51 @@ Output ONLY valid JSON with structure:
           }
         }
 
-        // Insert the proposal
+        // Get source document info for verification
+        const primaryRule = items[0].rule;
+        let sourceVerification: Record<string, unknown> = { verified: false };
+        let sourceDocumentId: string | null = null;
+
+        if (primaryRule.document_id) {
+          const { data: sourceDoc } = await supabase
+            .from('legal_documents')
+            .select('id, title, document_type, document_priority')
+            .eq('id', primaryRule.document_id)
+            .single();
+
+          if (sourceDoc) {
+            sourceVerification = {
+              verified: true,
+              document_name: sourceDoc.title,
+              document_type: sourceDoc.document_type,
+              document_priority: sourceDoc.document_priority,
+              section_reference: primaryRule.section_reference,
+              extraction_confidence: primaryRule.extraction_confidence
+            };
+            sourceDocumentId = sourceDoc.id;
+          }
+        }
+
+        // Insert the proposal with source verification
         const { data: proposal, error: insertError } = await supabase
           .from("code_change_proposals")
           .insert({
             title: fileMapping.isCentralized
               ? `DB Update: ${items.length} ${ruleType} rule(s)`
               : `Code Review: ${items.length} ${ruleType} rule(s)`,
-            description,
+            description: sourceVerification.verified
+              ? `${description}\n\n📄 Source: ${sourceVerification.document_name}, ${primaryRule.section_reference || 'no section ref'}`
+              : `⚠️ UNVERIFIED: ${description}\n\nThis proposal has no verified source document.`,
             code_diff: codeDiff,
             affected_files: fileMapping.files,
-            rule_id: items[0].rule.id,  // Primary rule
+            rule_id: primaryRule.id,
             status: "pending",
             priority: getPriorityFromRisk(classification.risk_level),
             risk_level: classification.risk_level,
-            auto_apply_eligible: classification.auto_apply_eligible,
+            auto_apply_eligible: sourceVerification.verified ? classification.auto_apply_eligible : false, // No auto-apply without verification
             change_type: classification.change_type,
+            source_document_id: sourceDocumentId,
+            source_verification: sourceVerification
             generated_by: "system"
           })
           .select('id')
