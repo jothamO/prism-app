@@ -1466,6 +1466,8 @@ export type Database = {
           priority: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          revision_count: number | null
+          revision_notes: string | null
           risk_level: string | null
           rule_id: string | null
           status: string
@@ -1490,6 +1492,8 @@ export type Database = {
           priority?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          revision_count?: number | null
+          revision_notes?: string | null
           risk_level?: string | null
           rule_id?: string | null
           status?: string
@@ -1514,6 +1518,8 @@ export type Database = {
           priority?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          revision_count?: number | null
+          revision_notes?: string | null
           risk_level?: string | null
           rule_id?: string | null
           status?: string
