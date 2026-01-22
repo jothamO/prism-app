@@ -14,6 +14,7 @@ import {
   XCircle,
   AlertTriangle,
   Clock,
+  Copy,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -75,10 +76,32 @@ export default function AdminComplianceRules() {
     days_until_expiration: number;
   }[]>([]);
 
+  // Duplicate rules detection
+  const [duplicateRules, setDuplicateRules] = useState<{
+    rule_code_1: string;
+    rule_name_1: string;
+    rule_code_2: string;
+    rule_name_2: string;
+    similarity_score: number;
+    duplicate_reason: string;
+  }[]>([]);
+
   useEffect(() => {
     fetchRules();
     fetchExpiringRules();
+    fetchDuplicateRules();
   }, []);
+
+  async function fetchDuplicateRules() {
+    try {
+      const { data, error } = await supabase.rpc('find_duplicate_rules');
+      if (!error && data) {
+        setDuplicateRules(data);
+      }
+    } catch (e) {
+      console.log('Duplicate detection function may not exist yet');
+    }
+  }
 
   async function fetchExpiringRules() {
     try {
@@ -273,6 +296,37 @@ export default function AdminComplianceRules() {
                   {expiringRules.length > 5 && (
                     <p className="text-xs text-muted-foreground mt-1">...and {expiringRules.length - 5} more</p>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Duplicate Rules Alert */}
+          {duplicateRules.length > 0 && (
+            <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Copy className="w-5 h-5 text-red-500 mt-0.5" />
+                <div>
+                  <h3 className="font-medium text-red-500">Duplicate Rules Detected</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {duplicateRules.length} potential duplicate(s) found:
+                  </p>
+                  <ul className="text-sm space-y-1">
+                    {duplicateRules.slice(0, 5).map((dup, idx) => (
+                      <li key={idx} className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-red-400">{dup.rule_code_1}</span>
+                        <span className="text-muted-foreground">≈</span>
+                        <span className="font-mono text-xs text-red-400">{dup.rule_code_2}</span>
+                        <span className="text-xs text-muted-foreground">({Math.round(dup.similarity_score)}%)</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {duplicateRules.length > 5 && (
+                    <p className="text-xs text-muted-foreground mt-1">...and {duplicateRules.length - 5} more</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Consider deactivating duplicates to avoid conflicts.
+                  </p>
                 </div>
               </div>
             </div>
