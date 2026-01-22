@@ -5206,6 +5206,20 @@ export type Database = {
           overlap_start: string
         }[]
       }
+      check_rule_duplicate: {
+        Args: {
+          p_description?: string
+          p_rule_name: string
+          p_rule_type: string
+        }
+        Returns: {
+          existing_rule_code: string
+          existing_rule_id: string
+          existing_rule_name: string
+          recommendation: string
+          similarity_score: number
+        }[]
+      }
       classify_proposal_risk: {
         Args: { p_parameters: Json; p_rule_type: string }
         Returns: {
@@ -5216,6 +5230,19 @@ export type Database = {
       }
       cleanup_api_rate_limits: { Args: never; Returns: undefined }
       downgrade_expired_subscriptions: { Args: never; Returns: number }
+      find_duplicate_rules: {
+        Args: never
+        Returns: {
+          duplicate_reason: string
+          rule_code_1: string
+          rule_code_2: string
+          rule_id_1: string
+          rule_id_2: string
+          rule_name_1: string
+          rule_name_2: string
+          similarity_score: number
+        }[]
+      }
       find_similar_pattern: {
         Args: {
           p_business_id: string
@@ -5239,6 +5266,7 @@ export type Database = {
           request_count: number
         }[]
       }
+      get_duplicate_rule_count: { Args: never; Returns: number }
       get_files_for_rule_type: {
         Args: { p_rule_type: string }
         Returns: {
