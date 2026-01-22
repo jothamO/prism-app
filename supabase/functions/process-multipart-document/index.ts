@@ -235,10 +235,35 @@ serve(async (req) => {
                 .in("status", ["pending", "failed"])
                 .order("part_number");
         } else {
-            // FULL REPROCESS: Reset ALL parts to pending first
+            // FULL REPROCESS: Delete ALL existing data FIRST, then reset parts
+            console.log(`[process-multipart] Full reprocess: Deleting existing provisions and rules...`);
+            
+            // Delete provisions first (due to potential FK constraints)
+            const { error: provDeleteError } = await supabase
+                .from("legal_provisions")
+                .delete()
+                .eq("document_id", documentId);
+            
+            if (provDeleteError) {
+                console.error(`[process-multipart] Failed to delete provisions:`, provDeleteError);
+            }
+            
+            // Delete rules
+            const { error: rulesDeleteError } = await supabase
+                .from("compliance_rules")
+                .delete()
+                .eq("document_id", documentId);
+            
+            if (rulesDeleteError) {
+                console.error(`[process-multipart] Failed to delete rules:`, rulesDeleteError);
+            }
+            
+            console.log(`[process-multipart] Deleted existing provisions and rules. Resetting parts...`);
+            
+            // Reset ALL parts to pending
             await supabase
                 .from("document_parts")
-                .update({ status: 'pending', metadata: null })
+                .update({ status: 'pending', metadata: null, provisions_count: null, rules_count: null })
                 .eq("parent_document_id", documentId);
             
             partsQuery = supabase
@@ -666,10 +691,7 @@ ${part.raw_text.substring(0, 50000)}`;
             });
         }
         
-        // Full document processing: Delete all existing and insert deduplicated
-        await supabase.from("legal_provisions").delete().eq("document_id", documentId);
-        await supabase.from("compliance_rules").delete().eq("document_id", documentId);
-
+        // Full document processing: Insert deduplicated data (deletion already done at start)
         // Insert deduplicated provisions
         for (const provision of deduplicatedProvisions) {
             await supabase.from("legal_provisions").insert({
