@@ -4651,7 +4651,7 @@ export type Database = {
             foreignKeyName: "user_subscriptions_tier_id_fkey"
             columns: ["tier_id"]
             isOneToOne: false
-            referencedRelation: "api_pricing_tiers"
+            referencedRelation: "user_pricing_tiers"
             referencedColumns: ["id"]
           },
           {
@@ -5267,6 +5267,17 @@ export type Database = {
         }[]
       }
       get_duplicate_rule_count: { Args: never; Returns: number }
+      get_expiring_rules: {
+        Args: { p_days_ahead?: number }
+        Returns: {
+          days_until_expiration: number
+          document_title: string
+          expiration_date: string
+          id: string
+          rule_code: string
+          rule_name: string
+        }[]
+      }
       get_files_for_rule_type: {
         Args: { p_rule_type: string }
         Returns: {

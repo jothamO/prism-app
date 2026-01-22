@@ -26,7 +26,7 @@ interface Subscription {
     requests_this_period: number;
     created_at: string;
     users?: { email: string; full_name: string };
-    api_pricing_tiers?: { name: string; display_name: string };
+    user_pricing_tiers?: { name: string; display_name: string };
 }
 
 export default function AdminSubscriptions() {
@@ -55,7 +55,7 @@ export default function AdminSubscriptions() {
                 .select(`
                     *,
                     users:user_id (email, full_name),
-                    api_pricing_tiers:tier_id (name, display_name)
+                    user_pricing_tiers:tier_id (name, display_name)
                 `)
                 .order('created_at', { ascending: false });
 
@@ -125,7 +125,7 @@ export default function AdminSubscriptions() {
         const term = searchTerm.toLowerCase();
         return (
             sub.users?.email?.toLowerCase().includes(term) ||
-            sub.api_pricing_tiers?.display_name?.toLowerCase().includes(term)
+            sub.user_pricing_tiers?.display_name?.toLowerCase().includes(term)
         );
     });
 
@@ -214,7 +214,7 @@ export default function AdminSubscriptions() {
                                                 {sub.users?.email || 'Unknown user'}
                                             </div>
                                             <div className="text-sm text-muted-foreground">
-                                                {sub.api_pricing_tiers?.display_name || 'Unknown tier'}
+                                                {sub.user_pricing_tiers?.display_name || 'Unknown tier'}
                                             </div>
                                         </div>
                                     </div>
