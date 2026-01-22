@@ -1813,6 +1813,7 @@ export type Database = {
           rule_code: string | null
           rule_name: string
           rule_type: string
+          section_reference: string | null
           sector: string | null
           source_part_id: string | null
           tax_types: string[] | null
@@ -1837,6 +1838,7 @@ export type Database = {
           rule_code?: string | null
           rule_name: string
           rule_type: string
+          section_reference?: string | null
           sector?: string | null
           source_part_id?: string | null
           tax_types?: string[] | null
@@ -1861,6 +1863,7 @@ export type Database = {
           rule_code?: string | null
           rule_name?: string
           rule_type?: string
+          section_reference?: string | null
           sector?: string | null
           source_part_id?: string | null
           tax_types?: string[] | null
