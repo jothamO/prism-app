@@ -278,17 +278,17 @@ For dates:
             .select('effective_date')
             .eq('id', documentId)
             .single();
-        
+
         const documentEffectiveDate = docData?.effective_date || null;
         console.log(`[process-compliance-document] Document effective date: ${documentEffectiveDate}`);
 
         // Check for date mismatch between admin-entered and AI-extracted
         const aiExtractedDate = classification.effectiveDateFromText;
         const adminEnteredDate = documentEffectiveDate ? documentEffectiveDate.split('T')[0] : null;
-        
+
         let dateMismatchWarning = null;
         let needsReviewDueToDate = false;
-        
+
         if (aiExtractedDate && adminEnteredDate && aiExtractedDate !== adminEnteredDate) {
             console.log(`[process-compliance-document] Date mismatch detected! Admin: ${adminEnteredDate}, AI: ${aiExtractedDate}`);
             dateMismatchWarning = {
@@ -352,12 +352,26 @@ For dates:
             }
         }
 
-        // Save rules with validated rule_type
+        // Save rules with validated rule_type and duplicate detection
+        let skippedDuplicates = 0;
         for (const rule of rules) {
             // Validate rule_type, default to 'tax_rate' if invalid
             const ruleType = VALID_RULE_TYPES.includes(rule.ruleType as typeof VALID_RULE_TYPES[number])
                 ? rule.ruleType
                 : 'tax_rate';
+
+            // Check for duplicates before inserting
+            try {
+                const { data: dups } = await supabase.rpc('check_rule_duplicate', {
+                    p_rule_name: rule.ruleName, p_rule_type: ruleType, p_description: null
+                });
+                if (dups?.find((d: any) => d.similarity_score >= 80)) {
+                    console.log(`[process-compliance-document] Skipping duplicate: ${rule.ruleName}`);
+                    skippedDuplicates++;
+                    continue;
+                }
+            } catch { /* function may not exist */ }
+
 
             const { error: ruleError } = await supabase.from('compliance_rules').insert({
                 document_id: documentId,
@@ -381,7 +395,7 @@ For dates:
 
         // Step 5: Generate PRISM Impact Analysis
         console.log(`[process-compliance-document] Generating PRISM impact analysis...`);
-        
+
         const impactPrompt = `Analyze how this Nigerian tax regulation affects the PRISM tax assistant platform.
 
 DOCUMENT: ${title}
@@ -493,7 +507,7 @@ Return ONLY valid JSON:
     } catch (error) {
         console.error('[process-compliance-document] Error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        
+
         // Try to update document status to failed
         try {
             const { documentId } = await req.clone().json();
@@ -513,7 +527,7 @@ Return ONLY valid JSON:
         } catch (updateError) {
             console.error('[process-compliance-document] Failed to update status:', updateError);
         }
-        
+
         return new Response(
             JSON.stringify({ error: errorMessage }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
