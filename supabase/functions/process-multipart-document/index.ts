@@ -610,16 +610,19 @@ ${part.raw_text.substring(0, 50000)}`;
             
             // Insert ONLY the new part's provisions/rules (not deduplicated against other parts)
             for (const provision of allProvisions) {
-                await supabase.from("legal_provisions").insert({
+                const { error: provError } = await supabase.from("legal_provisions").insert({
                     document_id: documentId,
                     source_part_id: provision.source_part_id,
                     section_number: provision.section_number,
                     title: provision.title,
                     content: provision.content,
                     provision_type: provision.provision_type,
-                    applies_to: provision.applies_to,
-                    key_terms: provision.key_terms,
+                    affected_entities: provision.applies_to,
+                    keywords: provision.key_terms,
                 });
+                if (provError) {
+                    console.error(`[process-multipart] Failed to insert provision "${provision.section_number}":`, provError);
+                }
             }
             
             for (const rule of allRules) {
@@ -694,16 +697,19 @@ ${part.raw_text.substring(0, 50000)}`;
         // Full document processing: Insert deduplicated data (deletion already done at start)
         // Insert deduplicated provisions
         for (const provision of deduplicatedProvisions) {
-            await supabase.from("legal_provisions").insert({
+            const { error: provError } = await supabase.from("legal_provisions").insert({
                 document_id: documentId,
                 source_part_id: provision.source_part_id,
                 section_number: provision.section_number,
                 title: provision.title,
                 content: provision.content,
                 provision_type: provision.provision_type,
-                applies_to: provision.applies_to,
-                key_terms: provision.key_terms,
+                affected_entities: provision.applies_to,
+                keywords: provision.key_terms,
             });
+            if (provError) {
+                console.error(`[process-multipart] Failed to insert provision "${provision.section_number}":`, provError);
+            }
         }
 
         // Insert deduplicated rules
