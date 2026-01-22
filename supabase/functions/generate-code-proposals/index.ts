@@ -377,7 +377,7 @@ Output ONLY valid JSON with structure:
             auto_apply_eligible: sourceVerification.verified ? classification.auto_apply_eligible : false, // No auto-apply without verification
             change_type: classification.change_type,
             source_document_id: sourceDocumentId,
-            source_verification: sourceVerification
+            source_verification: sourceVerification,
             generated_by: "system"
           })
           .select('id')
