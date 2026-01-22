@@ -491,31 +491,8 @@ export default function DocumentProcessingStatusTab({
     };
   }, [documentId, isMultiPart]);
 
-  // Manual polling control - allow users to stop polling
-  const [pollingEnabled, setPollingEnabled] = useState(true);
-
-  // Polling fallback for when realtime isn't working
-  // Only poll if explicitly enabled AND (processing or auto-processing)
-  useEffect(() => {
-    if (!pollingEnabled) return;
-    if (!isProcessing && !autoProcessing) return;
-
-    const interval = setInterval(() => {
-      fetchData();
-      onRefresh();
-    }, 5000);
-
-    // Auto-disable polling after 30 minutes to prevent infinite loops
-    const timeout = setTimeout(() => {
-      console.log('[DocumentProcessingStatusTab] Polling auto-disabled after 30 minutes');
-      setPollingEnabled(false);
-    }, 30 * 60 * 1000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [isProcessing, autoProcessing, fetchData, onRefresh, pollingEnabled]);
+  // NOTE: No polling - we rely entirely on Supabase Realtime subscriptions above
+  // Users can click the Refresh button for manual updates
 
   const toggleEventExpanded = (eventId: string) => {
     setExpandedEvents((prev) => {
@@ -732,18 +709,6 @@ export default function DocumentProcessingStatusTab({
               <Button variant="ghost" size="icon" onClick={fetchData} title="Refresh data">
                 <RefreshCw className="w-4 h-4" />
               </Button>
-              {/* Pause/Resume polling toggle */}
-              {(isProcessing || autoProcessing) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPollingEnabled(!pollingEnabled)}
-                  className="text-xs"
-                  title={pollingEnabled ? "Pause auto-refresh" : "Resume auto-refresh"}
-                >
-                  {pollingEnabled ? "⏸️ Pause" : "▶️ Resume"}
-                </Button>
-              )}
             </div>
           </div>
 
