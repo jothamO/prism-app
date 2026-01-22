@@ -25,6 +25,10 @@ export interface TaxRule {
   effective_from: string | null;
   effective_to: string | null;
   priority: number;
+  // Source document traceability (V9 Fact-Grounded AI)
+  document_id?: string;
+  section_reference?: string;
+  document_title?: string;
 }
 
 export interface RulesCache {
@@ -56,11 +60,11 @@ const FALLBACK_MINIMUM_WAGE = { annual: 840000, monthly: 70000 };
 function getSupabaseClient() {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY");
-  
+
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("Missing Supabase environment variables");
   }
-  
+
   return createClient(supabaseUrl, supabaseKey);
 }
 
@@ -95,7 +99,7 @@ export async function getActiveRules(ruleType?: string, asOfDate?: Date): Promis
 
     // Update cache
     rulesCache = { rules: data || [], timestamp: Date.now() };
-    
+
     const rules = rulesCache.rules;
     return ruleType ? rules.filter(r => r.rule_type === ruleType) : rules;
   } catch (error) {
@@ -111,7 +115,7 @@ async function getActiveRulesForDate(ruleType: string | undefined, asOfDate: Dat
   try {
     const supabase = getSupabaseClient();
     const dateStr = asOfDate.toISOString().split('T')[0];
-    
+
     let query = supabase
       .from("compliance_rules")
       .select("id, rule_code, rule_name, rule_type, parameters, description, effective_from, effective_to, priority")
@@ -119,18 +123,18 @@ async function getActiveRulesForDate(ruleType: string | undefined, asOfDate: Dat
       .or(`effective_from.is.null,effective_from.lte.${dateStr}`)
       .or(`effective_to.is.null,effective_to.gte.${dateStr}`)
       .order("priority");
-    
+
     if (ruleType) {
       query = query.eq("rule_type", ruleType);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) {
       console.error("Error fetching rules for date:", error);
       return [];
     }
-    
+
     return data || [];
   } catch (error) {
     console.error("Failed to fetch rules for date:", error);
@@ -148,18 +152,18 @@ export async function getUpcomingRules(ruleType?: string): Promise<TaxRule[]> {
       .from("upcoming_tax_rules")
       .select("*")
       .order("effective_from");
-    
+
     if (ruleType) {
       query = query.eq("rule_type", ruleType);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) {
       console.error("Error fetching upcoming rules:", error);
       return [];
     }
-    
+
     return data || [];
   } catch (error) {
     console.error("Failed to fetch upcoming rules:", error);
@@ -182,7 +186,7 @@ export async function getTaxBands(): Promise<TaxBand[]> {
   try {
     const rules = await getActiveRules("tax_rate");
     const pitRules = rules.filter(r => r.rule_code.startsWith("PIT_BAND_"));
-    
+
     if (pitRules.length === 0) {
       console.warn("No PIT bands found in database, using fallback");
       return FALLBACK_TAX_BANDS;
@@ -317,20 +321,24 @@ export async function buildTaxRulesSummary(): Promise<string> {
     .join("\n");
 
   let summary = `
-CURRENT TAX RULES (from Central Rules Engine):
+FACT-GROUNDED TAX RULES (from Central Rules Engine):
 
-PIT Tax Bands:
+⚠️ IMPORTANT: Only answer with rules shown below. If a rule is not listed, say "I don't have verified information on this topic."
+
+PIT Tax Bands (Nigeria Tax Act 2025):
 ${bandsText}
 
-VAT Rate: ${vatRate * 100}%
+VAT Rate: ${vatRate * 100}% (VATA)
 
-EMTL: ₦${emtl.amount} per transfer ≥₦${emtl.threshold.toLocaleString()}
+EMTL: ₦${emtl.amount} per transfer ≥₦${emtl.threshold.toLocaleString()} (Finance Act)
 
 Tax Reliefs:
 ${reliefsText}
 
 Filing Deadlines:
 ${deadlinesText}
+
+CITATION RULE: When answering tax questions, always state the source document (e.g., "According to the Nigeria Tax Act 2025...").
 `.trim();
 
   // Add upcoming changes section if there are any
@@ -339,7 +347,7 @@ ${deadlinesText}
       .slice(0, 10) // Limit to 10 upcoming rules
       .map(r => {
         let details = `  - ${r.rule_name} (${r.rule_type}): Effective ${r.effective_from}`;
-        
+
         // Include key action details for fees and thresholds
         if (r.actions) {
           if (r.actions.charge_per_unit !== undefined && r.actions.unit_amount !== undefined) {
@@ -358,17 +366,17 @@ ${deadlinesText}
             details += `\n      Note: ${r.actions.message}`;
           }
         }
-        
+
         // Also check parameters for additional context
         if (r.parameters) {
           if (r.parameters.label) {
             details += `\n      ${r.parameters.label}`;
           }
         }
-        
+
         return details;
       }).join("\n");
-    
+
     summary += `\n\nUPCOMING REGULATORY CHANGES:\n${upcomingDetails}`;
   }
 

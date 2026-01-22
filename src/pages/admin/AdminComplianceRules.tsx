@@ -12,6 +12,8 @@ import {
   CheckSquare,
   Square,
   XCircle,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -59,14 +61,35 @@ export default function AdminComplianceRules() {
   const [filterType, setFilterType] = useState("all");
   const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  
+
   // Bulk selection state
   const [selectedRules, setSelectedRules] = useState<Set<string>>(new Set());
   const [bulkActivating, setBulkActivating] = useState(false);
 
+  // Expiring rules alert (V9 Fact-Grounded AI)
+  const [expiringRules, setExpiringRules] = useState<{
+    id: string;
+    rule_code: string;
+    rule_name: string;
+    expiration_date: string;
+    days_until_expiration: number;
+  }[]>([]);
+
   useEffect(() => {
     fetchRules();
+    fetchExpiringRules();
   }, []);
+
+  async function fetchExpiringRules() {
+    try {
+      const { data, error } = await supabase.rpc('get_expiring_rules', { p_days_ahead: 30 });
+      if (!error && data) {
+        setExpiringRules(data);
+      }
+    } catch (e) {
+      console.log('Expiring rules function may not exist yet');
+    }
+  }
 
   async function fetchRules() {
     setLoading(true);
@@ -98,7 +121,7 @@ export default function AdminComplianceRules() {
 
       if (error) throw error;
 
-      setRules(rules.map(r => 
+      setRules(rules.map(r =>
         r.id === ruleId ? { ...r, is_active: !currentActive } : r
       ));
 
@@ -121,7 +144,7 @@ export default function AdminComplianceRules() {
   // Bulk toggle rules
   async function bulkToggleRules(activate: boolean) {
     if (selectedRules.size === 0) return;
-    
+
     setBulkActivating(true);
     try {
       const { error } = await supabase
@@ -132,10 +155,10 @@ export default function AdminComplianceRules() {
       if (error) throw error;
 
       // Update local state
-      setRules(rules.map(r => 
+      setRules(rules.map(r =>
         selectedRules.has(r.id) ? { ...r, is_active: activate } : r
       ));
-      
+
       const count = selectedRules.size;
       setSelectedRules(new Set());
 
@@ -185,14 +208,14 @@ export default function AdminComplianceRules() {
   }, [] as { id: string; title: string }[]);
 
   const filteredRules = rules.filter((rule) => {
-    const matchesSearch = 
+    const matchesSearch =
       rule.rule_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rule.rule_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rule.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesType = filterType === "all" || rule.rule_type === filterType;
-    
-    const matchesActive = 
+
+    const matchesActive =
       filterActive === "all" ||
       (filterActive === "active" && rule.is_active) ||
       (filterActive === "inactive" && !rule.is_active);
@@ -227,6 +250,33 @@ export default function AdminComplianceRules() {
           <p className="text-muted-foreground">AI-generated rules from legal documents</p>
         </div>
         <div className="flex items-center gap-3">
+
+          {/* Expiring Rules Alert (V9 Fact-Grounded AI) */}
+          {expiringRules.length > 0 && (
+            <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
+                <div>
+                  <h3 className="font-medium text-amber-500">Rules Expiring Soon</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {expiringRules.length} rule(s) will expire within 30 days:
+                  </p>
+                  <ul className="text-sm space-y-1">
+                    {expiringRules.slice(0, 5).map((rule) => (
+                      <li key={rule.id} className="flex items-center gap-2">
+                        <Clock className="w-3 h-3 text-amber-500" />
+                        <span className="font-mono text-xs">{rule.rule_code || rule.rule_name}</span>
+                        <span className="text-muted-foreground">- {rule.days_until_expiration} days left</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {expiringRules.length > 5 && (
+                    <p className="text-xs text-muted-foreground mt-1">...and {expiringRules.length - 5} more</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg text-green-500 text-sm">
             <ToggleRight className="w-4 h-4" />
             {activeCount} active
@@ -374,8 +424,8 @@ export default function AdminComplianceRules() {
             </div>
           ) : (
             filteredRules.map((rule) => (
-              <div 
-                key={rule.id} 
+              <div
+                key={rule.id}
                 className={cn(
                   "p-4 hover:bg-accent/30 transition-colors",
                   selectedRules.has(rule.id) && "bg-primary/5"
@@ -388,7 +438,7 @@ export default function AdminComplianceRules() {
                     onCheckedChange={() => toggleSelection(rule.id)}
                     className="mt-1"
                   />
-                  
+
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <Scale className="w-4 h-4 text-muted-foreground" />
