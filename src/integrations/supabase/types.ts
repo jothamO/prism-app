@@ -184,6 +184,48 @@ export type Database = {
         }
         Relationships: []
       }
+      api_documents: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          document_type: string | null
+          external_id: string | null
+          id: string
+          metadata: Json | null
+          processed_at: string | null
+          source_url: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          document_type?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          processed_at?: string | null
+          source_url?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          document_type?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          processed_at?: string | null
+          source_url?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           can_access_documents: boolean | null
@@ -1267,6 +1309,53 @@ export type Database = {
           vat_registered?: boolean | null
         }
         Relationships: []
+      }
+      calculation_audit_log: {
+        Row: {
+          business_id: string | null
+          calculation_id: string
+          calculation_type: string
+          created_at: string | null
+          id: string
+          input_data: Json
+          output_data: Json
+          rules_applied: string[] | null
+          rules_metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          calculation_id: string
+          calculation_type: string
+          created_at?: string | null
+          id?: string
+          input_data: Json
+          output_data: Json
+          rules_applied?: string[] | null
+          rules_metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          calculation_id?: string
+          calculation_type?: string
+          created_at?: string | null
+          id?: string
+          input_data?: Json
+          output_data?: Json
+          rules_applied?: string[] | null
+          rules_metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calculation_audit_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       calculation_logs: {
         Row: {
@@ -4357,6 +4446,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_preferences: {
+        Row: {
+          auto_categorize: boolean | null
+          created_at: string | null
+          id: string
+          insight_frequency: string | null
+          notification_preferences: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          auto_categorize?: boolean | null
+          created_at?: string | null
+          id?: string
+          insight_frequency?: string | null
+          notification_preferences?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          auto_categorize?: boolean | null
+          created_at?: string | null
+          id?: string
+          insight_frequency?: string | null
+          notification_preferences?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_pricing_tiers: {
         Row: {
