@@ -7,10 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (V9: Fact-Grounded AI)
+- Source document traceability for compliance rules
+- `calculation_audit_log` table for tracking which rules are applied
+- Expiring rules alert in Admin Compliance Rules page
+- Document hierarchy (Constitution > Act > Finance Act > Circular)
+- Grounding notice in AI prompts - cites sources or says "I don't know"
+
+### Added (V8: Code Proposals Enhancements)
+- `codebase_registry` table with actual file paths for code proposals
+- "Needs Revision" status for code proposals
+- Source verification check before auto-apply
+
+## [1.1.0] - 2026-01-17
+
 ### Added
-- Application version changelog system with admin UI
-- GitHub Releases integration via edge function
-- CHANGELOG.md auto-generation from database
+- V9: Fact-Grounded AI - all rules must link to source documents
+- V8: Codebase-aware code proposals with source verification
+- V7: Multi-turn conversation support in Gateway
+- V6: Admin bot messaging and user data clearing
+- V5: Test mode and web-only registration
+- V4: User subscription tiers with Paystack integration
+- V3: API system with gateway, webhooks, and developer portal
+- V2: Centralized shared utilities and tax-calculate edge function
+
+### Changed
+- AI prompts now require source citations
+- Code proposals marked as ⚠️ UNVERIFIED if no source document
+- Auto-apply disabled for unverified proposals
+
+### Security
+- Document-based rule traceability for audit compliance
 
 ## [1.0.0] - 2026-01-08
 
@@ -41,3 +68,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - RLS enabled on all new tables
 - Admin-only access for compliance management
+
