@@ -1702,38 +1702,44 @@ export type Database = {
         Row: {
           created_at: string | null
           current_value: Json | null
+          description: string | null
           file_path: string
+          file_type: string
           id: string
           last_scanned_at: string | null
           line_number: number | null
           needs_update: boolean | null
+          related_rule_types: string[] | null
           rule_id: string | null
           updated_at: string | null
-          value_type: string
         }
         Insert: {
           created_at?: string | null
           current_value?: Json | null
+          description?: string | null
           file_path: string
+          file_type: string
           id?: string
           last_scanned_at?: string | null
           line_number?: number | null
           needs_update?: boolean | null
+          related_rule_types?: string[] | null
           rule_id?: string | null
           updated_at?: string | null
-          value_type: string
         }
         Update: {
           created_at?: string | null
           current_value?: Json | null
+          description?: string | null
           file_path?: string
+          file_type?: string
           id?: string
           last_scanned_at?: string | null
           line_number?: number | null
           needs_update?: boolean | null
+          related_rule_types?: string[] | null
           rule_id?: string | null
           updated_at?: string | null
-          value_type?: string
         }
         Relationships: [
           {
@@ -5231,6 +5237,14 @@ export type Database = {
           date: string
           error_count: number
           request_count: number
+        }[]
+      }
+      get_files_for_rule_type: {
+        Args: { p_rule_type: string }
+        Returns: {
+          description: string
+          file_path: string
+          file_type: string
         }[]
       }
       get_profile_confidence_trend: {
