@@ -95,7 +95,7 @@ function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-  
+
   if (hours > 0) {
     return `${hours}h ${minutes % 60}m`;
   }
@@ -123,7 +123,7 @@ export default function DocumentProcessingStatusTab({
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const [reprocessingPart, setReprocessingPart] = useState<string | null>(null);
   const [stoppingProcessing, setStoppingProcessing] = useState(false);
-  
+
   // Auto-sequential processing state
   const [autoProcessing, setAutoProcessing] = useState(false);
   const [stopRequested, setStopRequested] = useState(false);
@@ -182,35 +182,35 @@ export default function DocumentProcessingStatusTab({
   // Process a single part
   const processSinglePart = useCallback(async (part: DocumentPart): Promise<boolean> => {
     partStartTimeRef.current = Date.now();
-    
+
     setProcessingStats(prev => ({
       ...prev,
       currentPartNumber: part.part_number,
       currentPartTitle: part.part_title || `Part ${part.part_number}`,
     }));
-    
+
     addLogEntry(`Starting Part ${part.part_number}: ${part.part_title || 'Untitled'}`, "info");
-    
+
     try {
       const { error } = await supabase.functions.invoke("process-multipart-document", {
         body: { documentId, reprocessPartId: part.id },
       });
-      
+
       if (error) throw error;
-      
+
       // Wait for the part to complete processing (poll for status change)
       let attempts = 0;
       const maxAttempts = 180; // 15 minutes max (5s intervals)
-      
+
       while (attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-        
+
         const { data: updatedPart } = await supabase
           .from("document_parts")
           .select("*")
           .eq("id", part.id)
           .single();
-        
+
         if (updatedPart?.status === "processed") {
           const elapsed = Date.now() - partStartTimeRef.current;
           setProcessingStats(prev => ({
@@ -224,7 +224,7 @@ export default function DocumentProcessingStatusTab({
           );
           return true;
         }
-        
+
         if (updatedPart?.status === "failed") {
           setProcessingStats(prev => ({
             ...prev,
@@ -233,21 +233,21 @@ export default function DocumentProcessingStatusTab({
           addLogEntry(`✗ Part ${part.part_number} failed`, "error");
           return false;
         }
-        
+
         // Check if stop was requested
         if (stopRequested) {
           addLogEntry("Stop requested, will halt after current part", "warning");
           break;
         }
-        
+
         attempts++;
       }
-      
+
       if (attempts >= maxAttempts) {
         addLogEntry(`⚠ Part ${part.part_number} timed out after 15 minutes`, "error");
         return false;
       }
-      
+
       return true;
     } catch (error) {
       console.error("Error processing part:", error);
@@ -264,9 +264,9 @@ export default function DocumentProcessingStatusTab({
   const startAutoProcessing = useCallback(async () => {
     if (processingRef.current) return;
     processingRef.current = true;
-    
+
     const partsToProcess = parts.filter(p => p.status === 'pending' || p.status === 'failed');
-    
+
     if (partsToProcess.length === 0) {
       toast({
         title: "No parts to process",
@@ -275,7 +275,7 @@ export default function DocumentProcessingStatusTab({
       processingRef.current = false;
       return;
     }
-    
+
     setAutoProcessing(true);
     setStopRequested(false);
     setProcessingLog([]);
@@ -288,17 +288,17 @@ export default function DocumentProcessingStatusTab({
       startTime: new Date(),
       partTimes: [],
     });
-    
+
     addLogEntry(`Starting sequential processing of ${partsToProcess.length} parts`, "info");
-    
+
     // Update document status to processing
     await supabase
       .from("legal_documents")
       .update({ status: 'processing' })
       .eq("id", documentId);
-    
+
     onRefresh();
-    
+
     // Process parts sequentially
     for (const part of partsToProcess) {
       // Check stop flag
@@ -306,35 +306,35 @@ export default function DocumentProcessingStatusTab({
         addLogEntry("Processing stopped by user", "warning");
         break;
       }
-      
+
       const success = await processSinglePart(part);
-      
+
       if (!success) {
         addLogEntry(`Processing halted due to failure on Part ${part.part_number}. Use 'Process Next Part' to retry or skip.`, "error");
         break;
       }
-      
+
       // Refresh parts data
       await fetchData();
     }
-    
+
     // Check if all parts are processed
     const { data: finalParts } = await supabase
       .from("document_parts")
       .select("status")
       .eq("parent_document_id", documentId);
-    
+
     const allProcessed = finalParts?.every(p => p.status === 'processed');
-    
+
     if (allProcessed) {
       addLogEntry("🎉 All parts processed successfully!", "success");
-      
+
       // Update document status
       await supabase
         .from("legal_documents")
         .update({ status: 'pending' })
         .eq("id", documentId);
-      
+
       toast({
         title: "Processing Complete",
         description: `All ${parts.length} parts have been processed successfully.`,
@@ -346,7 +346,7 @@ export default function DocumentProcessingStatusTab({
         .update({ status: 'pending' })
         .eq("id", documentId);
     }
-    
+
     setAutoProcessing(false);
     processingRef.current = false;
     onRefresh();
@@ -365,7 +365,7 @@ export default function DocumentProcessingStatusTab({
   // Process a single pending/failed part (manual step)
   const processNextPart = async () => {
     const nextPart = parts.find(p => p.status === 'pending' || p.status === 'failed');
-    
+
     if (!nextPart) {
       toast({
         title: "All parts processed",
@@ -373,22 +373,22 @@ export default function DocumentProcessingStatusTab({
       });
       return;
     }
-    
+
     setReprocessingPart(nextPart.id);
     addLogEntry(`Manually processing Part ${nextPart.part_number}`, "info");
-    
+
     try {
       const { error } = await supabase.functions.invoke("process-multipart-document", {
         body: { documentId, reprocessPartId: nextPart.id },
       });
-      
+
       if (error) throw error;
-      
+
       toast({
         title: `Processing Part ${nextPart.part_number}`,
         description: `${nextPart.part_title || 'Untitled'} is being processed.`,
       });
-      
+
       fetchData();
       onRefresh();
     } catch (error) {
@@ -491,8 +491,13 @@ export default function DocumentProcessingStatusTab({
     };
   }, [documentId, isMultiPart]);
 
+  // Manual polling control - allow users to stop polling
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+
   // Polling fallback for when realtime isn't working
+  // Only poll if explicitly enabled AND (processing or auto-processing)
   useEffect(() => {
+    if (!pollingEnabled) return;
     if (!isProcessing && !autoProcessing) return;
 
     const interval = setInterval(() => {
@@ -500,8 +505,17 @@ export default function DocumentProcessingStatusTab({
       onRefresh();
     }, 5000);
 
-    return () => clearInterval(interval);
-  }, [isProcessing, autoProcessing, fetchData, onRefresh]);
+    // Auto-disable polling after 30 minutes to prevent infinite loops
+    const timeout = setTimeout(() => {
+      console.log('[DocumentProcessingStatusTab] Polling auto-disabled after 30 minutes');
+      setPollingEnabled(false);
+    }, 30 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [isProcessing, autoProcessing, fetchData, onRefresh, pollingEnabled]);
 
   const toggleEventExpanded = (eventId: string) => {
     setExpandedEvents((prev) => {
@@ -521,7 +535,7 @@ export default function DocumentProcessingStatusTab({
     if (part) {
       addLogEntry(`Reprocessing Part ${part.part_number}`, "info");
     }
-    
+
     try {
       const { error } = await supabase.functions.invoke("process-multipart-document", {
         body: { documentId, reprocessPartId: partId },
@@ -579,12 +593,12 @@ export default function DocumentProcessingStatusTab({
     if (processingStats.partTimes.length === 0) {
       return { avgTime: 0, remainingTime: 0, elapsedTime: 0 };
     }
-    
+
     const avgTime = processingStats.partTimes.reduce((a, b) => a + b, 0) / processingStats.partTimes.length;
     const remainingParts = processingStats.totalParts - processingStats.completedParts - processingStats.failedParts;
     const remainingTime = remainingParts * avgTime;
     const elapsedTime = processingStats.startTime ? Date.now() - processingStats.startTime.getTime() : 0;
-    
+
     return { avgTime, remainingTime, elapsedTime };
   };
 
@@ -644,8 +658,8 @@ export default function DocumentProcessingStatusTab({
             <div className="flex items-center gap-3">
               <div className={cn(
                 "p-2 rounded-full",
-                autoProcessing ? "bg-primary/20" : 
-                completedPartsCount === parts.length ? "bg-green-500/20" : "bg-muted"
+                autoProcessing ? "bg-primary/20" :
+                  completedPartsCount === parts.length ? "bg-green-500/20" : "bg-muted"
               )}>
                 {autoProcessing ? (
                   <Activity className="w-5 h-5 text-primary animate-pulse" />
@@ -657,18 +671,18 @@ export default function DocumentProcessingStatusTab({
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">
-                  {autoProcessing 
+                  {autoProcessing
                     ? `Processing Part ${processingStats.currentPartNumber} of ${parts.length}`
-                    : completedPartsCount === parts.length 
-                    ? "All Parts Processed"
-                    : `${completedPartsCount} of ${parts.length} parts complete`}
+                    : completedPartsCount === parts.length
+                      ? "All Parts Processed"
+                      : `${completedPartsCount} of ${parts.length} parts complete`}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {autoProcessing && processingStats.currentPartTitle 
+                  {autoProcessing && processingStats.currentPartTitle
                     ? processingStats.currentPartTitle
-                    : hasPendingParts 
-                    ? `${pendingParts.length} parts remaining`
-                    : "Ready for review"}
+                    : hasPendingParts
+                      ? `${pendingParts.length} parts remaining`
+                      : "Ready for review"}
                 </p>
               </div>
             </div>
@@ -680,11 +694,11 @@ export default function DocumentProcessingStatusTab({
                   Start Processing All ({pendingParts.length} parts)
                 </Button>
               )}
-              
+
               {/* Stop Button */}
               {autoProcessing && (
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   onClick={stopAutoProcessing}
                   disabled={stopRequested}
                   className="gap-2"
@@ -697,11 +711,11 @@ export default function DocumentProcessingStatusTab({
                   {stopRequested ? "Stopping..." : "Stop After Current Part"}
                 </Button>
               )}
-              
+
               {/* Manual single-step */}
               {!autoProcessing && hasPendingParts && (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={processNextPart}
                   disabled={reprocessingPart !== null}
                   className="gap-2"
@@ -714,17 +728,29 @@ export default function DocumentProcessingStatusTab({
                   Process Next Part Only
                 </Button>
               )}
-              
-              <Button variant="ghost" size="icon" onClick={fetchData}>
+
+              <Button variant="ghost" size="icon" onClick={fetchData} title="Refresh data">
                 <RefreshCw className="w-4 h-4" />
               </Button>
+              {/* Pause/Resume polling toggle */}
+              {(isProcessing || autoProcessing) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPollingEnabled(!pollingEnabled)}
+                  className="text-xs"
+                  title={pollingEnabled ? "Pause auto-refresh" : "Resume auto-refresh"}
+                >
+                  {pollingEnabled ? "⏸️ Pause" : "▶️ Resume"}
+                </Button>
+              )}
             </div>
           </div>
 
           {/* Enhanced Progress Bar */}
           <div className="space-y-2">
-            <Progress 
-              value={(completedPartsCount / parts.length) * 100} 
+            <Progress
+              value={(completedPartsCount / parts.length) * 100}
               className="h-3"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -758,7 +784,7 @@ export default function DocumentProcessingStatusTab({
       {/* Live Processing Log */}
       {isMultiPart && processingLog.length > 0 && (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div 
+          <div
             className="p-3 bg-muted/30 flex items-center justify-between cursor-pointer"
             onClick={() => setLogExpanded(!logExpanded)}
           >
@@ -774,8 +800,8 @@ export default function DocumentProcessingStatusTab({
           {logExpanded && (
             <div className="p-3 max-h-[200px] overflow-y-auto font-mono text-xs space-y-1 bg-background">
               {processingLog.map((entry, i) => (
-                <div 
-                  key={i} 
+                <div
+                  key={i}
                   className={cn(
                     "flex gap-2",
                     entry.type === 'error' && "text-destructive",
@@ -800,8 +826,8 @@ export default function DocumentProcessingStatusTab({
             <div className="flex items-center gap-3">
               <div className={cn(
                 "p-2 rounded-full",
-                isProcessing ? "bg-primary/20" : 
-                documentStatus === "pending" ? "bg-green-500/20" : "bg-muted"
+                isProcessing ? "bg-primary/20" :
+                  documentStatus === "pending" ? "bg-green-500/20" : "bg-muted"
               )}>
                 {isProcessing ? (
                   <Activity className="w-5 h-5 text-primary animate-pulse" />
@@ -814,9 +840,9 @@ export default function DocumentProcessingStatusTab({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-foreground">
-                    {isProcessing ? "Processing in Progress" : 
-                     documentStatus === "pending" || documentStatus === "active" ? "Processing Complete" : 
-                     "Awaiting Processing"}
+                    {isProcessing ? "Processing in Progress" :
+                      documentStatus === "pending" || documentStatus === "active" ? "Processing Complete" :
+                        "Awaiting Processing"}
                   </h3>
                   {/* Processing Mode Badge */}
                   {processingMode && (
@@ -836,8 +862,8 @@ export default function DocumentProcessingStatusTab({
                   {isProcessing && currentStage
                     ? `Currently: ${currentStage.replace(/_/g, " ")}`
                     : documentStatus === "pending" || documentStatus === "active"
-                    ? "Document ready for review"
-                    : "Document has not been processed yet"}
+                      ? "Document ready for review"
+                      : "Document has not been processed yet"}
                 </p>
               </div>
             </div>
@@ -849,9 +875,9 @@ export default function DocumentProcessingStatusTab({
                 </div>
               )}
               {showStopButton && !isMultiPart && (
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={async () => {
                     setStoppingProcessing(true);
                     try {
@@ -861,16 +887,16 @@ export default function DocumentProcessingStatusTab({
                         .select("metadata")
                         .eq("id", documentId)
                         .single();
-                      
+
                       const currentMetadata = (doc?.metadata as Record<string, unknown>) || {};
-                      
+
                       await supabase
                         .from("legal_documents")
                         .update({
                           metadata: { ...currentMetadata, abort_requested: true },
                         })
                         .eq("id", documentId);
-                      
+
                       toast({
                         title: "Stop Requested",
                         description: "Processing will stop after the current part completes.",
@@ -938,10 +964,10 @@ export default function DocumentProcessingStatusTab({
                     isCompleted
                       ? "bg-green-500/10 border-green-500/30 text-green-500"
                       : isFailed
-                      ? "bg-destructive/10 border-destructive/30 text-destructive"
-                      : isInProgress
-                      ? "bg-primary/10 border-primary/30 text-primary"
-                      : "bg-muted/50 border-border text-muted-foreground"
+                        ? "bg-destructive/10 border-destructive/30 text-destructive"
+                        : isInProgress
+                          ? "bg-primary/10 border-primary/30 text-primary"
+                          : "bg-muted/50 border-border text-muted-foreground"
                   )}
                 >
                   {isInProgress ? (
@@ -990,14 +1016,14 @@ export default function DocumentProcessingStatusTab({
                 </tr>
               </thead>
               <tbody>
-              {parts.map((part) => {
+                {parts.map((part) => {
                   const hasIssue =
                     part.status === "processed" &&
                     ((part.provisions_count || 0) > 0 && (part.rules_count || 0) === 0);
 
                   // Detect stuck/timed-out parts (processing > 15 minutes)
-                  const updatedAt = part.updated_at 
-                    ? new Date(part.updated_at).getTime() 
+                  const updatedAt = part.updated_at
+                    ? new Date(part.updated_at).getTime()
                     : 0;
                   const fifteenMinutes = 15 * 60 * 1000;
                   const isStuck = part.status === 'processing' && (Date.now() - updatedAt > fifteenMinutes);
@@ -1026,10 +1052,10 @@ export default function DocumentProcessingStatusTab({
                               part.status === "processed"
                                 ? "text-green-500"
                                 : part.status === "processing"
-                                ? isStuck ? "text-destructive" : "text-primary"
-                                : part.status === "failed"
-                                ? "text-destructive"
-                                : "text-muted-foreground"
+                                  ? isStuck ? "text-destructive" : "text-primary"
+                                  : part.status === "failed"
+                                    ? "text-destructive"
+                                    : "text-muted-foreground"
                             )}
                           >
                             {part.status}
