@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
     FileText,
     Building2,
@@ -92,7 +92,21 @@ export default function AdminCompliance() {
     });
     const [savingBody, setSavingBody] = useState(false);
 
+    // Debounce ref for realtime updates
+    const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const debouncedRefresh = useCallback(() => {
+        if (refreshTimeoutRef.current) {
+            clearTimeout(refreshTimeoutRef.current);
+        }
+        refreshTimeoutRef.current = setTimeout(() => {
+            fetchRegulatoryBodiesWithCounts();
+        }, 500);
+    }, []);
+
     useEffect(() => {
+        let mounted = true;
+
         fetchData();
         getCurrentUser();
 
@@ -103,16 +117,22 @@ export default function AdminCompliance() {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'legal_documents' },
                 () => {
-                    // Refresh regulatory body document counts
-                    fetchRegulatoryBodiesWithCounts();
+                    // Debounced refresh with mount guard
+                    if (mounted) {
+                        debouncedRefresh();
+                    }
                 }
             )
             .subscribe();
 
         return () => {
+            mounted = false;
+            if (refreshTimeoutRef.current) {
+                clearTimeout(refreshTimeoutRef.current);
+            }
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [debouncedRefresh]);
 
     async function getCurrentUser() {
         const { data: { user } } = await supabase.auth.getUser();

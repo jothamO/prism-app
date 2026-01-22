@@ -52,6 +52,8 @@ export default function ComplianceNotificationCenter({
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    let mounted = true;
+
     fetchNotifications();
     fetchPreferences();
 
@@ -67,13 +69,16 @@ export default function ComplianceNotificationCenter({
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          setNotifications((prev) => [payload.new as Notification, ...prev]);
-          setUnreadCount((prev) => prev + 1);
+          if (mounted) {
+            setNotifications((prev) => [payload.new as Notification, ...prev]);
+            setUnreadCount((prev) => prev + 1);
+          }
         }
       )
       .subscribe();
 
     return () => {
+      mounted = false;
       supabase.removeChannel(channel);
     };
   }, [userId]);
