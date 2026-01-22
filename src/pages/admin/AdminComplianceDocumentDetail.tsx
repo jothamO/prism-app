@@ -134,7 +134,7 @@ export default function AdminComplianceDocumentDetail() {
     if (id) fetchDocument();
   }, [id]);
 
-  async function fetchDocument() {
+  const fetchDocument = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch document
@@ -148,7 +148,7 @@ export default function AdminComplianceDocumentDetail() {
         .single();
 
       if (docError) throw docError;
-      
+
       // Type assertion for JSONB fields
       const typedDoc = {
         ...doc,
@@ -183,7 +183,7 @@ export default function AdminComplianceDocumentDetail() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id, toast]);
 
   async function updateStatus(newStatus: string) {
     if (!document) return;
@@ -191,7 +191,7 @@ export default function AdminComplianceDocumentDetail() {
     try {
       const { error } = await supabase
         .from("legal_documents")
-        .update({ 
+        .update({
           status: newStatus,
           needs_human_review: false,
           reviewed_at: new Date().toISOString(),
@@ -235,7 +235,7 @@ export default function AdminComplianceDocumentDetail() {
         // Clear abort flag if previously set
         const currentMetadata = (document.metadata as Record<string, unknown>) || {};
         const { abort_requested, ...cleanMetadata } = currentMetadata;
-        
+
         await supabase
           .from("legal_documents")
           .update({
@@ -486,7 +486,7 @@ export default function AdminComplianceDocumentDetail() {
       // Update the document's effective date
       const { error: docError } = await supabase
         .from("legal_documents")
-        .update({ 
+        .update({
           effective_date: newDate,
           updated_at: new Date().toISOString(),
         })
@@ -505,10 +505,10 @@ export default function AdminComplianceDocumentDetail() {
       // Clear the date mismatch warning from metadata
       const currentMetadata = document.metadata || {};
       const { date_mismatch_warning, ...cleanMetadata } = currentMetadata;
-      
+
       await supabase
         .from("legal_documents")
-        .update({ 
+        .update({
           metadata: cleanMetadata,
           needs_human_review: false,
         })
@@ -753,7 +753,7 @@ export default function AdminComplianceDocumentDetail() {
       {/* Tabs */}
       <div className="border-b border-border">
         <nav className="flex gap-4 overflow-x-auto">
-          {(document.is_multi_part 
+          {(document.is_multi_part
             ? ["overview", "summary", "processing", "parts", "provisions", "rules", "raw"] as const
             : ["overview", "summary", "processing", "provisions", "rules", "raw"] as const
           ).map((tab) => (
@@ -902,8 +902,8 @@ export default function AdminComplianceDocumentDetail() {
         )}
 
         {activeTab === "parts" && document.is_multi_part && (
-          <DocumentPartsView 
-            documentId={document.id} 
+          <DocumentPartsView
+            documentId={document.id}
             onReprocessComplete={fetchDocument}
           />
         )}
