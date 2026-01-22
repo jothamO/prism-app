@@ -122,7 +122,7 @@ export default function AdminDashboard() {
           .limit(2),
         supabase
           .from('review_queue')
-          .select('id, issue_type, priority, created_at')
+          .select('id, type, priority, created_at')
           .order('created_at', { ascending: false })
           .limit(2),
         supabase
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
           id: `review-${r.id}`,
           type: "review",
           title: "Review item added",
-          description: `${r.issue_type || 'Issue'} - ${r.priority || 'normal'} priority`,
+          description: `${r.type || 'Issue'} - ${r.priority || 'normal'} priority`,
           timestamp: r.created_at,
           icon: ShieldAlert,
           iconColor: "text-orange-400"
