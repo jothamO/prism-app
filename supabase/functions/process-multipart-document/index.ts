@@ -66,9 +66,11 @@ const VALID_RULE_TYPES = [
 ];
 
 // Rule categories for chunked extraction - prevents JSON truncation on large documents
+// IMPORTANT: tax_band is separate from tax_rate to ensure graduated brackets are extracted
 const RULE_CATEGORIES = [
-    { type: 'tax_rate', description: 'tax rates, percentages, and rate bands' },
-    { type: 'threshold', description: 'monetary thresholds, limits, and brackets' },
+    { type: 'tax_band', description: 'graduated tax brackets with income thresholds and corresponding rates (e.g., PIT bands like First N800,000 at 0%, Next N2,200,000 at 15%)' },
+    { type: 'tax_rate', description: 'flat tax rates and fixed percentages (NOT graduated tax bands)' },
+    { type: 'threshold', description: 'monetary thresholds, limits, and caps' },
     { type: 'exemption', description: 'exemptions, exclusions, and zero-rated items' },
     { type: 'deadline', description: 'filing deadlines, due dates, and time limits' },
     { type: 'penalty', description: 'penalties, interest rates, and fines' },
@@ -421,11 +423,51 @@ ${part.raw_text.substring(0, 60000)}`;
                     
                     const categorySystemPrompt = `You are a legal document analyst specializing in Nigerian tax law. Extract ONLY ${category.description} and return them as a JSON array.`;
                     
-                    const categoryUserMessage = `Analyze Part ${part.part_number} of "${parentDoc.title}".
+                    // Special handling for tax_band category - requires explicit examples for graduated structures
+                    let categoryUserMessage: string;
+                    
+                    if (category.type === 'tax_band') {
+                        categoryUserMessage = `Analyze Part ${part.part_number} of "${parentDoc.title}".
+
+CRITICAL: Extract ALL graduated tax bracket structures. Each bracket/band must be a SEPARATE rule.
+
+For Personal Income Tax (PIT) bands from Section 58 or Fourth Schedule, extract EACH band separately:
+- PIT_BAND_1: First N800,000 at 0%
+- PIT_BAND_2: Next N2,200,000 at 15%
+- PIT_BAND_3: Next N9,000,000 at 18%
+- PIT_BAND_4: Next N13,000,000 at 21%
+- PIT_BAND_5: Next N25,000,000 at 23%
+- PIT_BAND_6: Above N50,000,000 at 25%
+
+For Company Income Tax (CIT) graduated bands, extract similarly.
+For Capital Gains Tax (CGT) bands, extract similarly.
+
+For each graduated band provide:
+- rule_code: e.g., "PIT_BAND_1", "CIT_BAND_1" (unique for each band)
+- rule_name: e.g., "Personal Income Tax - Band 1 (0%)"
+- rule_type: "tax_band"
+- description: Brief description of this specific band
+- conditions: { "applies_to": "individuals/companies", "band_number": 1 }
+- parameters: {
+    "band_number": 1,
+    "lower_limit": 0,
+    "upper_limit": 800000,
+    "rate_percentage": 0,
+    "cumulative_income_at_band_end": 800000,
+    "band_description": "First N800,000"
+  }
+- actions: { "tax_calculation": "apply rate to income within band" }
+
+Return JSON array of ALL tax bands found. If no graduated tax structures found, return empty array [].
+
+Document text:
+${part.raw_text.substring(0, 50000)}`;
+                    } else {
+                        categoryUserMessage = `Analyze Part ${part.part_number} of "${parentDoc.title}".
 Extract ONLY rules related to ${category.description}. Return maximum 15 rules for this category.
 
 For each rule, provide:
-- rule_code: Unique code (e.g., "PIT_BAND_1", "VAT_RATE_STANDARD")
+- rule_code: Unique code (e.g., "VAT_RATE_STANDARD", "WHT_THRESHOLD")
 - rule_name: Human readable name
 - rule_type: One of [${VALID_RULE_TYPES.join(", ")}]
 - description: Brief description (max 100 words)
@@ -437,6 +479,7 @@ Return JSON array of rules. If no ${category.description} found, return empty ar
 
 Document text:
 ${part.raw_text.substring(0, 50000)}`;
+                    }
 
                     const categoryRules = await callClaudeJSON<ExtractedRule[]>(categorySystemPrompt, categoryUserMessage);
                     
@@ -784,27 +827,41 @@ function deduplicateProvisions(
 }
 
 /**
- * Deduplicate rules based on rule_code
+ * Deduplicate rules based on rule_code AND semantic similarity (name + type)
+ * This prevents both exact duplicates and semantic duplicates with different codes
  */
 function deduplicateRules(
     rules: (ExtractedRule & { source_part_id: string })[]
 ): (ExtractedRule & { source_part_id: string })[] {
-    const seen = new Map<string, (ExtractedRule & { source_part_id: string })>();
+    const seenByCode = new Map<string, (ExtractedRule & { source_part_id: string })>();
+    const seenByNameAndType = new Map<string, string>(); // Maps name+type key to rule_code
 
     for (const rule of rules) {
-        const key = normalizeText(rule.rule_code);
+        const codeKey = normalizeText(rule.rule_code);
+        const nameTypeKey = `${normalizeText(rule.rule_name)}_${rule.rule_type}`;
 
-        if (!seen.has(key)) {
-            seen.set(key, rule);
-        } else {
-            // Merge parameters if they differ
-            const existing = seen.get(key)!;
+        // Check if we've seen this exact rule_code
+        if (seenByCode.has(codeKey)) {
+            // Merge parameters from duplicate
+            const existing = seenByCode.get(codeKey)!;
             const mergedParams = { ...existing.parameters, ...rule.parameters };
-            seen.set(key, { ...existing, parameters: mergedParams });
+            seenByCode.set(codeKey, { ...existing, parameters: mergedParams });
+            console.log(`[dedup] Merged duplicate rule_code: ${rule.rule_code}`);
+        } 
+        // Check if semantic duplicate (same name + type but different code)
+        else if (seenByNameAndType.has(nameTypeKey)) {
+            const existingCode = seenByNameAndType.get(nameTypeKey)!;
+            console.log(`[dedup] Skipping semantic duplicate: ${rule.rule_code} (same as ${existingCode})`);
+            // Skip this rule - it's a semantic duplicate
+        } 
+        else {
+            // New unique rule
+            seenByCode.set(codeKey, rule);
+            seenByNameAndType.set(nameTypeKey, rule.rule_code);
         }
     }
 
-    return Array.from(seen.values());
+    return Array.from(seenByCode.values());
 }
 
 /**
