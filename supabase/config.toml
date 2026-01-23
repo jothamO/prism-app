@@ -146,3 +146,6 @@ verify_jwt = false
 
 [functions.generate-deadline-content]
 verify_jwt = false
+
+[functions.regenerate-prism-impact]
+verify_jwt = false
