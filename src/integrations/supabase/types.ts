@@ -1901,6 +1901,7 @@ export type Database = {
           effective_to: string | null
           id: string
           is_active: boolean | null
+          law_reference: string | null
           parameters: Json | null
           previous_version_id: string | null
           priority: number | null
@@ -1911,6 +1912,7 @@ export type Database = {
           section_reference: string | null
           sector: string | null
           source_part_id: string | null
+          tax_regime: string | null
           tax_types: string[] | null
           updated_at: string | null
           version: number | null
@@ -1926,6 +1928,7 @@ export type Database = {
           effective_to?: string | null
           id?: string
           is_active?: boolean | null
+          law_reference?: string | null
           parameters?: Json | null
           previous_version_id?: string | null
           priority?: number | null
@@ -1936,6 +1939,7 @@ export type Database = {
           section_reference?: string | null
           sector?: string | null
           source_part_id?: string | null
+          tax_regime?: string | null
           tax_types?: string[] | null
           updated_at?: string | null
           version?: number | null
@@ -1951,6 +1955,7 @@ export type Database = {
           effective_to?: string | null
           id?: string
           is_active?: boolean | null
+          law_reference?: string | null
           parameters?: Json | null
           previous_version_id?: string | null
           priority?: number | null
@@ -1961,6 +1966,7 @@ export type Database = {
           section_reference?: string | null
           sector?: string | null
           source_part_id?: string | null
+          tax_regime?: string | null
           tax_types?: string[] | null
           updated_at?: string | null
           version?: number | null
@@ -5333,6 +5339,42 @@ export type Database = {
           item_pattern: string
           similarity: number
         }[]
+      }
+      get_active_rules_for_type: {
+        Args: { p_rule_type: string; p_tax_year?: number }
+        Returns: {
+          actions: Json | null
+          applies_to: string[] | null
+          conditions: Json | null
+          created_at: string | null
+          description: string | null
+          document_id: string | null
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          is_active: boolean | null
+          law_reference: string | null
+          parameters: Json | null
+          previous_version_id: string | null
+          priority: number | null
+          provision_id: string | null
+          rule_code: string | null
+          rule_name: string
+          rule_type: string
+          section_reference: string | null
+          sector: string | null
+          source_part_id: string | null
+          tax_regime: string | null
+          tax_types: string[] | null
+          updated_at: string | null
+          version: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "compliance_rules"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_api_usage_stats: {
         Args: { p_key_id: string }
