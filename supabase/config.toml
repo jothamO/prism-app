@@ -152,3 +152,6 @@ verify_jwt = false
 
 [functions.recover-document-data]
 verify_jwt = false
+
+[functions.compliance-automations]
+verify_jwt = false

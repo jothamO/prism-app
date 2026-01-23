@@ -3229,6 +3229,7 @@ export type Database = {
       }
       notification_history: {
         Row: {
+          automation_type: string | null
           id: string
           metadata: Json | null
           notification_key: string
@@ -3239,6 +3240,7 @@ export type Database = {
           sent_at: string | null
         }
         Insert: {
+          automation_type?: string | null
           id?: string
           metadata?: Json | null
           notification_key: string
@@ -3249,6 +3251,7 @@ export type Database = {
           sent_at?: string | null
         }
         Update: {
+          automation_type?: string | null
           id?: string
           metadata?: Json | null
           notification_key?: string
