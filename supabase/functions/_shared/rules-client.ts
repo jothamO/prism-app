@@ -40,8 +40,8 @@ export interface RulesCache {
 let rulesCache: RulesCache | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// Fallback values (used if database is unavailable)
-const FALLBACK_TAX_BANDS: TaxBand[] = [
+// Fallback values for 2026+ (Nigeria Tax Act)
+const FALLBACK_TAX_BANDS_2026: TaxBand[] = [
   { min: 0, max: 800000, rate: 0, label: "First ₦800,000" },
   { min: 800000, max: 3000000, rate: 0.15, label: "₦800,001 - ₦3,000,000" },
   { min: 3000000, max: 12000000, rate: 0.18, label: "₦3,000,001 - ₦12,000,000" },
@@ -50,9 +50,39 @@ const FALLBACK_TAX_BANDS: TaxBand[] = [
   { min: 50000000, max: null, rate: 0.25, label: "Above ₦50,000,000" },
 ];
 
-const FALLBACK_VAT_RATE = 0.075;
+// Fallback values for Pre-2026 (PITA 2011)
+const FALLBACK_TAX_BANDS_PRE2026: TaxBand[] = [
+  { min: 0, max: 300000, rate: 0.07, label: "First ₦300,000" },
+  { min: 300000, max: 600000, rate: 0.11, label: "₦300,001 - ₦600,000" },
+  { min: 600000, max: 1100000, rate: 0.15, label: "₦600,001 - ₦1,100,000" },
+  { min: 1100000, max: 1600000, rate: 0.19, label: "₦1,100,001 - ₦1,600,000" },
+  { min: 1600000, max: 3200000, rate: 0.21, label: "₦1,600,001 - ₦3,200,000" },
+  { min: 3200000, max: null, rate: 0.24, label: "Above ₦3,200,000" },
+];
+
+// Legacy alias (defaults to 2026)
+const FALLBACK_TAX_BANDS = FALLBACK_TAX_BANDS_2026;
+
+const FALLBACK_VAT_RATE = 0.075;  // Same for both pre-2026 and 2026
 const FALLBACK_EMTL = { amount: 50, threshold: 10000 };
 const FALLBACK_MINIMUM_WAGE = { annual: 840000, monthly: 70000 };
+
+/**
+ * Get fallback tax bands based on tax year
+ */
+export function getFallbackTaxBands(taxYear?: number): TaxBand[] {
+  const year = taxYear || new Date().getFullYear();
+  return year <= 2025 ? FALLBACK_TAX_BANDS_PRE2026 : FALLBACK_TAX_BANDS_2026;
+}
+
+/**
+ * Helper to get rules for a specific tax year
+ */
+export async function getRulesForTaxYear(ruleType: string, taxYear: number): Promise<TaxRule[]> {
+  // Use December 31 of the tax year as the reference date
+  const asOfDate = new Date(taxYear, 11, 31);  // Dec 31 of tax year
+  return getActiveRules(ruleType, asOfDate);
+}
 
 /**
  * Get Supabase client for rules fetching
