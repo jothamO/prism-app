@@ -45,6 +45,7 @@ interface PRISMImpactSummaryTabProps {
   criticality: Criticality | null;
   impactReviewed: boolean;
   impactReviewedAt: string | null;
+  isMultiPart?: boolean;
   onRefresh: () => void;
 }
 
@@ -74,6 +75,7 @@ export default function PRISMImpactSummaryTab({
   criticality,
   impactReviewed,
   impactReviewedAt,
+  isMultiPart = false,
   onRefresh,
 }: PRISMImpactSummaryTabProps) {
   const { toast } = useToast();
@@ -159,25 +161,42 @@ export default function PRISMImpactSummaryTab({
   };
 
   const handleRegenerate = async () => {
-    if (!rawText) {
-      toast({ title: 'Cannot regenerate', description: 'No raw text available', variant: 'destructive' });
-      return;
-    }
-
     setRegenerating(true);
     try {
-      const { error } = await supabase.functions.invoke('process-compliance-document', {
-        body: {
-          documentId,
-          extractedText: rawText,
-          documentType,
-          title: documentTitle,
-        },
-      });
+      if (isMultiPart) {
+        // Use safe regeneration for multi-part documents - does NOT delete provisions/rules
+        const { error } = await supabase.functions.invoke('regenerate-prism-impact', {
+          body: { documentId },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({ title: 'Regeneration complete', description: 'Impact analysis has been regenerated' });
+        toast({ 
+          title: 'Regeneration complete', 
+          description: 'Impact analysis regenerated from existing provisions and rules' 
+        });
+      } else {
+        // Single document - use original flow (only if rawText exists)
+        if (!rawText) {
+          toast({ title: 'Cannot regenerate', description: 'No raw text available', variant: 'destructive' });
+          setRegenerating(false);
+          return;
+        }
+
+        const { error } = await supabase.functions.invoke('process-compliance-document', {
+          body: {
+            documentId,
+            extractedText: rawText,
+            documentType,
+            title: documentTitle,
+          },
+        });
+
+        if (error) throw error;
+
+        toast({ title: 'Regeneration complete', description: 'Document has been reprocessed' });
+      }
+
       onRefresh();
     } catch (error) {
       console.error('Error regenerating:', error);

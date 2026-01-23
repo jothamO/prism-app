@@ -883,6 +883,7 @@ export default function AdminComplianceDocumentDetail() {
             criticality={document.criticality}
             impactReviewed={document.impact_reviewed || false}
             impactReviewedAt={document.impact_reviewed_at}
+            isMultiPart={document.is_multi_part || false}
             onRefresh={fetchDocument}
           />
         )}
