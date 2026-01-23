@@ -132,6 +132,9 @@ export default function AdminComplianceDocumentDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [documentParts, setDocumentParts] = useState<{ id: string; metadata: Record<string, unknown> | null }[]>([]);
+  
+  // Lifted auto-processing state - persists across child re-renders
+  const [isAutoProcessing, setIsAutoProcessing] = useState(false);
 
   useEffect(() => {
     if (id) fetchDocument();
@@ -963,6 +966,8 @@ export default function AdminComplianceDocumentDetail() {
             currentStage={(document.metadata as Record<string, unknown> | null)?.current_processing_stage as string | null}
             processingProgress={(document.metadata as Record<string, unknown> | null)?.processing_progress as number | undefined}
             onRefresh={fetchDocument}
+            isAutoProcessing={isAutoProcessing}
+            setIsAutoProcessing={setIsAutoProcessing}
           />
         )}
 

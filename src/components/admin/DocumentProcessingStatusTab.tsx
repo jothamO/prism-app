@@ -61,6 +61,9 @@ interface ProcessingStatusTabProps {
   currentStage?: string | null;
   processingProgress?: number;
   onRefresh: () => void;
+  // Parent-controlled processing state (persists across re-renders)
+  isAutoProcessing?: boolean;
+  setIsAutoProcessing?: (value: boolean) => void;
 }
 
 interface ProcessingLogEntry {
@@ -115,6 +118,8 @@ export default function DocumentProcessingStatusTab({
   currentStage,
   processingProgress = 0,
   onRefresh,
+  isAutoProcessing,
+  setIsAutoProcessing,
 }: ProcessingStatusTabProps) {
   const { toast } = useToast();
   const [events, setEvents] = useState<ProcessingEvent[]>([]);
@@ -124,8 +129,11 @@ export default function DocumentProcessingStatusTab({
   const [reprocessingPart, setReprocessingPart] = useState<string | null>(null);
   const [stoppingProcessing, setStoppingProcessing] = useState(false);
 
-  // Auto-sequential processing state
-  const [autoProcessing, setAutoProcessing] = useState(false);
+  // Use parent-controlled state if available, otherwise fall back to local state
+  const [localAutoProcessing, setLocalAutoProcessing] = useState(false);
+  const autoProcessing = isAutoProcessing ?? localAutoProcessing;
+  const setAutoProcessing = setIsAutoProcessing ?? setLocalAutoProcessing;
+  
   const [stopRequested, setStopRequested] = useState(false);
   const [processingInitiating, setProcessingInitiating] = useState(false);
   const stopRequestedRef = useRef(false);
@@ -305,7 +313,8 @@ export default function DocumentProcessingStatusTab({
       .update({ status: 'processing' })
       .eq("id", documentId);
 
-    onRefresh();
+    // Note: NOT calling onRefresh() here - it would reset component state
+    // Real-time subscriptions handle UI updates
 
     // Process parts sequentially
     for (const part of partsToProcess) {
