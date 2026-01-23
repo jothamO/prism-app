@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Clock,
   Copy,
+  ArrowRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,15 @@ interface ComplianceRule {
   document?: { title: string };
 }
 
+interface DuplicateRule {
+  rule_code_1: string;
+  rule_name_1: string;
+  rule_code_2: string;
+  rule_name_2: string;
+  similarity_score: number;
+  duplicate_reason: string;
+}
+
 const RULE_TYPES = [
   { value: "all", label: "All Types" },
   { value: "tax_rate", label: "Tax Rate" },
@@ -60,7 +70,7 @@ export default function AdminComplianceRules() {
   const [rules, setRules] = useState<ComplianceRule[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive" | "duplicates">("all");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Bulk selection state
@@ -77,14 +87,31 @@ export default function AdminComplianceRules() {
   }[]>([]);
 
   // Duplicate rules detection
-  const [duplicateRules, setDuplicateRules] = useState<{
-    rule_code_1: string;
-    rule_name_1: string;
-    rule_code_2: string;
-    rule_name_2: string;
-    similarity_score: number;
-    duplicate_reason: string;
-  }[]>([]);
+  const [duplicateRules, setDuplicateRules] = useState<DuplicateRule[]>([]);
+
+  // Create a Set of duplicate rule codes for quick lookup
+  const duplicateRuleCodes = useMemo(() => {
+    const codes = new Set<string>();
+    duplicateRules.forEach(dup => {
+      if (dup.rule_code_1) codes.add(dup.rule_code_1);
+      if (dup.rule_code_2) codes.add(dup.rule_code_2);
+    });
+    return codes;
+  }, [duplicateRules]);
+
+  // Helper to find duplicate match for a rule
+  const getDuplicateMatch = (ruleCode: string | null): DuplicateRule & { matchCode: string; matchName: string } | null => {
+    if (!ruleCode) return null;
+    const match = duplicateRules.find(
+      d => d.rule_code_1 === ruleCode || d.rule_code_2 === ruleCode
+    );
+    if (!match) return null;
+    return {
+      ...match,
+      matchCode: match.rule_code_1 === ruleCode ? match.rule_code_2 : match.rule_code_1,
+      matchName: match.rule_code_1 === ruleCode ? match.rule_name_2 : match.rule_name_1,
+    };
+  };
 
   useEffect(() => {
     fetchRules();
@@ -241,7 +268,8 @@ export default function AdminComplianceRules() {
     const matchesActive =
       filterActive === "all" ||
       (filterActive === "active" && rule.is_active) ||
-      (filterActive === "inactive" && !rule.is_active);
+      (filterActive === "inactive" && !rule.is_active) ||
+      (filterActive === "duplicates" && duplicateRuleCodes.has(rule.rule_code || ""));
 
     return matchesSearch && matchesType && matchesActive;
   });
@@ -273,74 +301,77 @@ export default function AdminComplianceRules() {
           <p className="text-muted-foreground">AI-generated rules from legal documents</p>
         </div>
         <div className="flex items-center gap-3">
-
-          {/* Expiring Rules Alert (V9 Fact-Grounded AI) */}
-          {expiringRules.length > 0 && (
-            <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-                <div>
-                  <h3 className="font-medium text-amber-500">Rules Expiring Soon</h3>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {expiringRules.length} rule(s) will expire within 30 days:
-                  </p>
-                  <ul className="text-sm space-y-1">
-                    {expiringRules.slice(0, 5).map((rule) => (
-                      <li key={rule.id} className="flex items-center gap-2">
-                        <Clock className="w-3 h-3 text-amber-500" />
-                        <span className="font-mono text-xs">{rule.rule_code || rule.rule_name}</span>
-                        <span className="text-muted-foreground">- {rule.days_until_expiration} days left</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {expiringRules.length > 5 && (
-                    <p className="text-xs text-muted-foreground mt-1">...and {expiringRules.length - 5} more</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Duplicate Rules Alert */}
-          {duplicateRules.length > 0 && (
-            <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Copy className="w-5 h-5 text-red-500 mt-0.5" />
-                <div>
-                  <h3 className="font-medium text-red-500">Duplicate Rules Detected</h3>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {duplicateRules.length} potential duplicate(s) found:
-                  </p>
-                  <ul className="text-sm space-y-1">
-                    {duplicateRules.slice(0, 5).map((dup, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-red-400">{dup.rule_code_1}</span>
-                        <span className="text-muted-foreground">≈</span>
-                        <span className="font-mono text-xs text-red-400">{dup.rule_code_2}</span>
-                        <span className="text-xs text-muted-foreground">({Math.round(dup.similarity_score)}%)</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {duplicateRules.length > 5 && (
-                    <p className="text-xs text-muted-foreground mt-1">...and {duplicateRules.length - 5} more</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Consider deactivating duplicates to avoid conflicts.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
           <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg text-green-500 text-sm">
             <ToggleRight className="w-4 h-4" />
             {activeCount} active
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-500/10 border border-gray-500/20 rounded-lg text-gray-500 text-sm">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-muted border border-border rounded-lg text-muted-foreground text-sm">
             <ToggleLeft className="w-4 h-4" />
             {inactiveCount} inactive
           </div>
+          {duplicateRules.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <Copy className="w-4 h-4" />
+              {duplicateRules.length} duplicates
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Expiring Rules Alert */}
+      {expiringRules.length > 0 && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-medium text-amber-500">Rules Expiring Soon</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                {expiringRules.length} rule(s) will expire within 30 days
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {expiringRules.slice(0, 5).map((rule) => (
+                  <span key={rule.id} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/20 rounded text-xs">
+                    <Clock className="w-3 h-3 text-amber-500" />
+                    <span className="font-mono">{rule.rule_code || rule.rule_name.substring(0, 20)}</span>
+                    <span className="text-muted-foreground">({rule.days_until_expiration}d)</span>
+                  </span>
+                ))}
+                {expiringRules.length > 5 && (
+                  <span className="text-xs text-muted-foreground py-1">+{expiringRules.length - 5} more</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Rules Alert Banner */}
+      {duplicateRules.length > 0 && filterActive !== "duplicates" && (
+        <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Copy className="w-5 h-5 text-destructive" />
+              <div>
+                <h3 className="font-medium text-destructive">
+                  {duplicateRules.length} Duplicate Pair{duplicateRules.length > 1 ? 's' : ''} Detected
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Rules with ≥80% similarity that may cause conflicts. Consider deactivating one from each pair.
+                </p>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setFilterActive("duplicates")}
+              className="border-destructive/30 text-destructive hover:bg-destructive/10"
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Show Duplicates Only
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4">
@@ -365,12 +396,18 @@ export default function AdminComplianceRules() {
         </select>
         <select
           value={filterActive}
-          onChange={(e) => setFilterActive(e.target.value as "all" | "active" | "inactive")}
-          className="px-4 py-2 bg-background border border-border rounded-lg text-foreground"
+          onChange={(e) => setFilterActive(e.target.value as "all" | "active" | "inactive" | "duplicates")}
+          className={cn(
+            "px-4 py-2 bg-background border rounded-lg text-foreground",
+            filterActive === "duplicates" ? "border-destructive text-destructive" : "border-border"
+          )}
         >
           <option value="all">All Status</option>
           <option value="active">Active Only</option>
           <option value="inactive">Inactive Only</option>
+          {duplicateRules.length > 0 && (
+            <option value="duplicates">⚠️ Duplicates ({duplicateRuleCodes.size})</option>
+          )}
         </select>
       </div>
 
@@ -477,12 +514,17 @@ export default function AdminComplianceRules() {
               No rules found matching your criteria
             </div>
           ) : (
-            filteredRules.map((rule) => (
+            filteredRules.map((rule) => {
+              const isDuplicate = duplicateRuleCodes.has(rule.rule_code || "");
+              const duplicateMatch = isDuplicate ? getDuplicateMatch(rule.rule_code) : null;
+              
+              return (
               <div
                 key={rule.id}
                 className={cn(
                   "p-4 hover:bg-accent/30 transition-colors",
-                  selectedRules.has(rule.id) && "bg-primary/5"
+                  selectedRules.has(rule.id) && "bg-primary/5",
+                  isDuplicate && "border-l-4 border-l-destructive bg-destructive/5"
                 )}
               >
                 <div className="flex items-start gap-3">
@@ -494,16 +536,59 @@ export default function AdminComplianceRules() {
                   />
 
                   <div className="flex-1">
+                    {/* Duplicate Badge */}
+                    {isDuplicate && (
+                      <div className="mb-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-destructive/20 text-destructive rounded text-xs font-medium">
+                          <Copy className="w-3 h-3" />
+                          Potential Duplicate
+                        </span>
+                      </div>
+                    )}
+                    
                     <div className="flex items-center gap-3 mb-1">
                       <Scale className="w-4 h-4 text-muted-foreground" />
                       <span className="font-medium text-foreground">{rule.rule_name}</span>
                       {rule.rule_code && (
-                        <span className="text-xs font-mono text-muted-foreground">[{rule.rule_code}]</span>
+                        <span className={cn(
+                          "text-xs font-mono",
+                          isDuplicate ? "text-destructive" : "text-muted-foreground"
+                        )}>[{rule.rule_code}]</span>
                       )}
                     </div>
                     {rule.description && (
                       <p className="text-sm text-muted-foreground mb-2 ml-7">{rule.description}</p>
                     )}
+                    
+                    {/* Duplicate Match Info */}
+                    {isDuplicate && duplicateMatch && (
+                      <div className="ml-7 mb-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-destructive font-medium">Matches:</span>
+                          <span className="font-mono text-destructive">{duplicateMatch.matchCode}</span>
+                          <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-muted-foreground truncate max-w-[200px]">{duplicateMatch.matchName}</span>
+                          <span className="px-1.5 py-0.5 bg-destructive/20 text-destructive rounded">
+                            {Math.round(duplicateMatch.similarity_score)}% similar
+                          </span>
+                        </div>
+                        {rule.is_active && (
+                          <div className="mt-2 pt-2 border-t border-destructive/20">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-destructive hover:bg-destructive/10"
+                              onClick={() => toggleRule(rule.id, true)}
+                              disabled={togglingId === rule.id}
+                            >
+                              <ToggleLeft className="w-3 h-3 mr-1" />
+                              Deactivate This Rule
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className="flex items-center gap-3 text-xs text-muted-foreground ml-7">
                       <span className="px-2 py-0.5 bg-muted rounded">{rule.rule_type}</span>
                       {rule.priority != null && <span>Priority: {rule.priority}</span>}
@@ -551,7 +636,7 @@ export default function AdminComplianceRules() {
                   </div>
                 </div>
               </div>
-            ))
+            )})
           )}
         </div>
       </div>
