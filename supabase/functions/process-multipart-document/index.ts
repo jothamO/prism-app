@@ -542,7 +542,8 @@ ${part.raw_text.substring(0, 50000)}`;
                     }
                 );
 
-                // Update part as processed
+                // Update part as processed WITH backup data in metadata
+                // This allows recovery if main tables get wiped during interrupted reprocess
                 await supabase
                     .from("document_parts")
                     .update({
@@ -550,6 +551,12 @@ ${part.raw_text.substring(0, 50000)}`;
                         provisions_count: provisions?.length || 0,
                         rules_count: partRules.length,
                         processed_at: new Date().toISOString(),
+                        metadata: {
+                            extracted_provisions: provisions || [],
+                            extracted_rules: partRules,
+                            extraction_timestamp: new Date().toISOString(),
+                            source_part_number: part.part_number,
+                        },
                     })
                     .eq("id", part.id);
 

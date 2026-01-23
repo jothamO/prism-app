@@ -16,6 +16,7 @@ import {
   Sparkles,
   Undo2,
   Activity,
+  Database,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -129,6 +130,8 @@ export default function AdminComplianceDocumentDetail() {
   const [reprocessing, setReprocessing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [documentParts, setDocumentParts] = useState<{ id: string; metadata: Record<string, unknown> | null }[]>([]);
 
   useEffect(() => {
     if (id) fetchDocument();
@@ -173,6 +176,15 @@ export default function AdminComplianceDocumentDetail() {
         .eq("document_id", id)
         .order("priority", { ascending: false });
       setRules(rls || []);
+
+      // Fetch parts for multi-part documents to check for backup data
+      if (doc.is_multi_part) {
+        const { data: partsData } = await supabase
+          .from("document_parts")
+          .select("id, metadata")
+          .eq("parent_document_id", id);
+        setDocumentParts(partsData || []);
+      }
     } catch (error) {
       console.error("Error fetching document:", error);
       toast({
@@ -533,6 +545,45 @@ export default function AdminComplianceDocumentDetail() {
     }
   }
 
+  // Recover data from part metadata backups
+  async function recoverFromBackups() {
+    if (!document) return;
+    
+    setRecovering(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("recover-document-data", {
+        body: { documentId: document.id },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Recovery Complete",
+        description: data?.message || `Recovered ${data?.recovery?.provisionsRecovered || 0} provisions and ${data?.recovery?.rulesRecovered || 0} rules.`,
+      });
+
+      // Refresh document data
+      fetchDocument();
+    } catch (error) {
+      console.error("Error recovering document:", error);
+      toast({
+        title: "Recovery Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setRecovering(false);
+    }
+  }
+
+  // Check if recovery is possible (multi-part doc with empty tables but parts have backups)
+  const canRecoverFromBackups = document?.is_multi_part && 
+    (provisions.length === 0 || rules.length === 0) &&
+    documentParts.some(p => {
+      const metadata = p.metadata as { extracted_provisions?: unknown[]; extracted_rules?: unknown[] } | null;
+      return metadata?.extracted_provisions || metadata?.extracted_rules;
+    });
+
   const statusBadgeColor = (status: string) => {
     switch (status) {
       case "active": return "bg-green-500/20 text-green-500";
@@ -612,6 +663,19 @@ export default function AdminComplianceDocumentDetail() {
               <AlertTriangle className="w-4 h-4" />
               Needs Review
             </div>
+          )}
+          {/* Recovery Button - shown when data is missing but backups exist */}
+          {canRecoverFromBackups && (
+            <Button
+              variant="outline"
+              disabled={recovering}
+              onClick={recoverFromBackups}
+              title="Restore provisions and rules from part metadata backups"
+              className="border-orange-500/50 text-orange-500 hover:bg-orange-500/10"
+            >
+              <Database className={cn("w-4 h-4 mr-2", recovering && "animate-pulse")} />
+              {recovering ? "Recovering..." : "Recover from Backups"}
+            </Button>
           )}
           <Button
             variant="outline"

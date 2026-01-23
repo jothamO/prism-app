@@ -127,6 +127,8 @@ export default function DocumentProcessingStatusTab({
   // Auto-sequential processing state
   const [autoProcessing, setAutoProcessing] = useState(false);
   const [stopRequested, setStopRequested] = useState(false);
+  const [processingInitiating, setProcessingInitiating] = useState(false);
+  const stopRequestedRef = useRef(false);
   const [processingStats, setProcessingStats] = useState<ProcessingStats>({
     totalParts: 0,
     completedParts: 0,
@@ -234,8 +236,8 @@ export default function DocumentProcessingStatusTab({
           return false;
         }
 
-        // Check if stop was requested
-        if (stopRequested) {
+        // Check if stop was requested (use ref for synchronous read)
+        if (stopRequestedRef.current) {
           addLogEntry("Stop requested, will halt after current part", "warning");
           break;
         }
@@ -263,6 +265,9 @@ export default function DocumentProcessingStatusTab({
   // Start auto-sequential processing
   const startAutoProcessing = useCallback(async () => {
     if (processingRef.current) return;
+    
+    // Show stop button immediately
+    setProcessingInitiating(true);
     processingRef.current = true;
 
     const partsToProcess = parts.filter(p => p.status === 'pending' || p.status === 'failed');
@@ -273,11 +278,14 @@ export default function DocumentProcessingStatusTab({
         description: "All parts are already processed.",
       });
       processingRef.current = false;
+      setProcessingInitiating(false);
       return;
     }
 
     setAutoProcessing(true);
+    setProcessingInitiating(false);
     setStopRequested(false);
+    stopRequestedRef.current = false;
     setProcessingLog([]);
     setProcessingStats({
       totalParts: parts.length,
@@ -301,8 +309,8 @@ export default function DocumentProcessingStatusTab({
 
     // Process parts sequentially
     for (const part of partsToProcess) {
-      // Check stop flag
-      if (stopRequested) {
+      // Check stop flag (use ref for synchronous read)
+      if (stopRequestedRef.current) {
         addLogEntry("Processing stopped by user", "warning");
         break;
       }
@@ -355,6 +363,7 @@ export default function DocumentProcessingStatusTab({
   // Stop auto-sequential processing
   const stopAutoProcessing = useCallback(() => {
     setStopRequested(true);
+    stopRequestedRef.current = true; // Synchronous update for immediate effect
     addLogEntry("Stop requested - will halt after current part completes", "warning");
     toast({
       title: "Stop Requested",
@@ -672,8 +681,8 @@ export default function DocumentProcessingStatusTab({
                 </Button>
               )}
 
-              {/* Stop Button */}
-              {autoProcessing && (
+              {/* Stop Button - visible immediately when processing starts or initiating */}
+              {(autoProcessing || processingInitiating) && (
                 <Button
                   variant="destructive"
                   onClick={stopAutoProcessing}
