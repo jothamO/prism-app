@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { callClaudeJSON, CLAUDE_MODELS } from "../_shared/claude-client.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +27,11 @@ serve(async (req) => {
   }
 
   try {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -100,51 +104,102 @@ Generate the following:
       }
     }
 
-    // Define expected response structure
-    interface ArticleContent {
-      content: string;
-      description: string;
-      read_time: string;
+    userMessage += `\n\nRespond with a JSON object containing: { "content": "...", "description": "...", "read_time": "..." }`;
+
+    // Call Lovable AI with retry logic for rate limits
+    const MAX_RETRIES = 3;
+    let aiResponse: Response | null = null;
+    let lastError: string = "";
+    
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        // Exponential backoff: 2s, 4s, 8s
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`[generate-article-content] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          temperature: 0.7,
+        }),
+      });
+      
+      if (aiResponse.ok) {
+        break;
+      }
+      
+      lastError = await aiResponse.text();
+      console.error(`[generate-article-content] Attempt ${attempt + 1} failed:`, lastError);
+      
+      // Only retry on 429 (rate limit) or 5xx errors
+      if (aiResponse.status !== 429 && aiResponse.status < 500) {
+        break;
+      }
     }
 
-    // Call Claude Haiku via shared client (handles retries automatically)
-    try {
-      const result = await callClaudeJSON<ArticleContent>(
-        systemPrompt,
-        userMessage,
-        { 
-          model: CLAUDE_MODELS.HAIKU,
-          maxTokens: 4000 
-        }
-      );
-
-      if (!result) {
-        throw new Error("Failed to generate article content - no response from AI");
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          content: result.content || "",
-          description: result.description || topic,
-          read_time: result.read_time || "5 min",
-          provisions_used: provisions.length,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    } catch (aiError) {
-      const errorMessage = aiError instanceof Error ? aiError.message : String(aiError);
-      console.error("[generate-article-content] Claude error:", errorMessage);
+    if (!aiResponse || !aiResponse.ok) {
+      console.error("[generate-article-content] All retries failed:", lastError);
       
-      if (errorMessage.includes("429") || errorMessage.toLowerCase().includes("rate limit")) {
+      if (aiResponse?.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please wait a moment and try again." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      
-      throw aiError;
+      if (aiResponse?.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      throw new Error("AI generation failed after retries");
     }
+
+    const aiData = await aiResponse.json();
+    const responseText = aiData.choices?.[0]?.message?.content || "";
+
+    // Parse the JSON response
+    let result = { content: "", description: "", read_time: "5 min" };
+    try {
+      // Extract JSON from response
+      let cleaned = responseText.trim();
+      if (cleaned.startsWith("```json")) cleaned = cleaned.slice(7);
+      else if (cleaned.startsWith("```")) cleaned = cleaned.slice(3);
+      if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+      cleaned = cleaned.trim();
+
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
+      }
+    } catch (parseError) {
+      console.error("[generate-article-content] Parse error, using raw content");
+      // If parsing fails, use the whole response as content
+      result.content = responseText;
+      result.description = topic;
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        content: result.content,
+        description: result.description,
+        read_time: result.read_time,
+        provisions_used: provisions.length,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
 
   } catch (error) {
     console.error("[generate-article-content] Error:", error);
