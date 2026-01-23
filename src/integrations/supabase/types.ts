@@ -3415,6 +3415,50 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_learning_log: {
+        Row: {
+          channel: string | null
+          confidence: number | null
+          created_at: string | null
+          field_name: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          source: string
+          user_id: string
+        }
+        Insert: {
+          channel?: string | null
+          confidence?: number | null
+          created_at?: string | null
+          field_name: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          source: string
+          user_id: string
+        }
+        Update: {
+          channel?: string | null
+          confidence?: number | null
+          created_at?: string | null
+          field_name?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_learning_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           approval_status: string | null
@@ -4455,31 +4499,61 @@ export type Database = {
       }
       user_preferences: {
         Row: {
+          annual_income: number | null
           auto_categorize: boolean | null
+          business_name: string | null
           created_at: string | null
+          entity_type: string | null
+          filing_frequency: string | null
           id: string
+          industry: string | null
           insight_frequency: string | null
+          last_filing_date: string | null
           notification_preferences: Json | null
+          registered_taxes: string[] | null
+          risk_level: string | null
+          tin: string | null
           updated_at: string | null
           user_id: string
+          vat_number: string | null
         }
         Insert: {
+          annual_income?: number | null
           auto_categorize?: boolean | null
+          business_name?: string | null
           created_at?: string | null
+          entity_type?: string | null
+          filing_frequency?: string | null
           id?: string
+          industry?: string | null
           insight_frequency?: string | null
+          last_filing_date?: string | null
           notification_preferences?: Json | null
+          registered_taxes?: string[] | null
+          risk_level?: string | null
+          tin?: string | null
           updated_at?: string | null
           user_id: string
+          vat_number?: string | null
         }
         Update: {
+          annual_income?: number | null
           auto_categorize?: boolean | null
+          business_name?: string | null
           created_at?: string | null
+          entity_type?: string | null
+          filing_frequency?: string | null
           id?: string
+          industry?: string | null
           insight_frequency?: string | null
+          last_filing_date?: string | null
           notification_preferences?: Json | null
+          registered_taxes?: string[] | null
+          risk_level?: string | null
+          tin?: string | null
           updated_at?: string | null
           user_id?: string
+          vat_number?: string | null
         }
         Relationships: []
       }
@@ -5386,6 +5460,17 @@ export type Database = {
           slug: string
           title: string
         }[]
+      }
+      update_user_profile: {
+        Args: {
+          p_channel?: string
+          p_confidence?: number
+          p_field: string
+          p_source?: string
+          p_user_id: string
+          p_value: string
+        }
+        Returns: undefined
       }
       upsert_business_pattern: {
         Args: {
