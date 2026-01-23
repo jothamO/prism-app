@@ -8,6 +8,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse, handleCors } from "../_shared/cors.ts";
 import { getChatHistory, storeMessage } from "../_shared/history-service.ts";
+import { processMessage } from "../_shared/chat-engine.ts";
 
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
 const RAW_GATEWAY_URL = Deno.env.get("RAILWAY_GATEWAY_URL");
@@ -98,29 +99,21 @@ function toTelegramHTML(markdown: string): string {
 // ============= Chat History =============
 // Using shared history-service.ts for getChatHistory and storeMessage
 
-// ============= Chat Assist Integration =============
+// ============= Chat Engine Integration (V10) =============
 
 async function callChatAssist(message: string, userId: string): Promise<{ response: string }> {
+    // V10: Uses centralized chat-engine directly (no HTTP call)
+    // This enables fact extraction for Telegram users!
     const history = await getChatHistory(userId, 6);
 
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-assist`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
-        },
-        body: JSON.stringify({
-            message,
-            history,
-            context: { userId }
-        })
+    const result = await processMessage({
+        userId,
+        message,
+        channel: 'telegram',
+        history,
     });
 
-    if (!response.ok) {
-        throw new Error(`chat-assist failed: ${response.status}`);
-    }
-
-    return response.json();
+    return { response: result.response };
 }
 
 // ============= File Handling =============
