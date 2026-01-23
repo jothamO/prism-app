@@ -106,40 +106,64 @@ Generate the following:
 
     userMessage += `\n\nRespond with a JSON object containing: { "content": "...", "description": "...", "read_time": "..." }`;
 
-    // Call Lovable AI
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error("[generate-article-content] AI error:", errorText);
+    // Call Lovable AI with retry logic for rate limits
+    const MAX_RETRIES = 3;
+    let aiResponse: Response | null = null;
+    let lastError: string = "";
+    
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        // Exponential backoff: 2s, 4s, 8s
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`[generate-article-content] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
       
-      if (aiResponse.status === 429) {
+      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          temperature: 0.7,
+        }),
+      });
+      
+      if (aiResponse.ok) {
+        break;
+      }
+      
+      lastError = await aiResponse.text();
+      console.error(`[generate-article-content] Attempt ${attempt + 1} failed:`, lastError);
+      
+      // Only retry on 429 (rate limit) or 5xx errors
+      if (aiResponse.status !== 429 && aiResponse.status < 500) {
+        break;
+      }
+    }
+
+    if (!aiResponse || !aiResponse.ok) {
+      console.error("[generate-article-content] All retries failed:", lastError);
+      
+      if (aiResponse?.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          JSON.stringify({ error: "Rate limit exceeded. Please wait a moment and try again." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (aiResponse.status === 402) {
+      if (aiResponse?.status === 402) {
         return new Response(
           JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      throw new Error("AI generation failed");
+      throw new Error("AI generation failed after retries");
     }
 
     const aiData = await aiResponse.json();
