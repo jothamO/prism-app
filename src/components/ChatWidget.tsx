@@ -230,7 +230,7 @@ export default function ChatWidget({ userContext }: ChatWidgetProps) {
                                 </div>
                                 <div className="px-3 py-2 rounded-lg bg-gray-100 flex items-center gap-2">
                                     <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                                    <span className="text-sm text-gray-500">Thinking...</span>
+                                    <span className="text-sm text-gray-500">PRISM is typing...</span>
                                 </div>
                             </div>
                         )}
