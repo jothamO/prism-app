@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { AlertTriangle, Search, Check, X, Eye, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { AlertTriangle, Search, Check, X, Eye, Shield, ChevronDown, ChevronUp, Radio } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 interface ReviewItem {
   id: string;
@@ -40,11 +41,7 @@ export default function AdminReviews() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedReview, setSelectedReview] = useState<ReviewItem | null>(null);
 
-  useEffect(() => {
-    fetchReviews();
-  }, []);
-
-  async function fetchReviews() {
+  const fetchReviews = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("review_queue")
@@ -62,7 +59,20 @@ export default function AdminReviews() {
       setReviews((data as unknown as ReviewItem[]) || []);
     }
     setLoading(false);
-  }
+  }, []);
+
+  // Subscribe to realtime updates for review queue
+  useRealtimeSubscription({
+    table: 'review_queue',
+    queryKeys: [],
+    onInsert: fetchReviews,
+    onUpdate: fetchReviews,
+    onDelete: fetchReviews,
+  });
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
 
   async function handleApprove(id: string) {
     const { error } = await supabase
@@ -122,7 +132,13 @@ export default function AdminReviews() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Review Queue</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">Review Queue</h1>
+            <span className="flex items-center gap-1.5 px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-full text-green-500 text-xs font-medium">
+              <Radio className="h-3 w-3 animate-pulse" />
+              Live
+            </span>
+          </div>
           <p className="text-muted-foreground text-sm mt-1">Transactions requiring manual classification</p>
         </div>
         <div className="flex items-center gap-3">

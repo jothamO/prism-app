@@ -33,8 +33,10 @@ import {
     MessageSquare,
     RefreshCw,
     Loader2,
+    Radio,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useMultiTableRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 
 const priorityColors = {
     low: 'bg-muted text-muted-foreground',
@@ -76,6 +78,18 @@ export default function AdminCodeProposals() {
     const applyProposal = useApplyProposal();
     const generateProposals = useGenerateProposals();
     const { toast } = useToast();
+
+    // Subscribe to realtime updates for code proposals and queue
+    useMultiTableRealtimeSubscription([
+        {
+            table: 'code_change_proposals',
+            queryKeys: [['code-proposals'], ['code-proposals', filter], ['code-proposals-stats']],
+        },
+        {
+            table: 'code_proposal_queue',
+            queryKeys: [['code-proposal-queue-stats']],
+        },
+    ]);
 
     const handleCopyCode = (code: string, filename: string) => {
         navigator.clipboard.writeText(typeof code === 'string' ? code : JSON.stringify(code, null, 2));
@@ -146,7 +160,13 @@ export default function AdminCodeProposals() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">Code Change Proposals</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold">Code Change Proposals</h1>
+                        <span className="flex items-center gap-1.5 px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-full text-green-500 text-xs font-medium">
+                            <Radio className="h-3 w-3 animate-pulse" />
+                            Live
+                        </span>
+                    </div>
                     <p className="text-muted-foreground">
                         AI-generated code suggestions when tax rules change
                     </p>
