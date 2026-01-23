@@ -136,16 +136,11 @@ export default function DocumentPartsView({ documentId, onReprocessComplete }: D
                     .in("id", stuckProcessingIds);
             }
             
-            // Trigger resume processing to pick up pending parts only
-            const { error } = await supabase.functions.invoke("process-multipart-document", {
-                body: { documentId, mode: 'resume' },
-            });
-
-            if (error) throw error;
-
+            // DO NOT trigger bulk edge function processing (causes rate limit errors)
+            // Instead, redirect user to use the Processing tab's sequential orchestrator
             toast({
-                title: "Processing resumed",
-                description: `Processing ${stuckParts.length} pending/stuck parts.`,
+                title: "Parts reset to pending",
+                description: "Switch to the 'Processing' tab and click 'Start Processing All' for controlled sequential processing.",
             });
 
             fetchParts();
