@@ -203,7 +203,7 @@ PROVISIONS EXTRACTED: ${provisions.length}
 KEY PROVISIONS:
 ${provisions.slice(0, 5).map(p => `- ${p.sectionNumber}: ${p.plainLanguageSummary}`).join('\n')}
 
-DOCUMENT TEXT (for date extraction):
+DOCUMENT TEXT (for date and metadata extraction):
 ${extractedText.slice(0, 5000)}
 
 Provide:
@@ -213,8 +213,13 @@ Provide:
 4. Tax types involved: ['pit', 'cit', 'vat', 'cgt', 'emtl', 'wht', 'stamp_duty']
 5. Whether human review is needed (true if complex rules or conflicts detected)
 6. If review needed, list reasons
-7. IMPORTANT: Extract the effective date mentioned in the document text (e.g., "effective from 1st March, 2025", "takes effect on March 1, 2025")
-8. Extract the publication/issue date if mentioned (e.g., "Dated: December 15, 2024")
+7. IMPORTANT: Extract dates and law metadata:
+   - effectiveDateFromText: When the law takes effect (e.g., "effective from 1st March, 2025")
+   - effectiveToFromText: When the law expires or was superseded (null if still active)
+   - publicationDateFromText: When document was published/issued
+   - lawReference: Official citation (e.g., "PITA 2011", "Finance Act 2019", "Nigeria Tax Act 2025")
+   - supersedes: Name of law this replaces (e.g., "PITA 2004") if mentioned
+   - taxRegime: Based on effective date - "pre_2026" if before Jan 1, 2026, or "2026_act" if on/after
 
 Return ONLY valid JSON:
 {
@@ -224,20 +229,29 @@ Return ONLY valid JSON:
   "taxTypes": ["..."],
   "needsReview": true,
   "reviewReasons": ["Complex exemptions detected", "May conflict with existing rules"],
-  "effectiveDateFromText": "2025-03-01",
-  "publicationDateFromText": "2024-12-15",
+  "effectiveDateFromText": "2011-06-01",
+  "effectiveToFromText": "2025-12-31",
+  "publicationDateFromText": "2011-05-20",
+  "lawReference": "PITA 2011",
+  "supersedes": "PITA 2004",
+  "taxRegime": "pre_2026",
   "dateExtractionConfidence": "high"
 }
 
 For dates:
-- Return null if no date found
+- Return null if no date found or still active
 - Use ISO format: YYYY-MM-DD
 - dateExtractionConfidence: "high" (explicit date), "medium" (inferred), "low" (uncertain)`;
 
         const classification = await callClaudeJSON<Partial<ProcessingResult> & {
             effectiveDateFromText?: string | null;
+            effectiveToFromText?: string | null;
             publicationDateFromText?: string | null;
+            lawReference?: string | null;
+            supersedes?: string | null;
+            taxRegime?: 'pre_2026' | '2026_act' | null;
             dateExtractionConfidence?: string;
+
         }>(
             'You are a tax document classifier with expertise in date extraction.',
             summaryPrompt,
@@ -354,6 +368,12 @@ For dates:
 
         // Save rules with validated rule_type and duplicate detection
         let skippedDuplicates = 0;
+
+        // Determine tax regime from effective date
+        const effectiveYear = documentEffectiveDate ? new Date(documentEffectiveDate).getFullYear() : new Date().getFullYear();
+        const inferredTaxRegime = classification.taxRegime || (effectiveYear <= 2025 ? 'pre_2026' : '2026_act');
+        const lawReference = classification.lawReference || title;
+
         for (const rule of rules) {
             // Validate rule_type, default to 'tax_rate' if invalid
             const ruleType = VALID_RULE_TYPES.includes(rule.ruleType as typeof VALID_RULE_TYPES[number])
@@ -376,10 +396,13 @@ For dates:
             const { error: ruleError } = await supabase.from('compliance_rules').insert({
                 document_id: documentId,
                 rule_name: rule.ruleName,
-                rule_type: ruleType, // Use validated type
+                rule_type: ruleType,
                 conditions: rule.conditions,
                 actions: rule.outcome,
-                effective_from: documentEffectiveDate, // Set from document's effective_date
+                effective_from: documentEffectiveDate,
+                effective_to: classification.effectiveToFromText || null,  // V18: From AI extraction
+                tax_regime: inferredTaxRegime,                              // V18: pre_2026 or 2026_act
+                law_reference: `${lawReference}`,                           // V18: Official citation
                 parameters: {
                     appliesToTransactions: rule.appliesToTransactions,
                     appliesToFiling: rule.appliesToFiling,
@@ -391,10 +414,48 @@ For dates:
             }
         }
 
+        // V18: Handle supersession - if this document supersedes another, update old rules
+        if (classification.supersedes) {
+            const supersededLaw = classification.supersedes;
+            console.log(`[process-compliance-document] Checking for superseded rules from: ${supersededLaw}`);
+
+            // Find documents/rules that match the superseded law reference
+            const { data: supersededDocs } = await supabase
+                .from('legal_documents')
+                .select('id, title')
+                .ilike('title', `%${supersededLaw}%`);
+
+            if (supersededDocs && supersededDocs.length > 0) {
+                const supersededDocIds = supersededDocs.map(d => d.id);
+
+                // Calculate the day before this document takes effect as the effective_to for old rules
+                const dayBeforeEffective = documentEffectiveDate
+                    ? new Date(new Date(documentEffectiveDate).getTime() - 86400000).toISOString().split('T')[0]
+                    : '2025-12-31';
+
+                // Update superseded rules
+                const { error: updateError, count } = await supabase
+                    .from('compliance_rules')
+                    .update({
+                        effective_to: dayBeforeEffective,
+                        superseded_by: documentId,
+                    })
+                    .in('document_id', supersededDocIds)
+                    .is('effective_to', null);  // Only update rules that don't already have an end date
+
+                if (updateError) {
+                    console.error('[process-compliance-document] Error updating superseded rules:', updateError);
+                } else {
+                    console.log(`[process-compliance-document] Marked ${count} rules as superseded by this document`);
+                }
+            }
+        }
+
         console.log(`[process-compliance-document] Saved provisions and rules`);
 
         // Step 5: Generate PRISM Impact Analysis
         console.log(`[process-compliance-document] Generating PRISM impact analysis...`);
+
 
         const impactPrompt = `Analyze how this Nigerian tax regulation affects the PRISM tax assistant platform.
 
