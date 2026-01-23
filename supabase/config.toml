@@ -149,3 +149,6 @@ verify_jwt = false
 
 [functions.regenerate-prism-impact]
 verify_jwt = false
+
+[functions.recover-document-data]
+verify_jwt = false
