@@ -189,6 +189,38 @@ export default function DocumentProcessingStatusTab({
     setProcessingLog(prev => [entry, ...prev].slice(0, 100)); // Keep last 100 entries
   }, []);
 
+  // Fetch processing events and parts (defined early so other callbacks can use it)
+  const fetchData = useCallback(async () => {
+    try {
+      // Fetch events
+      const { data: eventsData, error: eventsError } = await supabase
+        .from("document_processing_events")
+        .select("*")
+        .eq("document_id", documentId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (eventsError) throw eventsError;
+      setEvents((eventsData || []) as ProcessingEvent[]);
+
+      // Fetch parts if multi-part
+      if (isMultiPart) {
+        const { data: partsData, error: partsError } = await supabase
+          .from("document_parts")
+          .select("*")
+          .eq("parent_document_id", documentId)
+          .order("part_number");
+
+        if (partsError) throw partsError;
+        setParts((partsData || []) as DocumentPart[]);
+      }
+    } catch (error) {
+      console.error("Error fetching processing data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [documentId, isMultiPart]);
+
   // Process a single part
   const processSinglePart = useCallback(async (part: DocumentPart): Promise<boolean> => {
     partStartTimeRef.current = Date.now();
@@ -497,39 +529,6 @@ export default function DocumentProcessingStatusTab({
       setReprocessingPart(null);
     }
   };
-
-  // Fetch processing events and parts
-  const fetchData = useCallback(async () => {
-    try {
-      // Fetch events
-      const { data: eventsData, error: eventsError } = await supabase
-        .from("document_processing_events")
-        .select("*")
-        .eq("document_id", documentId)
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (eventsError) throw eventsError;
-      setEvents((eventsData || []) as ProcessingEvent[]);
-
-      // Fetch parts if multi-part
-      if (isMultiPart) {
-        const { data: partsData, error: partsError } = await supabase
-          .from("document_parts")
-          .select("*")
-          .eq("parent_document_id", documentId)
-          .order("part_number");
-
-        if (partsError) throw partsError;
-        setParts((partsData || []) as DocumentPart[]);
-      }
-    } catch (error) {
-      console.error("Error fetching processing data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [documentId, isMultiPart]);
-
   // Initial fetch
   useEffect(() => {
     fetchData();
