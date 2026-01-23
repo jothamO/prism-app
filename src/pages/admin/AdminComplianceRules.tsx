@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -16,12 +16,14 @@ import {
   Clock,
   Copy,
   ArrowRight,
+  Radio,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
 interface ComplianceRule {
   id: string;
@@ -88,6 +90,22 @@ export default function AdminComplianceRules() {
 
   // Duplicate rules detection
   const [duplicateRules, setDuplicateRules] = useState<DuplicateRule[]>([]);
+
+  // Realtime refetch callback
+  const refetchAll = useCallback(() => {
+    fetchRules();
+    fetchExpiringRules();
+    fetchDuplicateRules();
+  }, []);
+
+  // Subscribe to realtime updates for compliance rules
+  useRealtimeSubscription({
+    table: 'compliance_rules',
+    queryKeys: [],
+    onInsert: refetchAll,
+    onUpdate: refetchAll,
+    onDelete: refetchAll,
+  });
 
   // Create a Set of duplicate rule codes for quick lookup
   const duplicateRuleCodes = useMemo(() => {
@@ -297,7 +315,13 @@ export default function AdminComplianceRules() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Compliance Rules</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">Compliance Rules</h1>
+            <span className="flex items-center gap-1.5 px-2 py-1 bg-green-500/10 border border-green-500/20 rounded-full text-green-500 text-xs font-medium">
+              <Radio className="h-3 w-3 animate-pulse" />
+              Live
+            </span>
+          </div>
           <p className="text-muted-foreground">AI-generated rules from legal documents</p>
         </div>
         <div className="flex items-center gap-3">
