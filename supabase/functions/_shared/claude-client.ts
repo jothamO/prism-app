@@ -44,7 +44,7 @@ export interface ConversationResult {
 }
 
 /**
- * Call Claude API (single-turn)
+ * Call Claude API (single-turn) with automatic retry for rate limits
  */
 export async function callClaude(
     systemPrompt: string,
@@ -53,6 +53,7 @@ export async function callClaude(
         model?: ClaudeModel;
         maxTokens?: number;
         temperature?: number;
+        maxRetries?: number;
     } = {}
 ): Promise<string> {
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
@@ -66,42 +67,69 @@ export async function callClaude(
         model = CLAUDE_MODELS.HAIKU,
         maxTokens = 8000,
         temperature = 0.3,
+        maxRetries = 3,
     } = options;
 
-    try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model,
-                max_tokens: maxTokens,
-                temperature,
-                system: systemPrompt,
-                messages: [
-                    { role: 'user', content: userMessage }
-                ],
-            }),
-        });
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                },
+                body: JSON.stringify({
+                    model,
+                    max_tokens: maxTokens,
+                    temperature,
+                    system: systemPrompt,
+                    messages: [
+                        { role: 'user', content: userMessage }
+                    ],
+                }),
+            });
 
-        if (!response.ok) {
-            const error = await response.text();
-            console.error('[claude-client] API error:', error);
-            throw new Error(`Claude API error: ${response.status}`);
+            if (response.status === 429) {
+                // Rate limited - extract retry-after or use exponential backoff
+                const retryAfter = response.headers.get('retry-after');
+                const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 30000; // 30s, 60s, 120s
+                console.warn(`[claude-client] Rate limited (429). Retrying in ${delay/1000}s (attempt ${attempt + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                lastError = new Error(`Claude API rate limited: 429`);
+                continue;
+            }
+
+            if (!response.ok) {
+                const error = await response.text();
+                console.error('[claude-client] API error:', error);
+                throw new Error(`Claude API error: ${response.status}`);
+            }
+
+            const data: ClaudeResponse = await response.json();
+
+            console.log(`[claude-client] ${model} used ${data.usage.input_tokens}+${data.usage.output_tokens} tokens`);
+
+            return data.content[0]?.text || '';
+        } catch (error) {
+            if (error instanceof Error && error.message.includes('429')) {
+                lastError = error;
+                // Already handled above, but in case of network errors during retry
+                const delay = Math.pow(2, attempt) * 30000;
+                console.warn(`[claude-client] Retrying after error in ${delay/1000}s (attempt ${attempt + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+            console.error('[claude-client] Error calling Claude:', error);
+            throw error;
         }
-
-        const data: ClaudeResponse = await response.json();
-
-        console.log(`[claude-client] ${model} used ${data.usage.input_tokens}+${data.usage.output_tokens} tokens`);
-
-        return data.content[0]?.text || '';
-    } catch (error) {
-        console.error('[claude-client] Error calling Claude:', error);
-        throw error;
     }
+    
+    // Max retries exceeded
+    console.error(`[claude-client] Max retries (${maxRetries}) exceeded for rate limiting`);
+    throw lastError || new Error('Max retries exceeded for Claude API rate limiting');
 }
 
 /**

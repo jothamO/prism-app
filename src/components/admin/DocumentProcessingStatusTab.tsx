@@ -270,9 +270,43 @@ export default function DocumentProcessingStatusTab({
     }
   }, [documentId, addLogEntry, stopRequested]);
 
-  // Start auto-sequential processing
+  // Start auto-sequential processing with rate limit protection
   const startAutoProcessing = useCallback(async () => {
-    if (processingRef.current) return;
+    // Guard 1: Local ref check
+    if (processingRef.current) {
+      console.log("Already processing locally, ignoring duplicate start");
+      return;
+    }
+    
+    // Guard 2: Check database for existing processing lock
+    const { data: doc } = await supabase
+      .from("legal_documents")
+      .select("metadata")
+      .eq("id", documentId)
+      .single();
+    
+    const metadata = (doc?.metadata as Record<string, unknown>) || {};
+    if (metadata.processing_lock) {
+      const lockTime = new Date(metadata.processing_lock as string).getTime();
+      const now = Date.now();
+      // Only honor locks less than 5 minutes old (to handle stale locks)
+      if (now - lockTime < 5 * 60 * 1000) {
+        toast({
+          title: "Processing Already Running",
+          description: "Another processing session is active. Please wait or refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    // Set processing lock in database
+    await supabase
+      .from("legal_documents")
+      .update({
+        metadata: { ...metadata, processing_lock: new Date().toISOString() },
+      })
+      .eq("id", documentId);
     
     // Show stop button immediately
     setProcessingInitiating(true);
@@ -285,6 +319,11 @@ export default function DocumentProcessingStatusTab({
         title: "No parts to process",
         description: "All parts are already processed.",
       });
+      // Clear lock
+      await supabase
+        .from("legal_documents")
+        .update({ metadata: { ...metadata, processing_lock: null } })
+        .eq("id", documentId);
       processingRef.current = false;
       setProcessingInitiating(false);
       return;
@@ -305,7 +344,7 @@ export default function DocumentProcessingStatusTab({
       partTimes: [],
     });
 
-    addLogEntry(`Starting sequential processing of ${partsToProcess.length} parts`, "info");
+    addLogEntry(`Starting sequential processing of ${partsToProcess.length} parts (with 60s delay between parts for rate limit protection)`, "info");
 
     // Update document status to processing
     await supabase
@@ -316,8 +355,10 @@ export default function DocumentProcessingStatusTab({
     // Note: NOT calling onRefresh() here - it would reset component state
     // Real-time subscriptions handle UI updates
 
-    // Process parts sequentially
-    for (const part of partsToProcess) {
+    // Process parts sequentially with rate limit protection
+    for (let i = 0; i < partsToProcess.length; i++) {
+      const part = partsToProcess[i];
+      
       // Check stop flag (use ref for synchronous read)
       if (stopRequestedRef.current) {
         addLogEntry("Processing stopped by user", "warning");
@@ -333,6 +374,28 @@ export default function DocumentProcessingStatusTab({
 
       // Refresh parts data
       await fetchData();
+      
+      // Add 60-second delay between parts to avoid Claude API rate limiting (10k tokens/min)
+      // Only add delay if there are more parts to process
+      if (i < partsToProcess.length - 1) {
+        addLogEntry("⏳ Waiting 60s before next part (rate limit protection)...", "info");
+        
+        // Wait with interruptible 1-second chunks
+        for (let sec = 0; sec < 60; sec++) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Check stop after each second during delay
+          if (stopRequestedRef.current) {
+            addLogEntry("Processing stopped by user during delay", "warning");
+            break;
+          }
+        }
+        
+        // Exit outer loop if stopped during delay
+        if (stopRequestedRef.current) {
+          break;
+        }
+      }
     }
 
     // Check if all parts are processed
@@ -342,6 +405,19 @@ export default function DocumentProcessingStatusTab({
       .eq("parent_document_id", documentId);
 
     const allProcessed = finalParts?.every(p => p.status === 'processed');
+
+    // Clear processing lock
+    const { data: currentDoc } = await supabase
+      .from("legal_documents")
+      .select("metadata")
+      .eq("id", documentId)
+      .single();
+    
+    const currentMetadata = (currentDoc?.metadata as Record<string, unknown>) || {};
+    await supabase
+      .from("legal_documents")
+      .update({ metadata: { ...currentMetadata, processing_lock: null } })
+      .eq("id", documentId);
 
     if (allProcessed) {
       addLogEntry("🎉 All parts processed successfully!", "success");
@@ -367,7 +443,7 @@ export default function DocumentProcessingStatusTab({
     setAutoProcessing(false);
     processingRef.current = false;
     onRefresh();
-  }, [parts, documentId, addLogEntry, processSinglePart, onRefresh, toast, stopRequested]);
+  }, [parts, documentId, addLogEntry, processSinglePart, onRefresh, toast, fetchData]);
 
   // Stop auto-sequential processing
   const stopAutoProcessing = useCallback(() => {
