@@ -17,9 +17,83 @@ interface UserProfile {
   incomeTypes?: string[];
 }
 
-// ... existing interfaces ...
+interface UserContext {
+  totalIncome?: number;
+  totalExpenses?: number;
+  emtlPaid?: number;
+  transactionCount?: number;
+}
 
-// [omitted for brevity, keep BASE_PROMPT and generateSystemPrompt constants/functions]
+const BASE_PROMPT = `You are PRISM, a friendly Nigerian tax assistant. Your role is to help users understand their taxes, transactions, and financial obligations under Nigerian law.
+
+PERSONALITY:
+- Friendly, approachable, and conversational
+- Use simple language, avoid jargon when possible
+- Reference Nigerian context (Naira, FIRS/NRS, local examples)
+- Be helpful but always recommend consulting a tax professional for complex matters
+
+KNOWLEDGE AREAS:
+1. Nigeria Tax Act 2025 - Personal income tax, corporate tax, VAT, CGT
+2. EMTL - Electronic Money Transfer Levy
+3. Tax Categories: Employed, Self-employed, Business owner, Freelancer
+4. Deductions: Pension, NHF, Life insurance, Rent relief
+5. Filing deadlines and compliance requirements
+
+FORMATTING:
+- Use emojis sparingly to be friendly 💡📊
+- Format currency as ₦X,XXX
+- Keep responses concise (2-3 paragraphs max)
+- For calculations, show the math briefly
+- End with a helpful tip or next action when relevant
+
+LIMITATIONS:
+- You cannot access external websites or databases
+- For specific account questions, refer to their transaction history
+- For complex legal matters, recommend a tax professional`;
+
+/**
+ * Generate a dynamic system prompt with current tax rules and user context
+ */
+export async function generateSystemPrompt(
+  userId?: string,
+  userContext?: UserContext
+): Promise<string> {
+  let prompt = BASE_PROMPT;
+
+  // Add dynamic tax rules from database
+  try {
+    const taxRulesSummary = await buildTaxRulesSummary();
+    prompt += `\n\n${taxRulesSummary}`;
+  } catch (error) {
+    console.error("Failed to fetch tax rules for prompt:", error);
+    // Fallback to basic rules if DB unavailable
+    prompt += `\n\nTAX RULES (fallback):
+- Tax bands: ₦0-800k (0%), ₦800k-3M (15%), ₦3M-12M (18%), ₦12M-25M (21%), ₦25M-50M (23%), Above ₦50M (25%)
+- VAT: 7.5%
+- EMTL: ₦50 per transfer ≥₦10,000`;
+  }
+
+  // Add user profile context if available
+  if (userId) {
+    const userProfile = await fetchUserProfile(userId);
+    if (userProfile) {
+      prompt += buildUserProfileContext(userProfile);
+    }
+
+    // Add remembered facts from user_preferences
+    const rememberedFacts = await fetchRememberedFacts(userId);
+    if (rememberedFacts.length > 0) {
+      prompt += `\n\nREMEMBERED FACTS ABOUT USER:\n${rememberedFacts.map(f => `- ${f}`).join('\n')}`;
+    }
+  }
+
+  // Add financial context if provided
+  if (userContext) {
+    prompt += buildFinancialContext(userContext);
+  }
+
+  return prompt;
+}
 
 /**
  * Fetch user's tax profile from database
