@@ -5405,11 +5405,35 @@ export type Database = {
           file_type: string
         }[]
       }
+      get_invoice_summary: {
+        Args: { p_user_id: string }
+        Returns: {
+          overdue_amount: number
+          overdue_count: number
+          paid_amount: number
+          paid_count: number
+          pending_amount: number
+          pending_count: number
+          total_invoices: number
+        }[]
+      }
       get_profile_confidence_trend: {
         Args: { p_days?: number; p_user_id: string }
         Returns: {
           avg_confidence: number
           date: string
+        }[]
+      }
+      get_transaction_summary: {
+        Args: { p_days?: number; p_user_id: string }
+        Returns: {
+          emtl_total: number
+          top_expense_category: string
+          top_income_category: string
+          total_expenses: number
+          total_income: number
+          transaction_count: number
+          vat_total: number
         }[]
       }
       get_upcoming_deadlines: {
