@@ -391,6 +391,17 @@ export default function Settings() {
                                 </AlertDialog>
                             )}
                         </div>
+                        
+                        {/* Mutual exclusivity info */}
+                        {(profile?.telegramConnected || profile?.whatsappConnected) && (
+                            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg flex items-start gap-2">
+                                <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
+                                <span>
+                                    You can only use one messaging platform at a time (Telegram or WhatsApp). 
+                                    Disconnect the current one to switch. Web chat is always available.
+                                </span>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 

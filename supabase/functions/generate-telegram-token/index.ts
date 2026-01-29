@@ -45,7 +45,7 @@ serve(async (req) => {
         // Find the user in our users table
         let { data: userData, error: userError } = await supabase
             .from('users')
-            .select('id, telegram_id')
+            .select('id, telegram_id, whatsapp_id')
             .eq('auth_user_id', user.id)
             .single();
 
@@ -61,7 +61,7 @@ serve(async (req) => {
                     full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
                     onboarding_completed: true,
                 })
-                .select('id, telegram_id')
+                .select('id, telegram_id, whatsapp_id')
                 .single();
 
             if (createError) {
@@ -73,16 +73,28 @@ serve(async (req) => {
             }
             
             userData = newUser;
-            console.log('[generate-telegram-token] Created user profile:', userData.id);
+            console.log('[generate-telegram-token] Created user profile:', userData?.id);
         }
 
         // Check if already connected
-        if (userData.telegram_id) {
+        if (userData?.telegram_id) {
             return new Response(
                 JSON.stringify({
                     success: false,
                     error: 'Telegram already connected',
                     alreadyConnected: true
+                }),
+                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
+        // Check if WhatsApp is already connected (mutual exclusivity)
+        if (userData?.whatsapp_id) {
+            return new Response(
+                JSON.stringify({
+                    success: false,
+                    error: 'WhatsApp is already connected. Disconnect WhatsApp first to use Telegram.',
+                    conflictingPlatform: 'whatsapp'
                 }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
@@ -95,11 +107,11 @@ serve(async (req) => {
         const { count } = await supabase
             .from('telegram_auth_tokens')
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', userData.id)
+            .eq('user_id', userData!.id)
             .gte('created_at', todayStart.toISOString());
 
         if ((count || 0) >= DAILY_TOKEN_LIMIT) {
-            console.log('[generate-telegram-token] Rate limit exceeded for user:', userData.id);
+            console.log('[generate-telegram-token] Rate limit exceeded for user:', userData!.id);
 
             // Calculate when they can try again
             const tomorrow = new Date(todayStart);
@@ -121,7 +133,7 @@ serve(async (req) => {
         await supabase
             .from('telegram_auth_tokens')
             .update({ used: true })
-            .eq('user_id', userData.id)
+            .eq('user_id', userData!.id)
             .eq('used', false);
 
         // Generate new token
@@ -131,7 +143,7 @@ serve(async (req) => {
         const { error: insertError } = await supabase
             .from('telegram_auth_tokens')
             .insert({
-                user_id: userData.id,
+                user_id: userData!.id,
                 token: token,
                 expires_at: expiresAt.toISOString(),
                 used: false,

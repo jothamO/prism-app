@@ -99,6 +99,13 @@ const TelegramConnectModal = forwardRef<HTMLDivElement, TelegramConnectModalProp
                 if (data.success) {
                     setToken(data.token);
                     setExpiresAt(new Date(data.expiresAt));
+                } else if (data.conflictingPlatform === 'whatsapp') {
+                    toast({
+                        title: "WhatsApp Already Connected",
+                        description: "Disconnect WhatsApp in Settings before connecting Telegram.",
+                        variant: "destructive"
+                    });
+                    return;
                 } else if (data.rateLimited) {
                     const hoursLeft = Math.ceil(data.retryAfter / 3600);
                     toast({

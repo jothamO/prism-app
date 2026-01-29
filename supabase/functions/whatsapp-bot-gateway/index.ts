@@ -180,7 +180,7 @@ serve(async (req) => {
             // Check if user exists
             const { data: existingUser } = await supabase
                 .from('users')
-                .select('id, is_blocked')
+                .select('id, is_blocked, telegram_id')
                 .eq('whatsapp_id', from)
                 .single();
 
@@ -204,6 +204,20 @@ serve(async (req) => {
             if (existingUser.is_blocked) {
                 await sendWhatsAppMessage(from,
                     "⚠️ Your account has been suspended. Please contact support."
+                );
+                return new Response(JSON.stringify({ ok: true }), {
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
+
+            // Check if Telegram is already connected (mutual exclusivity)
+            if (existingUser.telegram_id) {
+                await sendWhatsAppMessage(from,
+                    "⚠️ You already have Telegram connected.\n\n" +
+                    "PRISM only supports one messaging platform at a time. To use WhatsApp instead:\n" +
+                    "1. Go to Settings on the web\n" +
+                    "2. Disconnect Telegram\n" +
+                    "3. Message me again to activate WhatsApp"
                 );
                 return new Response(JSON.stringify({ ok: true }), {
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
