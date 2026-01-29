@@ -130,10 +130,11 @@ export default function Dashboard() {
     refetch();
   };
 
-  // Calculate onboarding progress
+  // Calculate onboarding progress - messaging is complete if either platform is connected
+  const messagingConnected = profile?.telegramConnected || profile?.whatsappConnected;
   const onboardingSteps = [
     { key: 'profile', label: 'Profile created', completed: !!profile },
-    { key: 'telegram', label: 'Telegram connected', completed: profile?.telegramConnected || false },
+    { key: 'messaging', label: 'Messaging connected', completed: messagingConnected || false },
     { key: 'bank', label: 'Bank connected', completed: profile?.bankConnected || false },
     { key: 'kyc', label: 'KYC verified', completed: (profile?.kycLevel || 0) >= 1 },
   ];
@@ -209,8 +210,8 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-            {/* Telegram */}
-            {!profile?.telegramConnected && (
+            {/* Telegram - only show if no messaging platform connected */}
+            {!profile?.telegramConnected && !profile?.whatsappConnected && (
               <button
                 onClick={() => setShowTelegramModal(true)}
                 className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all text-left"
