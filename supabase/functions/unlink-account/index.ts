@@ -109,6 +109,7 @@ serve(async (req) => {
 
     } catch (error) {
         console.error('Unlink exception:', error);
-        return jsonResponse({ error: error.message }, 500);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return jsonResponse({ error: message }, 500);
     }
 });

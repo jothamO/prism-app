@@ -13,7 +13,19 @@ import {
     CreditCard,
     Crown,
     ExternalLink,
+    Unlink,
 } from 'lucide-react';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { DeveloperAccessCard } from '@/components/dashboard/DeveloperAccessCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +74,7 @@ export default function Settings() {
     const { toast } = useToast();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [unlinking, setUnlinking] = useState(false);
     const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
     const [profile, setProfile] = useState<{ fullName: string; email: string; telegramConnected: boolean } | null>(null);
     const [subscription, setSubscription] = useState<{
@@ -186,6 +199,31 @@ export default function Settings() {
         }
     };
 
+    const unlinkTelegram = async () => {
+        setUnlinking(true);
+        try {
+            const { error } = await supabase.functions.invoke('unlink-account', {
+                body: { platform: 'telegram' }
+            });
+            if (error) throw error;
+
+            setProfile(prev => prev ? { ...prev, telegramConnected: false } : null);
+            toast({
+                title: 'Disconnected',
+                description: 'Telegram account unlinked successfully',
+            });
+        } catch (err) {
+            console.error('Error unlinking Telegram:', err);
+            toast({
+                title: 'Error',
+                description: 'Failed to disconnect Telegram',
+                variant: 'destructive',
+            });
+        } finally {
+            setUnlinking(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -229,15 +267,53 @@ export default function Settings() {
                             <Label className="text-gray-500 text-sm">Email</Label>
                             <p className="font-medium">{profile?.email || 'Not set'}</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Label className="text-gray-500 text-sm">Telegram</Label>
-                            {profile?.telegramConnected ? (
-                                <div className="flex items-center gap-1 text-green-600">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    <span className="text-sm font-medium">Connected</span>
-                                </div>
-                            ) : (
-                                <span className="text-sm text-gray-500">Not connected</span>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Label className="text-gray-500 text-sm">Telegram</Label>
+                                {profile?.telegramConnected ? (
+                                    <div className="flex items-center gap-1 text-green-600">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        <span className="text-sm font-medium">Connected</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-sm text-gray-500">Not connected</span>
+                                )}
+                            </div>
+                            {profile?.telegramConnected && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                            disabled={unlinking}
+                                        >
+                                            {unlinking ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Unlink className="h-4 w-4 mr-1" />
+                                            )}
+                                            Disconnect
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Disconnect Telegram?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                You will no longer receive notifications via Telegram and won't be able to chat with PRISM through Telegram until you reconnect.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={unlinkTelegram}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                                Disconnect
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             )}
                         </div>
                     </CardContent>
