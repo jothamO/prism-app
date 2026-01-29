@@ -1,165 +1,163 @@
 
 
-## Enforce Mutual Exclusivity: Telegram OR WhatsApp (Not Both)
+## Run V20 Calendar Skill Migration & Activate Function
 
-### Overview
-Implement a business rule where users can only connect **one** messaging platform at a time - either Telegram OR WhatsApp. Web chat is always available and doesn't count toward this limit.
+### Problem Analysis
+
+The `get_upcoming_deadlines` function is currently **broken** due to a type mismatch:
+- Table column `title` is `VARCHAR(255)`
+- Function return type declares `TEXT`
+- PostgreSQL strict type checking causes: `structure of query does not match function result type`
+
+The migration file **V20** provides an updated version that:
+- Uses different parameters: `p_user_id UUID`, `p_days_ahead INT` (matching context-builder.ts)
+- Returns enhanced columns: `deadline_id`, `deadline_type`, `title`, `description`, `due_date`, `days_until`, `is_filed`, `urgency`
+- Adds urgency classification (critical/high/medium/low)
+- Properly casts columns to match return types
 
 ---
 
-### Current State
-- Database has separate `telegram_id` and `whatsapp_id` columns
-- Both can be populated simultaneously (no constraint)
-- Dashboard shows "Connect Telegram" button
-- No "Connect WhatsApp" button exists in UI (WhatsApp linking happens by messaging the bot directly)
-- Settings shows disconnect buttons for both platforms
+### Implementation Steps
+
+#### Step 1: Fix and Run the Migration
+
+The migration needs one small fix - explicit type casting to avoid the VARCHAR/TEXT mismatch:
+
+```sql
+-- V20: Calendar Layer - Upcoming Deadlines Skill
+CREATE OR REPLACE FUNCTION public.get_upcoming_deadlines(
+    p_user_id UUID DEFAULT NULL,
+    p_days_ahead INT DEFAULT 30
+)
+RETURNS TABLE (
+    deadline_id UUID,
+    deadline_type TEXT,
+    title TEXT,
+    description TEXT,
+    due_date DATE,
+    days_until INT,
+    is_filed BOOLEAN,
+    urgency TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+    v_today DATE := CURRENT_DATE;
+    v_end_date DATE := CURRENT_DATE + p_days_ahead;
+BEGIN
+    RETURN QUERY
+    WITH upcoming AS (
+        SELECT 
+            td.id,
+            td.deadline_type::TEXT,    -- Cast to TEXT
+            td.title::TEXT,            -- Cast to TEXT  
+            td.description::TEXT,      -- Already TEXT but explicit
+            CASE 
+                WHEN td.specific_date IS NOT NULL THEN td.specific_date
+                WHEN td.recurrence = 'monthly' THEN 
+                    CASE 
+                        WHEN td.day_of_month >= EXTRACT(DAY FROM v_today)::INT 
+                        THEN DATE_TRUNC('month', v_today)::DATE + (td.day_of_month - 1)
+                        ELSE (DATE_TRUNC('month', v_today) + INTERVAL '1 month')::DATE + (td.day_of_month - 1)
+                    END
+                WHEN td.recurrence = 'annual' THEN
+                    MAKE_DATE(
+                        CASE 
+                            WHEN MAKE_DATE(EXTRACT(YEAR FROM v_today)::INT, td.month_of_year, td.day_of_month) >= v_today 
+                            THEN EXTRACT(YEAR FROM v_today)::INT
+                            ELSE EXTRACT(YEAR FROM v_today)::INT + 1
+                        END,
+                        td.month_of_year,
+                        td.day_of_month
+                    )
+                ELSE v_today
+            END::DATE as next_due
+        FROM public.tax_deadlines td
+        WHERE td.is_active = true
+    )
+    SELECT 
+        u.id as deadline_id,
+        u.deadline_type,
+        u.title,
+        u.description,
+        u.next_due as due_date,
+        (u.next_due - v_today)::INT as days_until,
+        FALSE as is_filed,
+        CASE 
+            WHEN (u.next_due - v_today) <= 3 THEN 'critical'
+            WHEN (u.next_due - v_today) <= 7 THEN 'high'
+            WHEN (u.next_due - v_today) <= 14 THEN 'medium'
+            ELSE 'low'
+        END::TEXT as urgency
+    FROM upcoming u
+    WHERE u.next_due BETWEEN v_today AND v_end_date
+    ORDER BY u.next_due ASC;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_upcoming_deadlines TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_upcoming_deadlines TO service_role;
+
+COMMENT ON FUNCTION public.get_upcoming_deadlines IS 
+  'V20 Calendar Skill: Returns upcoming tax deadlines with urgency levels. Powers AI responses to "What''s due?"';
+```
 
 ---
 
-### Changes Required
+#### Step 2: Update context-builder.ts (if needed)
 
-#### 1. Backend: generate-telegram-token Edge Function
-**File**: `supabase/functions/generate-telegram-token/index.ts`
-
-Add check to prevent Telegram connection if WhatsApp is already connected.
+Check if the context-builder.ts properly handles the new return columns. Looking at the code:
 
 ```typescript
-// After fetching userData (around line 50), add:
-if (userData.whatsapp_id) {
-    return jsonResponse({
-        success: false,
-        error: 'WhatsApp is already connected. Disconnect WhatsApp first to use Telegram.',
-        conflictingPlatform: 'whatsapp'
-    }, 400);
-}
+// Current code (line 130-137)
+return {
+    upcomingDeadlines: (data || []).map((d: any) => ({
+        title: d.title,
+        dueDate: d.due_date,    // ✅ Matches new column
+        daysUntil: d.days_until, // ✅ Matches new column
+        urgency: d.urgency       // ✅ Matches new column
+    }))
+};
 ```
 
+**No changes needed** - the context-builder already expects `due_date`, `days_until`, and `urgency` columns which the V20 migration provides.
+
 ---
 
-#### 2. Backend: whatsapp-bot-gateway Edge Function
-**File**: `supabase/functions/whatsapp-bot-gateway/index.ts`
+#### Step 3: Verify the Function Works
 
-Currently, WhatsApp uses a different flow - it matches on `whatsapp_id`. The bot message says to "link your WhatsApp account in Settings". 
-
-**Question**: How does WhatsApp actually get linked? Looking at the gateway, it only checks for existing users, doesn't create the link.
-
-After investigation: WhatsApp linking likely happens during registration or via a separate process. Need to add mutual exclusivity check wherever `whatsapp_id` gets set.
-
-For now, add a check in the gateway that warns users if they're trying to use WhatsApp but already have Telegram connected:
-
-```typescript
-// After checking for existing user (line 181-185), add check for conflicting platform:
-if (existingUser && existingUser.telegram_id) {
-    await sendWhatsAppMessage(from,
-        "⚠️ You already have Telegram connected.\n\n" +
-        "PRISM only supports one messaging platform at a time. To use WhatsApp instead:\n" +
-        "1. Go to Settings on the web\n" +
-        "2. Disconnect Telegram\n" +
-        "3. Message me again to activate WhatsApp"
-    );
-    return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-}
+After running the migration, verify with:
+```sql
+SELECT * FROM public.get_upcoming_deadlines(NULL, 30) LIMIT 5;
 ```
 
----
-
-#### 3. Frontend: TelegramConnectModal
-**File**: `src/components/TelegramConnectModal.tsx`
-
-Handle the new error response when WhatsApp is already connected.
-
-```typescript
-// In generateToken function, handle conflictingPlatform error:
-if (data.conflictingPlatform === 'whatsapp') {
-    toast({
-        title: "WhatsApp Already Connected",
-        description: "Disconnect WhatsApp in Settings before connecting Telegram.",
-        variant: "destructive"
-    });
-    return;
-}
-```
+Expected result: List of upcoming deadlines with urgency levels.
 
 ---
 
-#### 4. Frontend: Settings Page
-**File**: `src/pages/Settings.tsx`
+### What the Calendar Skill Enables
 
-Update the UI to clearly show the mutual exclusivity rule:
-- Add info text explaining users can only have one messaging platform
-- Show which platform is currently active
-- Optionally: Add a "Switch to Telegram/WhatsApp" action that disconnects one and guides to connect the other
+Once activated, the AI can respond to questions like:
+- "What's due this month?"
+- "Any upcoming deadlines?"
+- "When is my VAT return due?"
 
-```tsx
-{/* Add info text in Profile section */}
-{(profile?.telegramConnected || profile?.whatsappConnected) && (
-    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
-        💡 You can only use one messaging platform at a time. 
-        Disconnect the current one to switch.
-    </div>
-)}
-```
-
----
-
-#### 5. Frontend: Dashboard Onboarding
-**File**: `src/pages/Dashboard.tsx`
-
-Update the onboarding step to show "Connect Messaging" with choice of Telegram or WhatsApp, instead of just "Connect Telegram".
-
-**Option A**: Keep current behavior (only shows Connect Telegram button when neither is connected)
-**Option B**: Create a platform chooser modal
-
-For simplicity, **Option A** is recommended - the current flow already only shows the button when not connected.
-
-Add check to hide Telegram connect button if WhatsApp is already connected:
-
-```tsx
-{/* Telegram - only show if no messaging platform connected */}
-{!profile?.telegramConnected && !profile?.whatsappConnected && (
-    <button onClick={() => setShowTelegramModal(true)}>
-        {/* ... */}
-    </button>
-)}
-```
-
----
-
-### Summary of File Changes
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/generate-telegram-token/index.ts` | Block if WhatsApp connected |
-| `supabase/functions/whatsapp-bot-gateway/index.ts` | Warn if Telegram connected, add query for telegram_id |
-| `src/components/TelegramConnectModal.tsx` | Handle conflict error gracefully |
-| `src/pages/Settings.tsx` | Add info text about platform exclusivity |
-| `src/pages/Dashboard.tsx` | Hide Telegram button if WhatsApp connected |
-
----
-
-### User Experience
-
-**Scenario 1: User has Telegram, tries WhatsApp**
-1. User messages WhatsApp bot
-2. Bot replies: "You already have Telegram connected. Disconnect Telegram first to use WhatsApp."
-
-**Scenario 2: User has WhatsApp, tries Telegram**
-1. User clicks "Connect Telegram" in dashboard
-2. Modal shows error: "WhatsApp Already Connected. Disconnect WhatsApp in Settings first."
-
-**Scenario 3: User has neither**
-1. User sees "Connect Telegram" or can message WhatsApp bot
-2. First one to connect wins
+The context-builder automatically injects deadlines into the AI prompt with urgency emojis:
+- 🚨 Critical (≤3 days)
+- ⚠️ High (≤7 days)
+- 📅 Medium/Low (>7 days)
 
 ---
 
 ### Technical Details
 
-**WhatsApp linking flow investigation needed**: The current `whatsapp-bot-gateway` queries for users by `whatsapp_id`, but it's unclear where `whatsapp_id` gets initially set. This may happen:
-- During web registration with phone number
-- Via a separate linking flow not yet implemented
-
-If WhatsApp linking is via registration, we'd also need to update `register-user` to check for existing Telegram connection.
+| Item | Value |
+|------|-------|
+| Function Name | `get_upcoming_deadlines` |
+| Parameters | `p_user_id UUID`, `p_days_ahead INT` |
+| Returns | `deadline_id`, `deadline_type`, `title`, `description`, `due_date`, `days_until`, `is_filed`, `urgency` |
+| Used By | `context-builder.ts` → `generateSystemPrompt()` |
+| Security | `SECURITY DEFINER` with explicit search_path |
 
