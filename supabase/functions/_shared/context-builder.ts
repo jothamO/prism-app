@@ -86,6 +86,24 @@ export interface ProjectSummary {
     topProjectRemaining?: number;
 }
 
+export interface InventorySummary {
+    totalItems: number;
+    totalValue: number;
+    lowStockCount: number;
+    totalPurchases30d: number;
+    totalSales30d: number;
+    cogs30d: number;
+}
+
+export interface PayablesSummary {
+    totalPayables: number;
+    totalAmountDue: number;
+    overdueCount: number;
+    overdueAmount: number;
+    dueWithin7Days: number;
+    dueWithin7DaysAmount: number;
+}
+
 // ============= Base Prompt =============
 
 const BASE_PROMPT = `You are PRISM, a friendly Nigerian tax assistant. Your role is to help users understand their taxes, transactions, and financial obligations under Nigerian law.
@@ -275,6 +293,68 @@ async function fetchProjectSummary(userId: string): Promise<ProjectSummary | nul
 }
 
 /**
+ * V26: Fetch inventory summary
+ */
+async function fetchInventorySummary(userId: string): Promise<InventorySummary | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    try {
+        const { data, error } = await supabase.rpc('get_inventory_summary', {
+            p_user_id: userId
+        });
+
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+
+        const row = data[0];
+        return {
+            totalItems: row.total_items || 0,
+            totalValue: Number(row.total_value) || 0,
+            lowStockCount: row.low_stock_count || 0,
+            totalPurchases30d: Number(row.total_purchases_30d) || 0,
+            totalSales30d: Number(row.total_sales_30d) || 0,
+            cogs30d: Number(row.cogs_30d) || 0,
+        };
+    } catch (error) {
+        console.error("[context-builder] Inventory summary error:", error);
+        return null;
+    }
+}
+
+/**
+ * V26: Fetch accounts payable summary
+ */
+async function fetchPayablesSummary(userId: string): Promise<PayablesSummary | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    try {
+        const { data, error } = await supabase.rpc('get_payables_summary', {
+            p_user_id: userId
+        });
+
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+
+        const row = data[0];
+        return {
+            totalPayables: row.total_payables || 0,
+            totalAmountDue: Number(row.total_amount_due) || 0,
+            overdueCount: row.overdue_count || 0,
+            overdueAmount: Number(row.overdue_amount) || 0,
+            dueWithin7Days: row.due_within_7_days || 0,
+            dueWithin7DaysAmount: Number(row.due_within_7_days_amount) || 0,
+        };
+    } catch (error) {
+        console.error("[context-builder] Payables summary error:", error);
+        return null;
+    }
+}
+
+/**
  * V22: Fetch user profile (consolidated from multiple sources)
  */
 async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
@@ -446,6 +526,36 @@ function formatProjectSummary(summary: ProjectSummary): string {
     return `\n\nPROJECT SUMMARY:\n${items.join("\n")}`;
 }
 
+function formatInventorySummary(summary: InventorySummary): string {
+    if (summary.totalItems === 0) return "";
+    const items: string[] = [];
+    items.push(`- Inventory items: ${summary.totalItems}`);
+    items.push(`- Total inventory value: ₦${summary.totalValue.toLocaleString()}`);
+    if (summary.lowStockCount > 0) {
+        items.push(`- ⚠️ Low stock items: ${summary.lowStockCount}`);
+    }
+    if (summary.cogs30d > 0) {
+        items.push(`- COGS (30 days): ₦${summary.cogs30d.toLocaleString()}`);
+    }
+    items.push(`- Purchases (30 days): ₦${summary.totalPurchases30d.toLocaleString()}`);
+    items.push(`- Sales cost (30 days): ₦${summary.totalSales30d.toLocaleString()}`);
+    return `\n\nINVENTORY SUMMARY:\n${items.join("\n")}`;
+}
+
+function formatPayablesSummary(summary: PayablesSummary): string {
+    if (summary.totalPayables === 0) return "";
+    const items: string[] = [];
+    items.push(`- Outstanding payables: ${summary.totalPayables}`);
+    items.push(`- Total amount due: ₦${summary.totalAmountDue.toLocaleString()}`);
+    if (summary.overdueCount > 0) {
+        items.push(`- 🚨 OVERDUE: ${summary.overdueCount} bills (₦${summary.overdueAmount.toLocaleString()})`);
+    }
+    if (summary.dueWithin7Days > 0) {
+        items.push(`- Due within 7 days: ${summary.dueWithin7Days} bills (₦${summary.dueWithin7DaysAmount.toLocaleString()})`);
+    }
+    return `\n\nACCOUNTS PAYABLE:\n${items.join("\n")}`;
+}
+
 // ============= Main Entry Point =============
 
 /**
@@ -458,8 +568,8 @@ export async function generateSystemPrompt(
 ): Promise<string> {
     console.log(`[context-builder] Building context for user: ${userId || 'anonymous'}`);
 
-    // Parallel fetch all context layers (V20-V24)
-    const [taxRules, profile, facts, calendar, transactions, invoices, projects] = await Promise.all([
+    // Parallel fetch all context layers (V20-V26)
+    const [taxRules, profile, facts, calendar, transactions, invoices, projects, inventory, payables] = await Promise.all([
         fetchTaxRulesCached(),
         userId ? fetchUserProfile(userId) : Promise.resolve(null),
         userId ? fetchRememberedFacts(userId) : Promise.resolve([]),
@@ -467,9 +577,11 @@ export async function generateSystemPrompt(
         userId ? fetchTransactionSummary(userId) : Promise.resolve(null),
         userId ? fetchInvoiceSummary(userId) : Promise.resolve(null),
         userId ? fetchProjectSummary(userId) : Promise.resolve(null),
+        userId ? fetchInventorySummary(userId) : Promise.resolve(null),
+        userId ? fetchPayablesSummary(userId) : Promise.resolve(null),
     ]);
 
-    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}, transactions=${!!transactions}, invoices=${!!invoices}, projects=${!!projects}`);
+    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}, transactions=${!!transactions}, invoices=${!!invoices}, projects=${!!projects}, inventory=${!!inventory}, payables=${!!payables}`);
 
     // Assemble prompt
     let prompt = BASE_PROMPT;
@@ -481,6 +593,8 @@ export async function generateSystemPrompt(
     if (transactions) prompt += formatTransactionSummary(transactions);
     if (invoices) prompt += formatInvoiceSummary(invoices);
     if (projects) prompt += formatProjectSummary(projects);
+    if (inventory) prompt += formatInventorySummary(inventory);
+    if (payables) prompt += formatPayablesSummary(payables);
     if (userContext) prompt += formatFinancialContext(userContext);
 
     return prompt;
