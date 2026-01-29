@@ -73,6 +73,19 @@ export interface InvoiceSummary {
     overdueAmount: number;
 }
 
+export interface ProjectSummary {
+    totalProjects: number;
+    activeCount: number;
+    completedCount: number;
+    totalBudget: number;
+    totalSpent: number;
+    budgetRemaining: number;
+    budgetUtilization: number;
+    topProjectName?: string;
+    topProjectSpent?: number;
+    topProjectRemaining?: number;
+}
+
 // ============= Base Prompt =============
 
 const BASE_PROMPT = `You are PRISM, a friendly Nigerian tax assistant. Your role is to help users understand their taxes, transactions, and financial obligations under Nigerian law.
@@ -222,6 +235,41 @@ async function fetchInvoiceSummary(userId: string): Promise<InvoiceSummary | nul
         };
     } catch (error) {
         console.error("[context-builder] Invoice summary error:", error);
+        return null;
+    }
+}
+
+/**
+ * V24: Fetch project summary
+ */
+async function fetchProjectSummary(userId: string): Promise<ProjectSummary | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    try {
+        const { data, error } = await supabase.rpc('get_project_summary', {
+            p_user_id: userId
+        });
+
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+
+        const row = data[0];
+        return {
+            totalProjects: row.total_projects || 0,
+            activeCount: row.active_count || 0,
+            completedCount: row.completed_count || 0,
+            totalBudget: Number(row.total_budget) || 0,
+            totalSpent: Number(row.total_spent) || 0,
+            budgetRemaining: Number(row.budget_remaining) || 0,
+            budgetUtilization: Number(row.budget_utilization) || 0,
+            topProjectName: row.top_project_name,
+            topProjectSpent: Number(row.top_project_spent) || 0,
+            topProjectRemaining: Number(row.top_project_remaining) || 0,
+        };
+    } catch (error) {
+        console.error("[context-builder] Project summary error:", error);
         return null;
     }
 }
@@ -385,6 +433,19 @@ function formatInvoiceSummary(summary: InvoiceSummary): string {
     return `\n\nINVOICE STATUS:\n${items.join("\n")}`;
 }
 
+function formatProjectSummary(summary: ProjectSummary): string {
+    if (summary.totalProjects === 0) return "";
+    const items: string[] = [];
+    items.push(`- Total projects: ${summary.totalProjects} (${summary.activeCount} active, ${summary.completedCount} completed)`);
+    items.push(`- Total budget: ₦${summary.totalBudget.toLocaleString()}`);
+    items.push(`- Total spent: ₦${summary.totalSpent.toLocaleString()} (${summary.budgetUtilization}% utilized)`);
+    items.push(`- Budget remaining: ₦${summary.budgetRemaining.toLocaleString()}`);
+    if (summary.topProjectName) {
+        items.push(`- Top project: "${summary.topProjectName}" - ₦${summary.topProjectSpent?.toLocaleString() || 0} spent, ₦${summary.topProjectRemaining?.toLocaleString() || 0} remaining`);
+    }
+    return `\n\nPROJECT SUMMARY:\n${items.join("\n")}`;
+}
+
 // ============= Main Entry Point =============
 
 /**
@@ -397,17 +458,18 @@ export async function generateSystemPrompt(
 ): Promise<string> {
     console.log(`[context-builder] Building context for user: ${userId || 'anonymous'}`);
 
-    // Parallel fetch all context layers (V20-V22)
-    const [taxRules, profile, facts, calendar, transactions, invoices] = await Promise.all([
+    // Parallel fetch all context layers (V20-V24)
+    const [taxRules, profile, facts, calendar, transactions, invoices, projects] = await Promise.all([
         fetchTaxRulesCached(),
         userId ? fetchUserProfile(userId) : Promise.resolve(null),
         userId ? fetchRememberedFacts(userId) : Promise.resolve([]),
         fetchCalendarContext(userId),
         userId ? fetchTransactionSummary(userId) : Promise.resolve(null),
         userId ? fetchInvoiceSummary(userId) : Promise.resolve(null),
+        userId ? fetchProjectSummary(userId) : Promise.resolve(null),
     ]);
 
-    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}, transactions=${!!transactions}, invoices=${!!invoices}`);
+    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}, transactions=${!!transactions}, invoices=${!!invoices}, projects=${!!projects}`);
 
     // Assemble prompt
     let prompt = BASE_PROMPT;
@@ -418,6 +480,7 @@ export async function generateSystemPrompt(
     if (calendar.upcomingDeadlines.length > 0) prompt += formatCalendarContext(calendar);
     if (transactions) prompt += formatTransactionSummary(transactions);
     if (invoices) prompt += formatInvoiceSummary(invoices);
+    if (projects) prompt += formatProjectSummary(projects);
     if (userContext) prompt += formatFinancialContext(userContext);
 
     return prompt;
