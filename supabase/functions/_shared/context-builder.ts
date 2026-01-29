@@ -92,7 +92,9 @@ export interface InventorySummary {
     lowStockCount: number;
     totalPurchases30d: number;
     totalSales30d: number;
-    cogs30d: number;
+    cogsPaid30d: number;
+    cogsIncurred30d: number;
+    accountingBasis: 'cash' | 'accrual';
 }
 
 export interface PayablesSummary {
@@ -315,7 +317,9 @@ async function fetchInventorySummary(userId: string): Promise<InventorySummary |
             lowStockCount: row.low_stock_count || 0,
             totalPurchases30d: Number(row.total_purchases_30d) || 0,
             totalSales30d: Number(row.total_sales_30d) || 0,
-            cogs30d: Number(row.cogs_30d) || 0,
+            cogsPaid30d: Number(row.cogs_paid_30d) || 0,
+            cogsIncurred30d: Number(row.cogs_incurred_30d) || 0,
+            accountingBasis: row.accounting_basis || 'cash',
         };
     } catch (error) {
         console.error("[context-builder] Inventory summary error:", error);
@@ -529,16 +533,22 @@ function formatProjectSummary(summary: ProjectSummary): string {
 function formatInventorySummary(summary: InventorySummary): string {
     if (summary.totalItems === 0) return "";
     const items: string[] = [];
+    items.push(`- Accounting Basis: ${summary.accountingBasis.toUpperCase()}`);
     items.push(`- Inventory items: ${summary.totalItems}`);
     items.push(`- Total inventory value: ₦${summary.totalValue.toLocaleString()}`);
     if (summary.lowStockCount > 0) {
         items.push(`- ⚠️ Low stock items: ${summary.lowStockCount}`);
     }
-    if (summary.cogs30d > 0) {
-        items.push(`- COGS (30 days): ₦${summary.cogs30d.toLocaleString()}`);
+
+    if (summary.accountingBasis === 'cash') {
+        items.push(`- COGS (Cash Basis - Paid Only): ₦${summary.cogsPaid30d.toLocaleString()}`);
+        items.push(`- [Tax Hint] Only paid inventory is deductible for PIT.`);
+    } else {
+        items.push(`- COGS (Accrual Basis - Total Incurred): ₦${summary.cogsIncurred30d.toLocaleString()}`);
+        items.push(`- [Tax Hint] Total cost of stock sold is deductible for CIT, regardless of payment status.`);
     }
+
     items.push(`- Purchases (30 days): ₦${summary.totalPurchases30d.toLocaleString()}`);
-    items.push(`- Sales cost (30 days): ₦${summary.totalSales30d.toLocaleString()}`);
     return `\n\nINVENTORY SUMMARY:\n${items.join("\n")}`;
 }
 
