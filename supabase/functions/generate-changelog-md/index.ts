@@ -1,128 +1,108 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 
-interface ChangelogEntry {
-  entry_type: string;
-  title: string;
-  description: string | null;
-  component: string | null;
-}
-
-interface Release {
-  id: string;
+interface ChangelogRequest {
   version: string;
-  title: string;
-  release_date: string;
-  summary: string | null;
-  entries: ChangelogEntry[];
+  features: string[];
+  type: 'feature' | 'fix' | 'chore';
+  commit?: boolean;
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { version, features, type, commit = false } = await req.json() as ChangelogRequest;
 
-    // Fetch published releases
-    const { data: releases, error: releasesError } = await supabase
-      .from("app_releases")
-      .select("*")
-      .eq("status", "published")
-      .order("release_date", { ascending: false });
+    const date = new Date().toISOString().split('T')[0];
+    const emoji = type === 'feature' ? '🚀' : type === 'fix' ? '🐛' : '🔧';
 
-    if (releasesError) throw releasesError;
+    // Markdown template for the new entry
+    const entry = `## [${version}] - ${date}\n\n### ${emoji} ${type.toUpperCase()}\n${features.map(f => `- ${f}`).join('\n')}\n\n---\n`;
 
-    // Fetch entries for each release
-    const releasesWithEntries: Release[] = [];
-    for (const release of releases || []) {
-      const { data: entries } = await supabase
-        .from("app_changelog_entries")
-        .select("*")
-        .eq("release_id", release.id)
-        .order("display_order", { ascending: true });
+    let message = "Markdown generated successfully.";
+    let githubResult = null;
 
-      releasesWithEntries.push({
-        ...release,
-        entries: entries || [],
+    if (commit) {
+      const GITHUB_TOKEN = Deno.env.get('GITHUB_TOKEN');
+      const GITHUB_REPO = Deno.env.get('GITHUB_REPO') || "jothamO/prism-app";
+      const filePath = "CHANGELOG.md";
+
+      if (!GITHUB_TOKEN) {
+        throw new Error("GITHUB_TOKEN not configured in environment variables.");
+      }
+
+      // 1. Get current file content and SHA
+      const getFileUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${filePath}`;
+      const getRes = await fetch(getFileUrl, {
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+        }
       });
+
+      if (!getRes.ok) {
+        throw new Error(`Failed to fetch CHANGELOG.md: ${await getRes.text()}`);
+      }
+
+      const fileData = await getRes.json();
+      const currentContent = atob(fileData.content.replace(/\n/g, ''));
+      const sha = fileData.sha;
+
+      // 2. Insert new entry after common header sections
+      let updatedContent = currentContent;
+      const insertPoint = currentContent.indexOf('## [Unreleased]');
+
+      if (insertPoint !== -1) {
+        // Insert after "## [Unreleased]\n\n"
+        const afterUnreleased = insertPoint + '## [Unreleased]'.length;
+        updatedContent = currentContent.slice(0, afterUnreleased) + "\n\n" + entry + currentContent.slice(afterUnreleased);
+      } else {
+        // Fallback: Insert after first # Title
+        const firstHeaderEnd = currentContent.indexOf('\n', currentContent.indexOf('#'));
+        updatedContent = currentContent.slice(0, firstHeaderEnd + 1) + "\n" + entry + currentContent.slice(firstHeaderEnd + 1);
+      }
+
+      // 3. Commit back to GitHub
+      const putRes = await fetch(getFileUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          message: `chore: update changelog for ${version} [skip ci]`,
+          content: btoa(unescape(encodeURIComponent(updatedContent))),
+          sha: sha
+        })
+      });
+
+      if (!putRes.ok) {
+        throw new Error(`Failed to commit update: ${await putRes.text()}`);
+      }
+
+      githubResult = await putRes.json();
+      message = "Changelog updated and committed to GitHub successfully.";
     }
 
-    // Generate Markdown
-    const entryTypeOrder = ["added", "changed", "deprecated", "removed", "fixed", "security"];
-    const entryTypeLabels: Record<string, string> = {
-      added: "Added",
-      changed: "Changed",
-      deprecated: "Deprecated",
-      removed: "Removed",
-      fixed: "Fixed",
-      security: "Security",
-    };
+    return new Response(JSON.stringify({
+      success: true,
+      markdown: entry,
+      message,
+      github: githubResult
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
 
-    let markdown = `# Changelog
-
-All notable changes to PRISM will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-`;
-
-    for (const release of releasesWithEntries) {
-      const date = release.release_date.split("T")[0];
-      markdown += `## [${release.version}] - ${date}\n`;
-
-      if (release.summary) {
-        markdown += `\n${release.summary}\n`;
-      }
-
-      const entriesByType: Record<string, ChangelogEntry[]> = {};
-      for (const entry of release.entries) {
-        if (!entriesByType[entry.entry_type]) {
-          entriesByType[entry.entry_type] = [];
-        }
-        entriesByType[entry.entry_type].push(entry);
-      }
-
-      for (const type of entryTypeOrder) {
-        const entries = entriesByType[type];
-        if (entries?.length) {
-          markdown += `\n### ${entryTypeLabels[type]}\n\n`;
-          for (const entry of entries) {
-            let line = `- ${entry.title}`;
-            if (entry.component) line += ` (${entry.component})`;
-            if (entry.description) line += `\n  ${entry.description}`;
-            markdown += line + "\n";
-          }
-        }
-      }
-
-      markdown += "\n";
-    }
-
-    return new Response(
-      JSON.stringify({ markdown, releases_count: releasesWithEntries.length }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  } catch (error: unknown) {
-    console.error("Error generating changelog:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 400,
+    });
   }
 });
