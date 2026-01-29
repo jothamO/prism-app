@@ -5424,6 +5424,21 @@ export type Database = {
           date: string
         }[]
       }
+      get_project_summary: {
+        Args: { p_user_id: string }
+        Returns: {
+          active_count: number
+          budget_remaining: number
+          budget_utilization: number
+          completed_count: number
+          top_project_name: string
+          top_project_remaining: number
+          top_project_spent: number
+          total_budget: number
+          total_projects: number
+          total_spent: number
+        }[]
+      }
       get_transaction_summary: {
         Args: { p_days?: number; p_user_id: string }
         Returns: {

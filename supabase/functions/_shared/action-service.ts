@@ -195,15 +195,29 @@ async function handleSetReminder(request: ActionRequest): Promise<ActionResult> 
         };
     }
 
-    // Store reminder preference
+    // Get current preferences
+    const { data: currentPrefs } = await supabase
+        .from('user_preferences')
+        .select('notification_preferences')
+        .eq('user_id', request.userId)
+        .single();
+
+    // Merge new reminder into existing preferences
+    const existingPrefs = (currentPrefs?.notification_preferences as Record<string, unknown>) || {};
+    const deadlineReminders = (existingPrefs.deadline_reminders as Record<string, number>) || {};
+    deadlineReminders[params.deadlineId] = params.reminderDays || 3;
+
+    const updatedPrefs = {
+        ...existingPrefs,
+        deadline_reminders: deadlineReminders
+    };
+
+    // Upsert preferences
     const { error } = await supabase
         .from('user_preferences')
         .upsert({
             user_id: request.userId,
-            deadline_reminders: supabase.sql`
-                COALESCE(deadline_reminders, '{}'::jsonb) || 
-                jsonb_build_object(${params.deadlineId}::text, ${params.reminderDays || 3})
-            `
+            notification_preferences: updatedPrefs
         }, {
             onConflict: 'user_id'
         });
