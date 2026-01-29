@@ -76,7 +76,7 @@ export default function Settings() {
     const [saving, setSaving] = useState(false);
     const [unlinking, setUnlinking] = useState(false);
     const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
-    const [profile, setProfile] = useState<{ fullName: string; email: string; telegramConnected: boolean } | null>(null);
+    const [profile, setProfile] = useState<{ fullName: string; email: string; telegramConnected: boolean; whatsappConnected: boolean } | null>(null);
     const [subscription, setSubscription] = useState<{
         tier_name: string;
         display_name: string;
@@ -100,7 +100,7 @@ export default function Settings() {
 
             const { data: userData } = await supabase
                 .from('users')
-                .select('full_name, email, telegram_id, notification_preferences')
+                .select('full_name, email, telegram_id, whatsapp_id, notification_preferences')
                 .eq('auth_user_id', user.id)
                 .single();
 
@@ -109,6 +109,7 @@ export default function Settings() {
                     fullName: userData.full_name || '',
                     email: userData.email || user.email || '',
                     telegramConnected: !!userData.telegram_id,
+                    whatsappConnected: !!userData.whatsapp_id,
                 });
 
                 // Load saved preferences
@@ -224,6 +225,31 @@ export default function Settings() {
         }
     };
 
+    const unlinkWhatsApp = async () => {
+        setUnlinking(true);
+        try {
+            const { error } = await supabase.functions.invoke('unlink-account', {
+                body: { platform: 'whatsapp' }
+            });
+            if (error) throw error;
+
+            setProfile(prev => prev ? { ...prev, whatsappConnected: false } : null);
+            toast({
+                title: 'Disconnected',
+                description: 'WhatsApp account unlinked successfully',
+            });
+        } catch (err) {
+            console.error('Error unlinking WhatsApp:', err);
+            toast({
+                title: 'Error',
+                description: 'Failed to disconnect WhatsApp',
+                variant: 'destructive',
+            });
+        } finally {
+            setUnlinking(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -307,6 +333,55 @@ export default function Settings() {
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                             <AlertDialogAction
                                                 onClick={unlinkTelegram}
+                                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            >
+                                                Disconnect
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Label className="text-gray-500 text-sm">WhatsApp</Label>
+                                {profile?.whatsappConnected ? (
+                                    <div className="flex items-center gap-1 text-green-600">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        <span className="text-sm font-medium">Connected</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-sm text-gray-500">Not connected</span>
+                                )}
+                            </div>
+                            {profile?.whatsappConnected && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                            disabled={unlinking}
+                                        >
+                                            {unlinking ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Unlink className="h-4 w-4 mr-1" />
+                                            )}
+                                            Disconnect
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Disconnect WhatsApp?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                You will no longer receive notifications via WhatsApp and won't be able to chat with PRISM through WhatsApp until you reconnect.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={unlinkWhatsApp}
                                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                             >
                                                 Disconnect
