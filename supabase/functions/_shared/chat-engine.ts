@@ -9,7 +9,7 @@
  * - AI response generation
  */
 
-import { generateSystemPrompt } from './prompt-generator.ts';
+import { generateSystemPrompt } from './context-builder.ts';
 import { callClaudeConversation, CLAUDE_MODELS } from './claude-client.ts';
 import { buildConversationMessages, storeConversationTurn } from './history-service.ts';
 import { updateProfileField, addRememberedFact, type Channel } from './memory-service.ts';
