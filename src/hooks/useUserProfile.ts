@@ -25,6 +25,9 @@ export interface UserProfile {
     // Telegram
     telegramId?: string;
     telegramConnected: boolean;
+    // WhatsApp
+    whatsappId?: string;
+    whatsappConnected: boolean;
     // Bank
     bankSetup?: string;
     bankConnected: boolean;
@@ -113,6 +116,8 @@ export function useUserProfile(): UseUserProfileReturn {
                 kycLevel: userData.kyc_level || 0,
                 telegramId: userData.telegram_id,
                 telegramConnected: !!userData.telegram_id,
+                whatsappId: userData.whatsapp_id,
+                whatsappConnected: !!userData.whatsapp_id,
                 bankSetup: userData.bank_setup,
                 bankConnected: userData.bank_setup === 'connected',
                 hasDeveloperAccess: userData.has_developer_access || false,
