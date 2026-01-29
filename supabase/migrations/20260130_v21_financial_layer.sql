@@ -45,6 +45,8 @@ END;
 $$;
 
 -- Function: Get invoice status summary
+-- Note: invoices table uses 'total' not 'total_amount', has no 'due_date' column
+-- Status values: 'pending_remittance', 'remitted', etc.
 CREATE OR REPLACE FUNCTION public.get_invoice_summary(
     p_user_id UUID
 )
@@ -64,16 +66,17 @@ BEGIN
     RETURN QUERY
     SELECT
         COUNT(*)::INT as total_invoices,
-        COUNT(*) FILTER (WHERE i.status = 'pending')::INT as pending_count,
-        COUNT(*) FILTER (WHERE i.status = 'paid')::INT as paid_count,
-        COUNT(*) FILTER (WHERE i.status = 'pending' AND i.due_date < CURRENT_DATE)::INT as overdue_count,
-        COALESCE(SUM(i.total_amount) FILTER (WHERE i.status = 'pending'), 0)::NUMERIC as pending_amount,
-        COALESCE(SUM(i.total_amount) FILTER (WHERE i.status = 'paid'), 0)::NUMERIC as paid_amount,
-        COALESCE(SUM(i.total_amount) FILTER (WHERE i.status = 'pending' AND i.due_date < CURRENT_DATE), 0)::NUMERIC as overdue_amount
+        COUNT(*) FILTER (WHERE i.status = 'pending_remittance')::INT as pending_count,
+        COUNT(*) FILTER (WHERE i.status = 'remitted')::INT as paid_count,
+        0::INT as overdue_count, -- No due_date column in invoices table
+        COALESCE(SUM(i.total) FILTER (WHERE i.status = 'pending_remittance'), 0)::NUMERIC as pending_amount,
+        COALESCE(SUM(i.total) FILTER (WHERE i.status = 'remitted'), 0)::NUMERIC as paid_amount,
+        0::NUMERIC as overdue_amount -- No due_date column in invoices table
     FROM public.invoices i
     WHERE i.user_id = p_user_id;
 END;
 $$;
+
 
 -- Grant access
 GRANT EXECUTE ON FUNCTION public.get_transaction_summary TO authenticated;
