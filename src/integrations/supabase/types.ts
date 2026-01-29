@@ -5413,15 +5413,16 @@ export type Database = {
         }[]
       }
       get_upcoming_deadlines: {
-        Args: { days_ahead?: number; deadline_limit?: number }
+        Args: { p_days_ahead?: number; p_user_id?: string }
         Returns: {
-          deadline_date: string
+          days_until: number
+          deadline_id: string
           deadline_type: string
           description: string
-          id: string
-          notification_config: Json
-          recurrence: string
+          due_date: string
+          is_filed: boolean
           title: string
+          urgency: string
         }[]
       }
       get_user_api_usage_summary: {
