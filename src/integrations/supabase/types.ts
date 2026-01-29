@@ -4958,6 +4958,7 @@ export type Database = {
       }
       user_tax_profiles: {
         Row: {
+          accounting_basis: string | null
           ai_confidence: number | null
           created_at: string
           employment_status: string | null
@@ -4976,6 +4977,7 @@ export type Database = {
           user_type: string | null
         }
         Insert: {
+          accounting_basis?: string | null
           ai_confidence?: number | null
           created_at?: string
           employment_status?: string | null
@@ -4994,6 +4996,7 @@ export type Database = {
           user_type?: string | null
         }
         Update: {
+          accounting_basis?: string | null
           ai_confidence?: number | null
           created_at?: string
           employment_status?: string | null
@@ -5618,7 +5621,9 @@ export type Database = {
       get_inventory_summary: {
         Args: { p_user_id: string }
         Returns: {
-          cogs_30d: number
+          accounting_basis: string
+          cogs_incurred_30d: number
+          cogs_paid_30d: number
           low_stock_count: number
           total_items: number
           total_purchases_30d: number
