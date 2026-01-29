@@ -1,5 +1,5 @@
 /**
- * Centralized Chat Engine - V10/V11
+ * Centralized Chat Engine - V10/V11/V23
  * 
  * Single entry point for ALL chat channels (Web, Telegram, WhatsApp, API).
  * Provides consistent:
@@ -7,12 +7,14 @@
  * - Conversation history
  * - System prompt generation
  * - AI response generation
+ * - Action execution (V23: AI-triggered actions)
  */
 
 import { generateSystemPrompt } from './context-builder.ts';
 import { callClaudeConversation, CLAUDE_MODELS } from './claude-client.ts';
 import { buildConversationMessages, storeConversationTurn } from './history-service.ts';
 import { updateProfileField, addRememberedFact, type Channel } from './memory-service.ts';
+import { executeAction, extractActionsFromResponse, cleanResponseActions, type ActionResult } from './action-service.ts';
 
 // ============= Types =============
 
@@ -38,6 +40,7 @@ export interface ChatResponse {
         output_tokens: number;
     };
     profileUpdates?: string[];
+    actionResults?: ActionResult[];
 }
 
 // ============= Profile Extraction (V11 Structured) =============
@@ -201,20 +204,44 @@ export async function processMessage(request: ChatRequest): Promise<ChatResponse
         { model: CLAUDE_MODELS.SONNET }
     );
 
-    console.log(`[chat-engine] Response generated (${result.response.length} chars)`);
+    // 5. Execute actions from AI response (V23)
+    let actionResults: ActionResult[] = [];
+    let cleanedResponse = result.response;
 
-    // 5. Store conversation turn (for channels that support DB history)
+    if (userId) {
+        const actions = extractActionsFromResponse(result.response);
+        if (actions.length > 0) {
+            console.log(`[chat-engine] Found ${actions.length} actions to execute`);
+            actionResults = await Promise.all(
+                actions.map(action => executeAction({
+                    ...action,
+                    userId,
+                    channel
+                }))
+            );
+            cleanedResponse = cleanResponseActions(result.response);
+
+            // Append action results to response
+            const successActions = actionResults.filter(r => r.success);
+            if (successActions.length > 0) {
+                cleanedResponse += '\n\n' + successActions.map(r => `✅ ${r.message}`).join('\n');
+            }
+        }
+    }
+
+    // 6. Store conversation turn (for channels that support DB history)
     if (userId && (channel === 'telegram' || channel === 'whatsapp')) {
         try {
-            await storeConversationTurn(userId, message, result.response, channel);
+            await storeConversationTurn(userId, message, cleanedResponse, channel);
         } catch (err) {
             console.error('[chat-engine] Failed to store conversation:', err);
         }
     }
 
     return {
-        response: result.response,
+        response: cleanedResponse,
         usage: result.usage,
         profileUpdates: profileUpdates.length > 0 ? profileUpdates : undefined,
+        actionResults: actionResults.length > 0 ? actionResults : undefined,
     };
 }
