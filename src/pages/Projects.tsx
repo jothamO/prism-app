@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FolderKanban,
-  Plus,
   ChevronRight,
   ArrowLeft,
   Receipt,
@@ -22,6 +21,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import ChatWidget from '@/components/ChatWidget';
+import NewProjectDialog from '@/components/projects/NewProjectDialog';
+import ProjectStatementDialog from '@/components/projects/ProjectStatementDialog';
 
 interface Project {
   id: string;
@@ -171,15 +172,7 @@ export default function Projects() {
             <p className="text-muted-foreground mt-1">Track project funds and expenses</p>
           </div>
         </div>
-        <Button 
-          onClick={() => toast({ 
-            title: 'Create via Chat', 
-            description: 'Use Telegram or WhatsApp to create projects. Send "new project" to the bot.' 
-          })}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Project
-        </Button>
+        <NewProjectDialog onProjectCreated={fetchProjects} />
       </div>
 
       {/* Summary Cards */}
@@ -254,7 +247,7 @@ export default function Projects() {
                   {projects.map((project) => {
                     const progress = project.budget > 0 ? (project.spent / project.budget) * 100 : 0;
                     const isOverBudget = progress > 100;
-                    
+
                     return (
                       <button
                         key={project.id}
@@ -281,8 +274,8 @@ export default function Projects() {
                             </span>
                           </div>
                           <div className="mt-2">
-                            <Progress 
-                              value={Math.min(progress, 100)} 
+                            <Progress
+                              value={Math.min(progress, 100)}
                               className={cn("h-1.5", isOverBudget && "[&>div]:bg-red-500")}
                             />
                             <div className="flex justify-between text-xs mt-1">
@@ -314,8 +307,8 @@ export default function Projects() {
               </CardTitle>
               {selectedProject && (
                 <CardDescription>
-                  {selectedProject.source_person 
-                    ? `From ${selectedProject.source_person}` 
+                  {selectedProject.source_person
+                    ? `From ${selectedProject.source_person}`
                     : 'No source specified'
                   }
                 </CardDescription>
@@ -391,6 +384,9 @@ export default function Projects() {
                       </div>
                     )}
                   </div>
+
+                  {/* Generate Statement Button */}
+                  <ProjectStatementDialog project={selectedProject} receipts={receipts} />
 
                   {/* Warning if over budget */}
                   {selectedProject.spent > selectedProject.budget && (
