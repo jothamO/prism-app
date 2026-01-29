@@ -50,6 +50,27 @@ export interface FullContext {
     rememberedFacts: string[];
     calendar: CalendarContext;
     financials: UserContext;
+    transactionSummary: TransactionSummary | null;
+    invoiceSummary: InvoiceSummary | null;
+}
+
+export interface TransactionSummary {
+    totalIncome: number;
+    totalExpenses: number;
+    transactionCount: number;
+    topExpenseCategory?: string;
+    topIncomeCategory?: string;
+    emtlTotal: number;
+    vatTotal: number;
+}
+
+export interface InvoiceSummary {
+    totalInvoices: number;
+    pendingCount: number;
+    paidCount: number;
+    overdueCount: number;
+    pendingAmount: number;
+    overdueAmount: number;
 }
 
 // ============= Base Prompt =============
@@ -138,6 +159,70 @@ async function fetchCalendarContext(userId?: string): Promise<CalendarContext> {
     } catch (error) {
         console.error("[context-builder] Calendar context error:", error);
         return { upcomingDeadlines: [] };
+    }
+}
+
+/**
+ * V21: Fetch transaction summary for last 30 days
+ */
+async function fetchTransactionSummary(userId: string): Promise<TransactionSummary | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    try {
+        const { data, error } = await supabase.rpc('get_transaction_summary', {
+            p_user_id: userId,
+            p_days: 30
+        });
+
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+
+        const row = data[0];
+        return {
+            totalIncome: Number(row.total_income) || 0,
+            totalExpenses: Number(row.total_expenses) || 0,
+            transactionCount: row.transaction_count || 0,
+            topExpenseCategory: row.top_expense_category,
+            topIncomeCategory: row.top_income_category,
+            emtlTotal: Number(row.emtl_total) || 0,
+            vatTotal: Number(row.vat_total) || 0,
+        };
+    } catch (error) {
+        console.error("[context-builder] Transaction summary error:", error);
+        return null;
+    }
+}
+
+/**
+ * V21: Fetch invoice status summary
+ */
+async function fetchInvoiceSummary(userId: string): Promise<InvoiceSummary | null> {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    try {
+        const { data, error } = await supabase.rpc('get_invoice_summary', {
+            p_user_id: userId
+        });
+
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+
+        const row = data[0];
+        return {
+            totalInvoices: row.total_invoices || 0,
+            pendingCount: row.pending_count || 0,
+            paidCount: row.paid_count || 0,
+            overdueCount: row.overdue_count || 0,
+            pendingAmount: Number(row.pending_amount) || 0,
+            overdueAmount: Number(row.overdue_amount) || 0,
+        };
+    } catch (error) {
+        console.error("[context-builder] Invoice summary error:", error);
+        return null;
     }
 }
 
@@ -274,6 +359,32 @@ function formatCalendarContext(calendar: CalendarContext): string {
     return `\n\nUPCOMING DEADLINES:\n${deadlines.join("\n")}`;
 }
 
+function formatTransactionSummary(summary: TransactionSummary): string {
+    const items: string[] = [];
+    items.push(`- Last 30 days income: ₦${summary.totalIncome.toLocaleString()}`);
+    items.push(`- Last 30 days expenses: ₦${summary.totalExpenses.toLocaleString()}`);
+    items.push(`- Transaction count: ${summary.transactionCount}`);
+    if (summary.topExpenseCategory) items.push(`- Top expense category: ${summary.topExpenseCategory}`);
+    if (summary.topIncomeCategory) items.push(`- Top income source: ${summary.topIncomeCategory}`);
+    if (summary.emtlTotal > 0) items.push(`- EMTL paid: ₦${summary.emtlTotal.toLocaleString()}`);
+    if (summary.vatTotal > 0) items.push(`- VAT collected: ₦${summary.vatTotal.toLocaleString()}`);
+    return `\n\nTRANSACTION SUMMARY (Last 30 Days):\n${items.join("\n")}`;
+}
+
+function formatInvoiceSummary(summary: InvoiceSummary): string {
+    if (summary.totalInvoices === 0) return "";
+    const items: string[] = [];
+    items.push(`- Total invoices: ${summary.totalInvoices}`);
+    items.push(`- Paid: ${summary.paidCount}, Pending: ${summary.pendingCount}`);
+    if (summary.overdueCount > 0) {
+        items.push(`- ⚠️ OVERDUE: ${summary.overdueCount} invoices (₦${summary.overdueAmount.toLocaleString()})`);
+    }
+    if (summary.pendingAmount > 0) {
+        items.push(`- Pending amount: ₦${summary.pendingAmount.toLocaleString()}`);
+    }
+    return `\n\nINVOICE STATUS:\n${items.join("\n")}`;
+}
+
 // ============= Main Entry Point =============
 
 /**
@@ -286,15 +397,17 @@ export async function generateSystemPrompt(
 ): Promise<string> {
     console.log(`[context-builder] Building context for user: ${userId || 'anonymous'}`);
 
-    // Parallel fetch all context layers
-    const [taxRules, profile, facts, calendar] = await Promise.all([
+    // Parallel fetch all context layers (V20-V22)
+    const [taxRules, profile, facts, calendar, transactions, invoices] = await Promise.all([
         fetchTaxRulesCached(),
         userId ? fetchUserProfile(userId) : Promise.resolve(null),
         userId ? fetchRememberedFacts(userId) : Promise.resolve([]),
         fetchCalendarContext(userId),
+        userId ? fetchTransactionSummary(userId) : Promise.resolve(null),
+        userId ? fetchInvoiceSummary(userId) : Promise.resolve(null),
     ]);
 
-    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}`);
+    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}, transactions=${!!transactions}, invoices=${!!invoices}`);
 
     // Assemble prompt
     let prompt = BASE_PROMPT;
@@ -303,6 +416,8 @@ export async function generateSystemPrompt(
     if (profile) prompt += formatProfileContext(profile);
     if (facts.length > 0) prompt += `\n\nREMEMBERED FACTS:\n${facts.map(f => `- ${f}`).join('\n')}`;
     if (calendar.upcomingDeadlines.length > 0) prompt += formatCalendarContext(calendar);
+    if (transactions) prompt += formatTransactionSummary(transactions);
+    if (invoices) prompt += formatInvoiceSummary(invoices);
     if (userContext) prompt += formatFinancialContext(userContext);
 
     return prompt;
