@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts_payable: {
+        Row: {
+          amount: number
+          amount_paid: number | null
+          created_at: string | null
+          due_date: string | null
+          id: string
+          invoice_date: string
+          invoice_number: string | null
+          payment_date: string | null
+          payment_reference: string | null
+          project_id: string | null
+          status: string | null
+          total_amount: number
+          updated_at: string | null
+          user_id: string
+          vat_amount: number | null
+          vendor_name: string
+          vendor_tin: string | null
+        }
+        Insert: {
+          amount: number
+          amount_paid?: number | null
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date: string
+          invoice_number?: string | null
+          payment_date?: string | null
+          payment_reference?: string | null
+          project_id?: string | null
+          status?: string | null
+          total_amount: number
+          updated_at?: string | null
+          user_id: string
+          vat_amount?: number | null
+          vendor_name: string
+          vendor_tin?: string | null
+        }
+        Update: {
+          amount?: number
+          amount_paid?: number | null
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string | null
+          payment_date?: string | null
+          payment_reference?: string | null
+          project_id?: string | null
+          status?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          user_id?: string
+          vat_amount?: number | null
+          vendor_name?: string
+          vendor_tin?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_payable_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounts_payable_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_preferences: {
         Row: {
           created_at: string | null
@@ -2700,6 +2775,135 @@ export type Database = {
           },
         ]
       }
+      inventory_items: {
+        Row: {
+          business_id: string | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          quantity_on_hand: number | null
+          reorder_level: number | null
+          selling_price: number | null
+          sku: string | null
+          total_value: number | null
+          unit_cost: number
+          unit_of_measure: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          business_id?: string | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          quantity_on_hand?: number | null
+          reorder_level?: number | null
+          selling_price?: number | null
+          sku?: string | null
+          total_value?: number | null
+          unit_cost: number
+          unit_of_measure?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          business_id?: string | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          quantity_on_hand?: number | null
+          reorder_level?: number | null
+          selling_price?: number | null
+          sku?: string | null
+          total_value?: number | null
+          unit_cost?: number
+          unit_of_measure?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_transactions: {
+        Row: {
+          created_at: string | null
+          id: string
+          item_id: string
+          notes: string | null
+          quantity: number
+          reference_id: string | null
+          reference_type: string | null
+          total_cost: number | null
+          transaction_type: string
+          unit_cost: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          item_id: string
+          notes?: string | null
+          quantity: number
+          reference_id?: string | null
+          reference_type?: string | null
+          total_cost?: number | null
+          transaction_type: string
+          unit_cost?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          item_id?: string
+          notes?: string | null
+          quantity?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          total_cost?: number | null
+          transaction_type?: string
+          unit_cost?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_transactions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_validations: {
         Row: {
           created_at: string | null
@@ -3578,6 +3782,8 @@ export type Database = {
       }
       projects: {
         Row: {
+          accounts_payable: number | null
+          accounts_receivable: number | null
           budget: number
           business_id: string | null
           completed_at: string | null
@@ -3597,6 +3803,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          accounts_payable?: number | null
+          accounts_receivable?: number | null
           budget: number
           business_id?: string | null
           completed_at?: string | null
@@ -3616,6 +3824,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          accounts_payable?: number | null
+          accounts_receivable?: number | null
           budget?: number
           business_id?: string | null
           completed_at?: string | null
@@ -5405,6 +5615,17 @@ export type Database = {
           file_type: string
         }[]
       }
+      get_inventory_summary: {
+        Args: { p_user_id: string }
+        Returns: {
+          cogs_30d: number
+          low_stock_count: number
+          total_items: number
+          total_purchases_30d: number
+          total_sales_30d: number
+          total_value: number
+        }[]
+      }
       get_invoice_summary: {
         Args: { p_user_id: string }
         Returns: {
@@ -5415,6 +5636,17 @@ export type Database = {
           pending_amount: number
           pending_count: number
           total_invoices: number
+        }[]
+      }
+      get_payables_summary: {
+        Args: { p_user_id: string }
+        Returns: {
+          due_within_7_days: number
+          due_within_7_days_amount: number
+          overdue_amount: number
+          overdue_count: number
+          total_amount_due: number
+          total_payables: number
         }[]
       }
       get_profile_confidence_trend: {
