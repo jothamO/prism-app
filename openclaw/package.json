@@ -2,6 +2,7 @@
     "name": "prism-openclaw",
     "version": "1.0.0",
     "description": "PRISM Tax Assistant powered by OpenClaw",
+    "type": "module",
     "main": "index.js",
     "scripts": {
         "start": "openclaw gateway",
@@ -10,14 +11,15 @@
         "doctor": "openclaw doctor"
     },
     "dependencies": {
-        "@openclaw/openclaw": "latest",
+        "openclaw": "latest",
         "@supabase/supabase-js": "^2.39.0"
     },
     "devDependencies": {
         "typescript": "^5.3.0",
-        "@types/node": "^20.0.0"
+        "@types/node": "^22.0.0"
     },
     "engines": {
-        "node": ">=18.0.0"
-    }
+        "node": ">=22.12.0"
+    },
+    "packageManager": "pnpm@10.23.0"
 }
