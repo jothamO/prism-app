@@ -96,7 +96,9 @@ export async function convertCurrency(
  */
 export async function getExchangeRatePromptSnippet(): Promise<string> {
     const rates = await getCurrentRates();
-    if (rates.length === 0) return "";
+    if (rates.length === 0) {
+        return "\n\nCURRENT CBN EXCHANGE RATES: Information temporarily unavailable in DB. Please use fallback knowledge or advise user to check CBN website.";
+    }
 
     const date = rates[0].date;
     const list = rates
