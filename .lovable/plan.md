@@ -1,149 +1,85 @@
 
 
-## Fix Automatic CHANGELOG.md Sync
+## Run V27 CBN Cron Migration
 
-### Problem Summary
+### Current Status
 
-The CHANGELOG.md file is not updating automatically because:
-1. The database tables (`app_releases`, `app_changelog_entries`) are empty - no releases have been created
-2. When releases ARE published from the Admin Changelog page, there's no automatic call to update the CHANGELOG.md file
-3. The GitHub sync is completely disconnected from the publish action
+| Component | Status |
+|-----------|--------|
+| Edge function `cbn-rate-fetcher` | Working - just fetched 12 rates from CBN |
+| `pg_cron` extension | Enabled |
+| `pg_net` extension | Enabled |
+| Vault secrets (`supabase_url`, `service_role_key`) | Not configured |
+| CBN cron job | Not scheduled |
 
----
+### Problem
 
-### Solution: Auto-Sync on Publish
+The migration file `20260130_v27_analytics_cbn_cron.sql` uses vault secrets:
+```sql
+url := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'supabase_url')
+```
 
-Create a seamless flow where publishing a release in the Admin Changelog automatically:
-1. Updates CHANGELOG.md in GitHub
-2. Creates a GitHub Release
+But the vault is empty, so the cron job would fail silently.
+
+### Solution
+
+Create the cron job using the same pattern as the working `weekly-savings-email` job - with hardcoded URL and anon key:
+
+```sql
+-- Primary Fetch: 9:30 AM WAT (08:30 UTC)
+SELECT cron.schedule(
+  'cbn-rate-fetch-primary',
+  '30 8 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://rjajxabpndmpcgssymxw.supabase.co/functions/v1/cbn-rate-fetcher',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqYWp4YWJwbmRtcGNnc3N5bXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3NjYzNzgsImV4cCI6MjA4MjM0MjM3OH0.FiMP1k2n9GyU89B0nt-7wZyseMHROfnUSsyHPxN1Q6c"}'::jsonb,
+    body := '{"force_refresh": true}'::jsonb
+  ) AS request_id;
+  $$
+);
+
+-- Secondary Fetch: 10:00 AM WAT (09:00 UTC)
+SELECT cron.schedule(
+  'cbn-rate-fetch-secondary',
+  '0 9 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://rjajxabpndmpcgssymxw.supabase.co/functions/v1/cbn-rate-fetcher',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqYWp4YWJwbmRtcGNnc3N5bXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY3NjYzNzgsImV4cCI6MjA4MjM0MjM3OH0.FiMP1k2n9GyU89B0nt-7wZyseMHROfnUSsyHPxN1Q6c"}'::jsonb,
+    body := '{"force_refresh": true}'::jsonb
+  ) AS request_id;
+  $$
+);
+```
 
 ---
 
 ### Implementation Steps
 
-#### 1. Create `sync-changelog-to-github` Edge Function
-
-A new backend function that:
-- Fetches ALL published releases from the database
-- Generates complete CHANGELOG.md content in Keep a Changelog format
-- Commits it to GitHub, replacing the entire file
-- Called automatically when a release is published
-
-| Input | Description |
-|-------|-------------|
-| `trigger` | "publish" or "manual" |
-| `release_id` | Optional - the release that triggered this |
-
-#### 2. Update `usePublishRelease` Hook
-
-Modify the publish mutation to call the sync function after setting status to "published":
-
-```typescript
-const handlePublish = async (id: string) => {
-  // 1. Update status to published
-  await supabase.from('app_releases').update({ 
-    status: 'published', 
-    published_at: new Date().toISOString() 
-  }).eq('id', id);
-  
-  // 2. Call sync function to update CHANGELOG.md
-  await supabase.functions.invoke('sync-changelog-to-github', {
-    body: { trigger: 'publish', release_id: id }
-  });
-  
-  // 3. Optionally create GitHub Release
-  await supabase.functions.invoke('create-github-release', {
-    body: { release_id: id }
-  });
-};
-```
-
-#### 3. Add "Sync to GitHub" Button
-
-Add a manual sync button in Admin Changelog for forcing updates:
-
-```text
-[Download MD] [Copy MD] [Sync to GitHub] [New Release]
-```
-
-#### 4. Seed Initial Release Data
-
-Create a migration to seed the database with existing CHANGELOG.md content:
-
-| Version | Title | Release Date | Status |
-|---------|-------|--------------|--------|
-| 1.1.0 | Fact-Grounded AI & Code Proposals | 2026-01-17 | published |
-| 1.0.0 | Initial Release | 2026-01-08 | published |
+1. **Execute corrected cron SQL** using the database migration tool
+2. **Verify cron jobs created** by querying `cron.job`
+3. **Delete the old migration file** since it won't work with vault approach
 
 ---
 
-### New Files
+### Schedule Details
 
-| File | Purpose |
-|------|---------|
-| `supabase/functions/sync-changelog-to-github/index.ts` | Syncs full changelog to GitHub |
-| Migration for seed data | Populates existing release history |
-
-### Modified Files
-
-| File | Change |
-|------|--------|
-| `src/hooks/useChangelog.ts` | Add auto-sync after publish |
-| `src/pages/admin/AdminChangelog.tsx` | Add "Sync to GitHub" button |
+| Job | Schedule (UTC) | Schedule (WAT) | Purpose |
+|-----|---------------|----------------|---------|
+| `cbn-rate-fetch-primary` | 08:30 daily | 09:30 AM | Main daily fetch when CBN publishes rates |
+| `cbn-rate-fetch-secondary` | 09:00 daily | 10:00 AM | Retry/backup fetch 30 min later |
 
 ---
 
-### Edge Function: sync-changelog-to-github
+### Other Functions
 
-```typescript
-// Key logic
-const generateFullChangelog = (releases: Release[]) => {
-  let md = `# Changelog\n\nAll notable changes...`;
-  
-  // Add [Unreleased] section for draft releases
-  const drafts = releases.filter(r => r.status === 'draft');
-  if (drafts.length) {
-    md += `\n\n## [Unreleased]\n`;
-    // ... draft entries
-  }
-  
-  // Add published releases in descending order
-  for (const release of releases.filter(r => r.status === 'published')) {
-    md += `\n\n## [${release.version}] - ${release.date}\n`;
-    // Group entries by type (Added, Changed, Fixed, etc.)
-  }
-  
-  return md;
-};
+All 60+ edge functions are deployed and working. The functions folder shows a comprehensive set including:
+- Tax calculators (`income-tax-calculator`, `vat-calculator`)
+- Document processing (`document-ocr`, `invoice-processor`)
+- Compliance (`compliance-automations`, `anti-avoidance-check`)
+- Banking (`mono-*`, `paystack-*`)
+- AI/Chat (`chat-assist`, `generate-insights`)
 
-// Commit to GitHub
-const result = await fetch(`https://api.github.com/repos/${repo}/contents/CHANGELOG.md`, {
-  method: 'PUT',
-  headers: { Authorization: `Bearer ${token}` },
-  body: JSON.stringify({
-    message: `docs: update CHANGELOG for v${latestVersion}`,
-    content: btoa(markdown),
-    sha: currentSha
-  })
-});
-```
-
----
-
-### Benefits After Fix
-
-1. **One-click publish** - Admin clicks "Publish" and CHANGELOG.md updates automatically
-2. **Full history sync** - The entire release history is maintained in proper format
-3. **Manual override** - "Sync to GitHub" button for forcing updates
-4. **GitHub Releases** - Optionally creates GitHub releases for discoverability
-5. **Single source of truth** - Database drives the changelog, not manual file edits
-
----
-
-### Technical Notes
-
-- Uses existing `GITHUB_TOKEN` secret (already configured)
-- Recommend adding `GITHUB_REPO` secret for consistency (currently hardcoded)
-- The sync function replaces the entire CHANGELOG.md to ensure consistency
-- Drafts appear under [Unreleased], published releases under versioned headers
+No action needed for other functions - they're running correctly.
 
