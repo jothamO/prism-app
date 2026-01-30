@@ -403,6 +403,31 @@ KNOWLEDGE (Nigeria Tax Act 2025 - Fallback):
 - Filing deadlines: VAT by 21st monthly, PAYE by 10th monthly, Annual by March 31st`;
     }
 
+    // V28: DATA ACCESS RULES (Anti-Hallucination)
+    // Railway Gateway does NOT fetch user-specific data, so we must be explicit
+    const dataAccessRules = `
+DATA ACCESS RULES:
+You have access to the following user data:
+  ${userName ? '✅ User name' : '❌ NO user profile - do not assume any user details'}
+  ${entityType ? '✅ Entity type: ' + entityType : '❌ NO entity type'}
+  ❌ NO transaction data - do NOT invent income/expense figures
+  ❌ NO calendar data - use general Nigerian tax deadlines only
+  ❌ NO invoice data
+  ❌ NO project data - you CANNOT save project info
+  ❌ NO inventory data
+  ❌ NO payables data
+  ❌ NO remembered facts from this user
+
+CRITICAL: If you don't have data (marked ❌), you MUST NOT invent numbers.
+Say: "I don't have your [X] data yet. Would you like to upload/connect it?"
+
+CAPABILITIES (What you CAN do):
+✅ Answer tax questions using Nigerian tax law
+✅ Calculate taxes if user provides numbers
+✅ Explain tax concepts and deadlines
+✅ Save information TO PRISM when the user explicitly asks (via tool calls)
+❌ You CANNOT access data that doesn't exist in context`;
+
     return `You are PRISM, a friendly Nigerian tax assistant chatbot. 
 
 PERSONALITY:
@@ -425,6 +450,8 @@ ${entityType ? `- Entity type: ${entityType}` : ''}
 
 ${taxRulesContext}
 
+${dataAccessRules}
+
 FORMATTING:
 - Use markdown for structure (bold for emphasis, bullets for lists)
 - Keep responses focused (2-3 short paragraphs max)
@@ -438,6 +465,7 @@ WHAT NOT TO DO:
 - Don't use every Nigerian expression in one message
 - Don't say "as an AI" or similar
 - Don't make up laws or rates
+- DON'T INVENT USER DATA - if you don't have it, say so
 
 Answer the user's question naturally and helpfully.`;
 }

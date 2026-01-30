@@ -578,14 +578,75 @@ export async function generateSystemPrompt(
     prompt += `\n\n${taxRules}`;
     prompt += currency; // Add daily CBN rates (V27)
 
+    // ============= DATA ACCESS RULES (V28 - Anti-Hallucination) =============
+    // Explicitly tell the AI what data it has and doesn't have
+    const dataAccessRules: string[] = [];
+    dataAccessRules.push("DATA ACCESS RULES:");
+    dataAccessRules.push("You have access to the following user data:");
+
+    if (profile) {
+        dataAccessRules.push("  ✅ User profile (name, entity type, work status)");
+    } else {
+        dataAccessRules.push("  ❌ NO user profile - do not assume any user details");
+    }
+
+    if (transactions && transactions.transactionCount > 0) {
+        dataAccessRules.push(`  ✅ Transaction summary (${transactions.transactionCount} transactions, last 30 days)`);
+    } else {
+        dataAccessRules.push("  ❌ NO transaction data - do NOT invent income/expense figures");
+    }
+
+    if (calendar.upcomingDeadlines.length > 0) {
+        dataAccessRules.push(`  ✅ Calendar deadlines (${calendar.upcomingDeadlines.length} upcoming)`);
+    } else {
+        dataAccessRules.push("  ❌ NO calendar data - use general Nigerian tax deadlines only");
+    }
+
+    if (invoices && invoices.totalInvoices > 0) {
+        dataAccessRules.push(`  ✅ Invoice summary (${invoices.totalInvoices} invoices)`);
+    } else {
+        dataAccessRules.push("  ❌ NO invoice data");
+    }
+
+    if (projects && projects.totalProjects > 0) {
+        dataAccessRules.push(`  ✅ Project summary (${projects.totalProjects} projects)`);
+    } else {
+        dataAccessRules.push("  ❌ NO project data - you CANNOT save project info");
+    }
+
+    if (inventory && inventory.totalItems > 0) {
+        dataAccessRules.push(`  ✅ Inventory summary (${inventory.totalItems} items)`);
+    } else {
+        dataAccessRules.push("  ❌ NO inventory data");
+    }
+
+    if (payables && payables.totalPayables > 0) {
+        dataAccessRules.push(`  ✅ Payables summary (${payables.totalPayables} bills)`);
+    } else {
+        dataAccessRules.push("  ❌ NO payables data");
+    }
+
+    if (facts.length > 0) {
+        dataAccessRules.push(`  ✅ Remembered facts (${facts.length} items)`);
+    } else {
+        dataAccessRules.push("  ❌ NO remembered facts");
+    }
+
+    dataAccessRules.push("");
+    dataAccessRules.push("CRITICAL: If you don't have data (marked ❌), you MUST NOT invent numbers.");
+    dataAccessRules.push("Say: 'I don't have your [X] data yet. Would you like to upload/connect it?'");
+
+    prompt += `\n\n${dataAccessRules.join("\n")}`;
+
+    // Add actual data sections
     if (profile) prompt += formatProfileContext(profile);
     if (facts.length > 0) prompt += `\n\nREMEMBERED FACTS:\n${facts.map(f => `- ${f}`).join('\n')}`;
     if (calendar.upcomingDeadlines.length > 0) prompt += formatCalendarContext(calendar);
-    if (transactions) prompt += formatTransactionSummary(transactions);
-    if (invoices) prompt += formatInvoiceSummary(invoices);
-    if (projects) prompt += formatProjectSummary(projects);
-    if (inventory) prompt += formatInventorySummary(inventory);
-    if (payables) prompt += formatPayablesSummary(payables);
+    if (transactions && transactions.transactionCount > 0) prompt += formatTransactionSummary(transactions);
+    if (invoices && invoices.totalInvoices > 0) prompt += formatInvoiceSummary(invoices);
+    if (projects && projects.totalProjects > 0) prompt += formatProjectSummary(projects);
+    if (inventory && inventory.totalItems > 0) prompt += formatInventorySummary(inventory);
+    if (payables && payables.totalPayables > 0) prompt += formatPayablesSummary(payables);
     if (userContext) prompt += formatFinancialContext(userContext);
 
     return prompt;
