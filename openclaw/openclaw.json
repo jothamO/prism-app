@@ -1,0 +1,92 @@
+{
+    "$schema": "https://docs.openclaw.ai/schemas/config.json",
+    "gateway": {
+        "port": 18789,
+        "bind": "127.0.0.1",
+        "auth": {
+            "mode": "password",
+            "password": "${OPENCLAW_PASSWORD}"
+        }
+    },
+    "agents": {
+        "owner": {
+            "displayName": "Jotham (Owner)",
+            "model": "anthropic/claude-sonnet-4-2-25",
+            "maxTokens": 4096,
+            "sandbox": {
+                "mode": "off"
+            },
+            "workspace": "./workspace"
+        },
+        "prism": {
+            "displayName": "PRISM Assistant",
+            "model": "anthropic/claude-sonnet-4-2-25",
+            "maxTokens": 2048,
+            "sandbox": {
+                "mode": "always",
+                "allowlist": [
+                    "prism_query",
+                    "prism_profile",
+                    "prism_save",
+                    "prism_calculate",
+                    "prism_memory"
+                ],
+                "denylist": [
+                    "bash",
+                    "process",
+                    "browser",
+                    "system.*"
+                ]
+            },
+            "workspace": "./workspace"
+        }
+    },
+    "routing": {
+        "rules": [
+            {
+                "match": {
+                    "email": "jothamossai@gmail.com"
+                },
+                "agent": "owner"
+            },
+            {
+                "match": {
+                    "telegram_id": "1389215188"
+                },
+                "agent": "owner"
+            },
+            {
+                "match": {
+                    "default": true
+                },
+                "agent": "prism"
+            }
+        ]
+    },
+    "channels": {
+        "telegram": {
+            "enabled": true,
+            "token": "${TELEGRAM_BOT_TOKEN}"
+        },
+        "whatsapp": {
+            "enabled": true,
+            "sessionPath": "./whatsapp-session"
+        },
+        "webchat": {
+            "enabled": true,
+            "allowedOrigins": [
+                "https://app.prism.tax",
+                "http://localhost:3000"
+            ]
+        }
+    },
+    "features": {
+        "voiceWake": false,
+        "talkMode": false,
+        "canvas": false
+    },
+    "supabase": {
+        "url": "${SUPABASE_URL}",
+        "serviceKey": "${SUPABASE_SERVICE_ROLE_KEY}"
+    }
+}
