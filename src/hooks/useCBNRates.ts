@@ -35,9 +35,9 @@ export function useCBNRates() {
         .from('cbn_exchange_rates')
         .select('*')
         .order('rate_date', { ascending: false });
-      
+
       if (error) throw error;
-      
+
       // Deduplicate by currency (keep most recently updated)
       const latestByCurrency: Record<string, CBNRate> = {};
       data?.forEach(rate => {
@@ -45,7 +45,7 @@ export function useCBNRates() {
           latestByCurrency[rate.currency] = rate;
         }
       });
-      
+
       return Object.values(latestByCurrency);
     },
     staleTime: 5 * 60 * 1000,
@@ -57,14 +57,14 @@ export function useCBNRates() {
     queryFn: async (): Promise<CBNRate[]> => {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
+
       const { data, error } = await supabase
         .from('cbn_exchange_rates')
         .select('*')
         .eq('currency', 'USD')
         .gte('rate_date', thirtyDaysAgo.toISOString().split('T')[0])
         .order('rate_date', { ascending: true });
-      
+
       if (error) throw error;
       return data || [];
     },
@@ -80,7 +80,7 @@ export function useCBNRates() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10);
-      
+
       if (error) throw error;
       return data || [];
     },
@@ -89,8 +89,10 @@ export function useCBNRates() {
 
   // Trigger rate fetch
   const triggerFetch = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('cbn-rate-fetcher');
+    mutationFn: async (forceRefresh: boolean = true) => {
+      const { data, error } = await supabase.functions.invoke('cbn-rate-fetcher', {
+        body: { force_refresh: forceRefresh }
+      });
       if (error) throw error;
       return data;
     },
@@ -116,11 +118,11 @@ export function useCBNRates() {
   const getFreshness = () => {
     const latestRate = currentRates.data?.find(r => r.currency === 'USD');
     if (!latestRate) return { status: 'stale', message: 'No rates available' };
-    
+
     const rateDate = new Date(latestRate.rate_date);
     const today = new Date();
     const diffDays = Math.floor((today.getTime() - rateDate.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return { status: 'fresh', message: "Today's rate" };
     if (diffDays === 1) return { status: 'recent', message: "Yesterday's rate" };
     if (diffDays <= 7) return { status: 'stale', message: `${diffDays} days old` };

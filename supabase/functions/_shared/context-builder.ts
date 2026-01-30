@@ -15,10 +15,13 @@ import { buildTaxRulesSummary } from "./rules-client.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getUser } from "./user-resolver.ts";
 import { getCached, CACHE_KEYS } from "./context-cache.ts";
+import { getBasePersonalityPrompt } from "./personality-service.ts";
+import { getExchangeRatePromptSnippet } from "./currency-service.ts";
 
 // ============= Types =============
 
 export interface UserProfile {
+    preferred_name?: string;
     entityType?: string;
     employmentStatus?: string;
     isPensioner?: boolean;
@@ -106,34 +109,7 @@ export interface PayablesSummary {
     dueWithin7DaysAmount: number;
 }
 
-// ============= Base Prompt =============
-
-const BASE_PROMPT = `You are PRISM, a friendly Nigerian tax assistant. Your role is to help users understand their taxes, transactions, and financial obligations under Nigerian law.
-
-PERSONALITY:
-- Friendly, approachable, and conversational
-- Use simple language, avoid jargon when possible
-- Reference Nigerian context (Naira, FIRS/NRS, local examples)
-- Be helpful but always recommend consulting a tax professional for complex matters
-
-KNOWLEDGE AREAS:
-1. Nigeria Tax Act 2025 - Personal income tax, corporate tax, VAT, CGT
-2. EMTL - Electronic Money Transfer Levy
-3. Tax Categories: Employed, Self-employed, Business owner, Freelancer
-4. Deductions: Pension, NHF, Life insurance, Rent relief
-5. Filing deadlines and compliance requirements
-
-FORMATTING:
-- Use emojis sparingly to be friendly 💡📊
-- Format currency as ₦X,XXX
-- Keep responses concise (2-3 paragraphs max)
-- For calculations, show the math briefly
-- End with a helpful tip or next action when relevant
-
-LIMITATIONS:
-- You cannot access external websites or databases
-- For specific account questions, refer to their transaction history
-- For complex legal matters, recommend a tax professional`;
+// BASE_PROMPT is now dynamic via getBasePersonalityPrompt() in personality-service.ts
 
 // ============= Supabase Client =============
 
@@ -578,8 +554,8 @@ export async function generateSystemPrompt(
 ): Promise<string> {
     console.log(`[context-builder] Building context for user: ${userId || 'anonymous'}`);
 
-    // Parallel fetch all context layers (V20-V26)
-    const [taxRules, profile, facts, calendar, transactions, invoices, projects, inventory, payables] = await Promise.all([
+    // Parallel fetch all context layers (V20-V27)
+    const [taxRules, profile, facts, calendar, transactions, invoices, projects, inventory, payables, currency] = await Promise.all([
         fetchTaxRulesCached(),
         userId ? fetchUserProfile(userId) : Promise.resolve(null),
         userId ? fetchRememberedFacts(userId) : Promise.resolve([]),
@@ -589,13 +565,18 @@ export async function generateSystemPrompt(
         userId ? fetchProjectSummary(userId) : Promise.resolve(null),
         userId ? fetchInventorySummary(userId) : Promise.resolve(null),
         userId ? fetchPayablesSummary(userId) : Promise.resolve(null),
+        getExchangeRatePromptSnippet(),
     ]);
 
-    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}, transactions=${!!transactions}, invoices=${!!invoices}, projects=${!!projects}, inventory=${!!inventory}, payables=${!!payables}`);
+    console.log(`[context-builder] Fetched: rules=${!!taxRules}, profile=${!!profile}, facts=${facts.length}, deadlines=${calendar.upcomingDeadlines.length}, transactions=${!!transactions}, invoices=${!!invoices}, projects=${!!projects}, inventory=${!!inventory}, payables=${!!payables}, currency=${!!currency}`);
 
     // Assemble prompt
-    let prompt = BASE_PROMPT;
+    let prompt = getBasePersonalityPrompt({
+        userName: profile?.preferred_name
+    });
+
     prompt += `\n\n${taxRules}`;
+    prompt += currency; // Add daily CBN rates (V27)
 
     if (profile) prompt += formatProfileContext(profile);
     if (facts.length > 0) prompt += `\n\nREMEMBERED FACTS:\n${facts.map(f => `- ${f}`).join('\n')}`;

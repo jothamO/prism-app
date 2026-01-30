@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { 
-  BarChart3, 
-  RefreshCw, 
-  TrendingUp, 
-  DollarSign, 
-  Smartphone, 
-  CreditCard, 
+import {
+  BarChart3,
+  RefreshCw,
+  TrendingUp,
+  DollarSign,
+  Smartphone,
+  CreditCard,
   Wallet,
   Globe,
   Building2,
@@ -28,8 +28,8 @@ export default function AdminAnalytics() {
   const freshness = getFreshness();
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', { 
-      style: 'currency', 
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
       currency: 'NGN',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
@@ -62,6 +62,11 @@ export default function AdminAnalytics() {
     { name: 'Foreign Currency', count: breakdown?.foreign_currency_count || 0, color: 'bg-cyan-500' },
   ].filter(t => t.count > 0);
 
+  // Calculate USD trend
+  const usdTrend = rateHistory.data && rateHistory.data.length >= 2
+    ? ((rateHistory.data[rateHistory.data.length - 1].rate - rateHistory.data[rateHistory.data.length - 2].rate) / rateHistory.data[rateHistory.data.length - 2].rate * 100).toFixed(2)
+    : null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -71,7 +76,7 @@ export default function AdminAnalytics() {
           <p className="text-muted-foreground text-sm mt-1">Nigerian transaction breakdown with VAT implications</p>
         </div>
         <div className="flex items-center gap-3">
-          <select 
+          <select
             value={dateRange}
             onChange={(e) => setDateRange(Number(e.target.value))}
             className="bg-card border border-border rounded-lg px-3 py-2 text-sm"
@@ -123,7 +128,7 @@ export default function AdminAnalytics() {
             <PieChart className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">Nigerian Transaction Types</h2>
           </div>
-          
+
           {isLoading ? (
             <div className="h-48 flex items-center justify-center text-muted-foreground">Loading...</div>
           ) : (
@@ -215,15 +220,22 @@ export default function AdminAnalytics() {
             <div className="bg-muted/30 rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">USD/NGN</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  freshness.status === 'fresh' ? 'bg-green-500/10 text-green-500' :
-                  freshness.status === 'recent' ? 'bg-yellow-500/10 text-yellow-500' :
-                  'bg-red-500/10 text-red-500'
-                }`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${freshness.status === 'fresh' ? 'bg-green-500/10 text-green-500' :
+                    freshness.status === 'recent' ? 'bg-yellow-500/10 text-yellow-500' :
+                      'bg-red-500/10 text-red-500'
+                  }`}>
                   {freshness.message}
                 </span>
               </div>
-              <p className="text-3xl font-bold text-foreground">₦{formatNumber(usdRate.rate)}</p>
+              <div className="flex items-end justify-between">
+                <p className="text-3xl font-bold text-foreground">₦{formatNumber(usdRate.rate)}</p>
+                {usdTrend && (
+                  <div className={`flex items-center text-xs mb-1 ${Number(usdTrend) > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {Number(usdTrend) > 0 ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownRight className="w-3 h-3 mr-1" />}
+                    {Math.abs(Number(usdTrend))}%
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Source: {usdRate.source} • {new Date(usdRate.rate_date).toLocaleDateString()}
               </p>
@@ -242,8 +254,8 @@ export default function AdminAnalytics() {
 
           {/* Other Currencies */}
           <div className="space-y-2">
-            {currentRates.data?.filter(r => r.currency !== 'USD').slice(0, 4).map(rate => (
-              <div key={rate.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+            {currentRates.data?.filter(r => r.currency !== 'USD').slice(0, 8).map(rate => (
+              <div key={rate.id} className="flex items-center justify-between py-2 border-b border-border last:border-0 hover:bg-muted/30 px-1 rounded transition-colors">
                 <span className="text-sm font-medium text-foreground">{rate.currency}/NGN</span>
                 <span className="text-sm text-muted-foreground">₦{formatNumber(rate.rate)}</span>
               </div>
@@ -281,7 +293,7 @@ export default function AdminAnalytics() {
             <TrendingUp className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">VAT Implications</h2>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">VAT Collected</p>
@@ -302,7 +314,7 @@ export default function AdminAnalytics() {
               <span className="text-sm font-medium text-foreground">7.5%</span>
             </div>
             <div className="mt-2 bg-muted/30 rounded-full h-2 overflow-hidden">
-              <div 
+              <div
                 className="bg-green-500 h-full transition-all"
                 style={{ width: `${((vat?.vat_applicable_count || 0) / (vat?.total_transactions || 1) * 100)}%` }}
               />
@@ -319,7 +331,7 @@ export default function AdminAnalytics() {
             <BarChart3 className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-foreground">Classification Sources</h2>
           </div>
-          
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

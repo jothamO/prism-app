@@ -15,6 +15,7 @@ import { callClaudeConversation, CLAUDE_MODELS } from './claude-client.ts';
 import { buildConversationMessages, storeConversationTurn } from './history-service.ts';
 import { updateProfileField, addRememberedFact, type Channel } from './memory-service.ts';
 import { executeAction, extractActionsFromResponse, cleanResponseActions, type ActionResult } from './action-service.ts';
+import { extractProfileSignals } from './nlu-service.ts';
 
 // ============= Types =============
 
@@ -46,107 +47,23 @@ export interface ChatResponse {
 // ============= Profile Extraction (V11 Structured) =============
 
 /**
- * Extract profile data from user message and store in structured fields
- * V11: Uses memory-service for structured profile updates with learning log
+ * Extract profile data from user message and store in structured fields.
+ * V11: Uses memory-service for structured profile updates with learning log.
  */
 async function extractAndStoreProfile(userId: string, message: string, channel: ChatChannel): Promise<string[]> {
     const updates: string[] = [];
+    if (!userId) return [];
 
     try {
-        if (!userId) return [];
-
-        const lowerMessage = message.toLowerCase();
+        const signals = extractProfileSignals(message);
         const memoryChannel = channel as Channel;
 
-        // ============= Entity Type Detection =============
-        let entityType: string | null = null;
-
-        if (lowerMessage.includes("i'm a freelancer") || lowerMessage.includes("i am a freelancer")) {
-            entityType = 'self_employed';
-        }
-        if (lowerMessage.includes("i'm self-employed") || lowerMessage.includes("i am self-employed")) {
-            entityType = 'self_employed';
-        }
-        if (lowerMessage.includes("i run a business") || lowerMessage.includes("i own a business")) {
-            entityType = 'sme';
-        }
-        if (lowerMessage.includes("i own a company") || lowerMessage.includes("my company")) {
-            entityType = 'company';
-        }
-        if (lowerMessage.includes("i'm employed") || lowerMessage.includes("i work for")) {
-            entityType = 'individual';
+        for (const signal of signals) {
+            await updateProfileField(userId, signal.field, signal.value, 'chat', memoryChannel, signal.confidence);
+            updates.push(`${signal.field}: ${signal.value}`);
         }
 
-        if (entityType) {
-            await updateProfileField(userId, 'entity_type', entityType, 'chat', memoryChannel, 0.9);
-            updates.push(`entity_type: ${entityType}`);
-        }
-
-        // ============= Income Detection =============
-        const incomeMatch = message.match(/(?:i\s+(?:earn|make|get)\s+)?[₦n]?([\d,]+)\s*(?:k|m|million|thousand)?\s*(?:per\s+)?(?:month|monthly|annually|yearly|year|per\s+year)/i);
-        if (incomeMatch) {
-            let amount = parseInt(incomeMatch[1].replace(/,/g, ''));
-
-            // Handle k/m suffixes
-            if (lowerMessage.includes('million') || lowerMessage.match(/[\d,]+\s*m\s/)) {
-                amount = amount * 1000000;
-            } else if (lowerMessage.includes('thousand') || lowerMessage.match(/[\d,]+\s*k\s/)) {
-                amount = amount * 1000;
-            }
-
-            const isMonthly = lowerMessage.includes('month');
-            const annualIncome = isMonthly ? amount * 12 : amount;
-
-            await updateProfileField(userId, 'annual_income', String(annualIncome), 'chat', memoryChannel, 0.8);
-            updates.push(`annual_income: ₦${annualIncome.toLocaleString()}`);
-        }
-
-        // ============= Name Detection =============
-        const nameMatch = message.match(/(?:call\s+me|my\s+name\s+is)\s+([a-z]+)/i);
-        if (nameMatch) {
-            const preferredName = nameMatch[1];
-            await updateProfileField(userId, 'preferred_name', preferredName, 'chat', memoryChannel, 1.0);
-            updates.push(`preferred_name: ${preferredName}`);
-        }
-
-        // ============= Industry Detection =============
-        const industryPatterns: Record<string, string[]> = {
-            'technology': ['tech', 'software', 'developer', 'programmer', 'IT', 'startup'],
-            'consulting': ['consultant', 'consulting', 'advisory'],
-            'trading': ['trader', 'trading', 'import', 'export', 'merchandise'],
-            'manufacturing': ['factory', 'manufacturing', 'production'],
-            'agriculture': ['farmer', 'farming', 'agriculture', 'agribusiness'],
-            'healthcare': ['doctor', 'hospital', 'medical', 'pharmacy'],
-            'education': ['teacher', 'school', 'training', 'tutoring'],
-            'real_estate': ['real estate', 'property', 'landlord', 'rent'],
-        };
-
-        for (const [industry, keywords] of Object.entries(industryPatterns)) {
-            if (keywords.some(kw => lowerMessage.includes(kw))) {
-                await updateProfileField(userId, 'industry', industry, 'chat', memoryChannel, 0.7);
-                updates.push(`industry: ${industry}`);
-                break;
-            }
-        }
-
-        // ============= Tax Registration Detection =============
-        const taxTypes: string[] = [];
-        if (lowerMessage.includes('vat registered') || lowerMessage.includes('registered for vat')) {
-            taxTypes.push('VAT');
-        }
-        if (lowerMessage.includes('pay paye') || lowerMessage.includes('paye tax')) {
-            taxTypes.push('PAYE');
-        }
-        if (lowerMessage.includes('company income tax') || lowerMessage.includes('cit')) {
-            taxTypes.push('CIT');
-        }
-
-        if (taxTypes.length > 0) {
-            await updateProfileField(userId, 'registered_taxes', JSON.stringify(taxTypes), 'chat', memoryChannel, 0.85);
-            updates.push(`registered_taxes: ${taxTypes.join(', ')}`);
-        }
-
-        // ============= Free-form "Remember" Requests =============
+        // ============= Free-form "Remember" Requests (Special Case) =============
         const rememberMatch = message.match(/remember\s+(?:that\s+)?(.+)/i);
         if (rememberMatch) {
             const fact = rememberMatch[1].trim();
@@ -229,10 +146,10 @@ export async function processMessage(request: ChatRequest): Promise<ChatResponse
         }
     }
 
-    // 6. Store conversation turn (for channels that support DB history)
-    if (userId && (channel === 'telegram' || channel === 'whatsapp')) {
+    // 6. Store conversation turn for persistency across platforms
+    if (userId) {
         try {
-            await storeConversationTurn(userId, message, cleanedResponse, channel);
+            await storeConversationTurn(userId, channel, message, cleanedResponse);
         } catch (err) {
             console.error('[chat-engine] Failed to store conversation:', err);
         }
