@@ -1,138 +1,149 @@
 
 
-## Run V26b Inventory Refinement Migration
+## Fix Automatic CHANGELOG.md Sync
 
-### Overview
+### Problem Summary
 
-Execute the V26b migration to enhance inventory tracking with accounting basis support. This migration distinguishes between cash and accrual accounting methods for COGS calculations.
-
----
-
-### What Will Be Changed
-
-#### Schema Enhancement
-
-| Table | Column | Change |
-|-------|--------|--------|
-| `user_tax_profiles` | `accounting_basis` | Add column with 'cash' or 'accrual' values |
-
-#### Data Update
-
-Automatically sets `accounting_basis = 'accrual'` for users with `user_type` of 'business' or 'partnership' (per Nigerian tax standards).
-
-#### Function Enhancement
-
-Updates `get_inventory_summary()` to return:
-- `cogs_paid_30d` - Cash basis COGS (only paid purchases)
-- `cogs_incurred_30d` - Accrual basis COGS (all cost of sales)
-- `accounting_basis` - User's current accounting method
+The CHANGELOG.md file is not updating automatically because:
+1. The database tables (`app_releases`, `app_changelog_entries`) are empty - no releases have been created
+2. When releases ARE published from the Admin Changelog page, there's no automatic call to update the CHANGELOG.md file
+3. The GitHub sync is completely disconnected from the publish action
 
 ---
 
-### SQL to Execute
+### Solution: Auto-Sync on Publish
 
-```sql
--- V26b: Inventory Accuracy & Accounting Basis
--- Refines COGS calculation and introduces tax accounting basics
+Create a seamless flow where publishing a release in the Admin Changelog automatically:
+1. Updates CHANGELOG.md in GitHub
+2. Creates a GitHub Release
 
--- ============= Schema Enhancements =============
+---
 
--- Add accounting basis to user tax profiles
-ALTER TABLE public.user_tax_profiles 
-ADD COLUMN IF NOT EXISTS accounting_basis VARCHAR(10) DEFAULT 'cash' CHECK (accounting_basis IN ('cash', 'accrual'));
+### Implementation Steps
 
--- Set defaults based on user type
-UPDATE public.user_tax_profiles 
-SET accounting_basis = 'accrual' 
-WHERE user_type IN ('business', 'partnership') AND accounting_basis = 'cash';
+#### 1. Create `sync-changelog-to-github` Edge Function
 
--- ============= AI Context Functions =============
+A new backend function that:
+- Fetches ALL published releases from the database
+- Generates complete CHANGELOG.md content in Keep a Changelog format
+- Commits it to GitHub, replacing the entire file
+- Called automatically when a release is published
 
--- Refined get_inventory_summary that respects accounting basis
-CREATE OR REPLACE FUNCTION public.get_inventory_summary(
-    p_user_id UUID
-)
-RETURNS TABLE (
-    total_items INT,
-    total_value NUMERIC,
-    low_stock_count INT,
-    total_purchases_30d NUMERIC,
-    total_sales_30d NUMERIC,
-    cogs_paid_30d NUMERIC,
-    cogs_incurred_30d NUMERIC,
-    accounting_basis TEXT
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-DECLARE
-    v_30d_ago DATE := CURRENT_DATE - 30;
-    v_basis TEXT;
-BEGIN
-    -- Get user's accounting basis
-    SELECT COALESCE(tp.accounting_basis, 'cash') INTO v_basis
-    FROM public.user_tax_profiles tp
-    WHERE tp.user_id = p_user_id;
+| Input | Description |
+|-------|-------------|
+| `trigger` | "publish" or "manual" |
+| `release_id` | Optional - the release that triggered this |
 
-    RETURN QUERY
-    WITH inventory_stats AS (
-        SELECT 
-            COUNT(*)::INT as item_count,
-            COALESCE(SUM(ii.total_value), 0) as inventory_value,
-            COUNT(*) FILTER (WHERE ii.quantity_on_hand <= ii.reorder_level)::INT as low_stock
-        FROM public.inventory_items ii
-        WHERE ii.user_id = p_user_id AND ii.is_active = true
-    ),
-    transaction_stats AS (
-        SELECT
-            -- Total purchases (accrual)
-            COALESCE(SUM(it.total_cost) FILTER (WHERE it.transaction_type = 'purchase'), 0) as purchases_incurred,
-            -- Purchases actually paid for (cash basis)
-            COALESCE(SUM(it.total_cost) FILTER (
-                WHERE it.transaction_type = 'purchase' 
-                AND (it.reference_type = 'expense' OR it.notes ILIKE '%paid%')
-            ), 0) as purchases_paid,
-            -- Total sales cost (accrual basis COGS)
-            COALESCE(SUM(it.total_cost) FILTER (WHERE it.transaction_type = 'sale'), 0) as sales_cost
-        FROM public.inventory_transactions it
-        WHERE it.user_id = p_user_id AND it.created_at >= v_30d_ago
-    )
-    SELECT
-        is_stats.item_count as total_items,
-        is_stats.inventory_value as total_value,
-        is_stats.low_stock as low_stock_count,
-        ts.purchases_incurred as total_purchases_30d,
-        ts.sales_cost as total_sales_30d,
-        ts.purchases_paid as cogs_paid_30d,
-        ts.sales_cost as cogs_incurred_30d,
-        v_basis as accounting_basis
-    FROM inventory_stats is_stats, transaction_stats ts;
-END;
-$$;
+#### 2. Update `usePublishRelease` Hook
 
--- ============= Comments =============
+Modify the publish mutation to call the sync function after setting status to "published":
 
-COMMENT ON COLUMN public.user_tax_profiles.accounting_basis IS 'Tax reporting basis: cash (standard for individuals) or accrual (standard for companies)';
-COMMENT ON FUNCTION public.get_inventory_summary IS 'V26b: Refined summary distinguishing between cash and accrual COGS';
+```typescript
+const handlePublish = async (id: string) => {
+  // 1. Update status to published
+  await supabase.from('app_releases').update({ 
+    status: 'published', 
+    published_at: new Date().toISOString() 
+  }).eq('id', id);
+  
+  // 2. Call sync function to update CHANGELOG.md
+  await supabase.functions.invoke('sync-changelog-to-github', {
+    body: { trigger: 'publish', release_id: id }
+  });
+  
+  // 3. Optionally create GitHub Release
+  await supabase.functions.invoke('create-github-release', {
+    body: { release_id: id }
+  });
+};
+```
+
+#### 3. Add "Sync to GitHub" Button
+
+Add a manual sync button in Admin Changelog for forcing updates:
+
+```text
+[Download MD] [Copy MD] [Sync to GitHub] [New Release]
+```
+
+#### 4. Seed Initial Release Data
+
+Create a migration to seed the database with existing CHANGELOG.md content:
+
+| Version | Title | Release Date | Status |
+|---------|-------|--------------|--------|
+| 1.1.0 | Fact-Grounded AI & Code Proposals | 2026-01-17 | published |
+| 1.0.0 | Initial Release | 2026-01-08 | published |
+
+---
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `supabase/functions/sync-changelog-to-github/index.ts` | Syncs full changelog to GitHub |
+| Migration for seed data | Populates existing release history |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| `src/hooks/useChangelog.ts` | Add auto-sync after publish |
+| `src/pages/admin/AdminChangelog.tsx` | Add "Sync to GitHub" button |
+
+---
+
+### Edge Function: sync-changelog-to-github
+
+```typescript
+// Key logic
+const generateFullChangelog = (releases: Release[]) => {
+  let md = `# Changelog\n\nAll notable changes...`;
+  
+  // Add [Unreleased] section for draft releases
+  const drafts = releases.filter(r => r.status === 'draft');
+  if (drafts.length) {
+    md += `\n\n## [Unreleased]\n`;
+    // ... draft entries
+  }
+  
+  // Add published releases in descending order
+  for (const release of releases.filter(r => r.status === 'published')) {
+    md += `\n\n## [${release.version}] - ${release.date}\n`;
+    // Group entries by type (Added, Changed, Fixed, etc.)
+  }
+  
+  return md;
+};
+
+// Commit to GitHub
+const result = await fetch(`https://api.github.com/repos/${repo}/contents/CHANGELOG.md`, {
+  method: 'PUT',
+  headers: { Authorization: `Bearer ${token}` },
+  body: JSON.stringify({
+    message: `docs: update CHANGELOG for v${latestVersion}`,
+    content: btoa(markdown),
+    sha: currentSha
+  })
+});
 ```
 
 ---
 
-### Security Enhancement
+### Benefits After Fix
 
-Adding `SET search_path TO 'public'` to the function (missing in the original file) for security compliance.
+1. **One-click publish** - Admin clicks "Publish" and CHANGELOG.md updates automatically
+2. **Full history sync** - The entire release history is maintained in proper format
+3. **Manual override** - "Sync to GitHub" button for forcing updates
+4. **GitHub Releases** - Optionally creates GitHub releases for discoverability
+5. **Single source of truth** - Database drives the changelog, not manual file edits
 
 ---
 
-### What This Enables
+### Technical Notes
 
-The AI can now:
-- Report COGS based on user's tax accounting method
-- Distinguish between cash and accrual basis calculations
-- Provide accurate tax-relevant inventory metrics
-
-**Example AI responses:**
-- "Your COGS for the last 30 days is ₦X (cash basis)" 
-- "Using accrual accounting, your cost of goods sold is ₦Y"
+- Uses existing `GITHUB_TOKEN` secret (already configured)
+- Recommend adding `GITHUB_REPO` secret for consistency (currently hardcoded)
+- The sync function replaces the entire CHANGELOG.md to ensure consistency
+- Drafts appear under [Unreleased], published releases under versioned headers
 
