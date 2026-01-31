@@ -16,6 +16,9 @@ import {
     Sparkles,
     Split,
     MessageSquare,
+    Download,
+    CheckSquare,
+    Square,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,6 +110,8 @@ export default function Transactions() {
     const [userNote, setUserNote] = useState('');
     const [aiAnalyzing, setAiAnalyzing] = useState(false);
     const [splitPreview, setSplitPreview] = useState<{ category: string; amount: number; note: string }[] | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkCategory, setBulkCategory] = useState<string | null>(null);
     const pageSize = 20;
 
     useEffect(() => {
@@ -420,6 +425,116 @@ export default function Transactions() {
         }
     };
 
+    // Bulk selection toggles
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const selectAll = () => {
+        setSelectedIds(new Set(paginatedTransactions.map(t => t.id)));
+    };
+
+    const clearSelection = () => {
+        setSelectedIds(new Set());
+    };
+
+    // Bulk categorize selected transactions
+    const bulkCategorize = async (category: string) => {
+        if (selectedIds.size === 0) return;
+
+        setSaving(true);
+        try {
+            const ids = Array.from(selectedIds);
+
+            const { error } = await supabase
+                .from('bank_transactions')
+                .update({
+                    classification: category,
+                    category: category,
+                    needs_review: false,
+                })
+                .in('id', ids);
+
+            if (error) throw error;
+
+            // Update local state
+            setTransactions(prev =>
+                prev.map(t =>
+                    selectedIds.has(t.id)
+                        ? { ...t, classification: category, category: category, needs_review: false }
+                        : t
+                )
+            );
+
+            toast({
+                title: 'Bulk Update Complete',
+                description: `Updated ${ids.length} transaction${ids.length > 1 ? 's' : ''} to "${category}"`,
+            });
+
+            clearSelection();
+            setBulkCategory(null);
+        } catch (error) {
+            console.error('Error bulk categorizing:', error);
+            toast({
+                title: 'Bulk Update Failed',
+                description: 'Could not update transactions',
+                variant: 'destructive',
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Export selected or filtered transactions to CSV
+    const exportToCsv = () => {
+        const dataToExport = selectedIds.size > 0
+            ? filteredTransactions.filter(t => selectedIds.has(t.id))
+            : filteredTransactions;
+
+        if (dataToExport.length === 0) {
+            toast({
+                title: 'Nothing to Export',
+                description: 'No transactions match your current selection or filters',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        const headers = ['Date', 'Description', 'Credit', 'Debit', 'Category', 'Needs Review'];
+        const rows = dataToExport.map(t => [
+            t.transaction_date,
+            `"${t.description.replace(/"/g, '""')}"`,
+            t.credit || '',
+            t.debit || '',
+            t.classification || '',
+            t.needs_review ? 'Yes' : 'No'
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(r => r.join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `prism-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+
+        toast({
+            title: 'Export Complete',
+            description: `Exported ${dataToExport.length} transaction${dataToExport.length > 1 ? 's' : ''} to CSV`,
+        });
+    };
+
     const paginatedTransactions = filteredTransactions.slice(
         (page - 1) * pageSize,
         page * pageSize
@@ -482,17 +597,70 @@ export default function Transactions() {
                             <SelectItem value="review">Needs Review</SelectItem>
                         </SelectContent>
                     </Select>
+                    <Button variant="outline" onClick={exportToCsv}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export CSV
+                    </Button>
                 </div>
+
+                {/* Bulk Action Bar */}
+                {selectedIds.size > 0 && (
+                    <div className="flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg mb-4">
+                        <div className="flex items-center gap-2">
+                            <CheckSquare className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-medium text-indigo-900">
+                                {selectedIds.size} selected
+                            </span>
+                        </div>
+                        <div className="flex-1" />
+                        <Select value={bulkCategory || ''} onValueChange={(v: string) => setBulkCategory(v)}>
+                            <SelectTrigger className="w-40 bg-white">
+                                <SelectValue placeholder="Bulk categorize..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {CATEGORIES.map(cat => (
+                                    <SelectItem key={cat.value} value={cat.value}>
+                                        {cat.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button
+                            onClick={() => bulkCategory && bulkCategorize(bulkCategory)}
+                            disabled={!bulkCategory || saving}
+                            size="sm"
+                        >
+                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={clearSelection}>
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
 
                 {/* Transaction List */}
                 <Card>
                     <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle>Transactions</CardTitle>
-                                <CardDescription>
-                                    {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}
-                                </CardDescription>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={selectedIds.size === paginatedTransactions.length ? clearSelection : selectAll}
+                                    className="p-1"
+                                >
+                                    {selectedIds.size === paginatedTransactions.length && paginatedTransactions.length > 0 ? (
+                                        <CheckSquare className="h-5 w-5 text-indigo-600" />
+                                    ) : (
+                                        <Square className="h-5 w-5 text-gray-400" />
+                                    )}
+                                </Button>
+                                <div>
+                                    <CardTitle>Transactions</CardTitle>
+                                    <CardDescription>
+                                        {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}
+                                    </CardDescription>
+                                </div>
                             </div>
                         </div>
                     </CardHeader>
@@ -507,10 +675,23 @@ export default function Transactions() {
                                 {paginatedTransactions.map((txn) => (
                                     <div
                                         key={txn.id}
-                                        className="flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                                        className={`flex items-center justify-between p-4 hover:bg-gray-50 cursor-pointer transition-colors ${selectedIds.has(txn.id) ? 'bg-indigo-50' : ''}`}
                                         onClick={() => setSelectedTxn(txn)}
                                     >
                                         <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSelection(txn.id);
+                                                }}
+                                                className="p-1 hover:bg-gray-200 rounded"
+                                            >
+                                                {selectedIds.has(txn.id) ? (
+                                                    <CheckSquare className="h-5 w-5 text-indigo-600" />
+                                                ) : (
+                                                    <Square className="h-5 w-5 text-gray-400" />
+                                                )}
+                                            </button>
                                             <div className={`p-2 rounded-full ${txn.credit ? 'bg-green-100' : 'bg-red-100'}`}>
                                                 {txn.credit ? (
                                                     <ArrowUpRight className="h-4 w-4 text-green-600" />
