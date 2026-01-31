@@ -293,7 +293,7 @@ export default function Reports() {
             } else {
                 // Default bank statement analysis
                 reportData = {
-                    reportType: 'bank_statement_analysis',
+                    reportType: 'bank-statement-analysis',
                     data: {
                         bank: 'Connected Bank',
                         accountName: 'User Account',

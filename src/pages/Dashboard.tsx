@@ -165,9 +165,9 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <Button 
-              variant="default" 
-              size="sm" 
+            <Button
+              variant="default"
+              size="sm"
               onClick={() => navigate('/admin')}
               className="bg-primary/90 hover:bg-primary"
             >
@@ -543,6 +543,14 @@ export default function Dashboard() {
         >
           <FolderKanban className="h-6 w-6 text-emerald-600" />
           <span className="text-sm font-medium">Projects</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/transactions')}
+          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          <Receipt className="h-6 w-6 text-rose-600" />
+          <span className="text-sm font-medium">Transactions</span>
         </button>
 
         <button

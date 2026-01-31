@@ -13,11 +13,15 @@ import {
     ChevronRight,
     Tag,
     X,
+    Sparkles,
+    Split,
+    MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectContent,
@@ -36,16 +40,31 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const CATEGORIES = [
+    // Income categories
     { value: 'income', label: 'Income', color: 'bg-green-100 text-green-700' },
     { value: 'salary', label: 'Salary', color: 'bg-green-100 text-green-700' },
+
+    // General expense categories
     { value: 'expense', label: 'Expense', color: 'bg-red-100 text-red-700' },
+    { value: 'business', label: 'Business', color: 'bg-indigo-100 text-indigo-700' },
+    { value: 'personal', label: 'Personal', color: 'bg-pink-100 text-pink-700' },
+
+    // NTA 2025 deductible categories
+    { value: 'medical', label: 'Medical', color: 'bg-rose-100 text-rose-700' },
+    { value: 'insurance', label: 'Insurance', color: 'bg-teal-100 text-teal-700' },
+    { value: 'education', label: 'Education', color: 'bg-lime-100 text-lime-700' },
+    { value: 'donations', label: 'Donations', color: 'bg-yellow-100 text-yellow-700' },
+
+    // Service/subscription categories
+    { value: 'professional', label: 'Professional', color: 'bg-violet-100 text-violet-700' },
+    { value: 'subscriptions', label: 'Subscriptions', color: 'bg-fuchsia-100 text-fuchsia-700' },
+
+    // Other standard categories
     { value: 'transfer', label: 'Transfer', color: 'bg-blue-100 text-blue-700' },
     { value: 'utilities', label: 'Utilities', color: 'bg-purple-100 text-purple-700' },
     { value: 'rent', label: 'Rent', color: 'bg-orange-100 text-orange-700' },
     { value: 'food', label: 'Food & Dining', color: 'bg-amber-100 text-amber-700' },
     { value: 'transport', label: 'Transport', color: 'bg-cyan-100 text-cyan-700' },
-    { value: 'business', label: 'Business', color: 'bg-indigo-100 text-indigo-700' },
-    { value: 'personal', label: 'Personal', color: 'bg-pink-100 text-pink-700' },
     { value: 'tax', label: 'Tax Payment', color: 'bg-gray-100 text-gray-700' },
     { value: 'bank_charges', label: 'Bank Charges', color: 'bg-slate-100 text-slate-700' },
 ];
@@ -62,6 +81,16 @@ interface Transaction {
     tax_implications: Record<string, boolean> | null;
     confidence_score: number | null;
     needs_review: boolean | null;
+    // New fields for enhanced features
+    parent_transaction_id?: string | null;
+    is_split?: boolean;
+    split_note?: string | null;
+    user_note?: string | null;
+    vat_gross?: number | null;
+    vat_net?: number | null;
+    vat_amount?: number | null;
+    is_recurring?: boolean;
+    recurring_pattern?: string | null;
 }
 
 export default function Transactions() {
@@ -75,6 +104,9 @@ export default function Transactions() {
     const [page, setPage] = useState(1);
     const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
     const [saving, setSaving] = useState(false);
+    const [userNote, setUserNote] = useState('');
+    const [aiAnalyzing, setAiAnalyzing] = useState(false);
+    const [splitPreview, setSplitPreview] = useState<{ category: string; amount: number; note: string }[] | null>(null);
     const pageSize = 20;
 
     useEffect(() => {
@@ -215,6 +247,172 @@ export default function Transactions() {
             toast({
                 title: 'Error',
                 description: 'Failed to update category',
+                variant: 'destructive',
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // Smart reclassification: Parse user note to suggest splits
+    const analyzeUserNote = async () => {
+        if (!selectedTxn || !userNote.trim()) return;
+
+        setAiAnalyzing(true);
+        try {
+            const originalAmount = selectedTxn.debit || selectedTxn.credit || 0;
+            const splits: { category: string; amount: number; note: string }[] = [];
+
+            // Parse amount mentioned in user note
+            const amountMatch = userNote.match(/(\d{1,3}(?:,?\d{3})*(?:\.\d{2})?)/);
+            const mentionedAmount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
+
+            // Detect VAT mention (7.5% or "vat" or "VAT")
+            const vatMention = userNote.toLowerCase().includes('vat') || userNote.includes('7.5%');
+
+            // Detect category keywords
+            const categoryKeywords: Record<string, string[]> = {
+                medical: ['hospital', 'clinic', 'doctor', 'pharmacy', 'medicine', 'health', 'medical'],
+                insurance: ['insurance', 'premium', 'policy'],
+                education: ['school', 'tuition', 'training', 'course', 'education'],
+                donations: ['donation', 'charity', 'tithe', 'offering'],
+                professional: ['lawyer', 'accountant', 'consultant', 'professional'],
+                utilities: ['nepa', 'phcn', 'electricity', 'water', 'gas'],
+                rent: ['rent', 'landlord', 'house'],
+                transport: ['uber', 'bolt', 'fuel', 'petrol', 'transport'],
+                food: ['food', 'restaurant', 'eat', 'lunch', 'dinner'],
+            };
+
+            let detectedCategory = 'expense';
+            for (const [cat, keywords] of Object.entries(categoryKeywords)) {
+                if (keywords.some(kw => userNote.toLowerCase().includes(kw))) {
+                    detectedCategory = cat;
+                    break;
+                }
+            }
+
+            if (mentionedAmount && vatMention) {
+                // User mentioned amount with VAT - calculate split
+                const vatRate = 0.075;
+                const netAmount = mentionedAmount / (1 + vatRate);
+                const vatAmount = mentionedAmount - netAmount;
+
+                splits.push({
+                    category: detectedCategory,
+                    amount: Math.round(netAmount * 100) / 100,
+                    note: `Net amount (excl. VAT)`
+                });
+                splits.push({
+                    category: 'input_vat',
+                    amount: Math.round(vatAmount * 100) / 100,
+                    note: `VAT @ 7.5% (claimable input VAT)`
+                });
+
+                // If there's remaining amount
+                const remainder = originalAmount - mentionedAmount;
+                if (remainder > 0) {
+                    splits.push({
+                        category: 'personal',
+                        amount: Math.round(remainder * 100) / 100,
+                        note: 'Remainder (unspecified)'
+                    });
+                }
+            } else if (mentionedAmount) {
+                // User mentioned amount without VAT
+                splits.push({
+                    category: detectedCategory,
+                    amount: mentionedAmount,
+                    note: userNote
+                });
+
+                const remainder = originalAmount - mentionedAmount;
+                if (remainder > 0) {
+                    splits.push({
+                        category: 'personal',
+                        amount: Math.round(remainder * 100) / 100,
+                        note: 'Remainder'
+                    });
+                }
+            } else {
+                // No amount mentioned - just suggest category
+                splits.push({
+                    category: detectedCategory,
+                    amount: originalAmount,
+                    note: userNote
+                });
+            }
+
+            setSplitPreview(splits);
+
+            toast({
+                title: 'Analysis Complete',
+                description: `Suggested ${splits.length} split${splits.length > 1 ? 's' : ''} for this transaction`,
+            });
+        } catch (error) {
+            console.error('Error analyzing note:', error);
+            toast({
+                title: 'Analysis Failed',
+                description: 'Could not parse your description',
+                variant: 'destructive',
+            });
+        } finally {
+            setAiAnalyzing(false);
+        }
+    };
+
+    // Apply the split preview to create child transactions
+    const applySplit = async () => {
+        if (!selectedTxn || !splitPreview || splitPreview.length === 0) return;
+
+        setSaving(true);
+        try {
+            // Mark original as parent
+            const { error: updateError } = await supabase
+                .from('bank_transactions')
+                .update({
+                    split_note: userNote,
+                    user_note: userNote,
+                })
+                .eq('id', selectedTxn.id);
+
+            if (updateError) throw updateError;
+
+            // Create child transactions for each split
+            for (const split of splitPreview) {
+                const { error: insertError } = await supabase
+                    .from('bank_transactions')
+                    .insert({
+                        user_id: selectedTxn.id.split('-')[0], // Will need to get actual user_id
+                        description: `[Split] ${selectedTxn.description} - ${split.note}`,
+                        debit: selectedTxn.debit ? split.amount : null,
+                        credit: selectedTxn.credit ? split.amount : null,
+                        transaction_date: selectedTxn.transaction_date,
+                        classification: split.category,
+                        category: split.category,
+                        parent_transaction_id: selectedTxn.id,
+                        is_split: true,
+                        split_note: split.note,
+                        needs_review: false,
+                    });
+
+                if (insertError) throw insertError;
+            }
+
+            toast({
+                title: 'Transaction Split',
+                description: `Created ${splitPreview.length} categorized transactions`,
+            });
+
+            // Reset and close
+            setSplitPreview(null);
+            setUserNote('');
+            setSelectedTxn(null);
+            fetchTransactions(); // Reload to show new splits
+        } catch (error) {
+            console.error('Error splitting transaction:', error);
+            toast({
+                title: 'Split Failed',
+                description: 'Could not create split transactions',
                 variant: 'destructive',
             });
         } finally {
@@ -432,7 +630,7 @@ export default function Transactions() {
                             )}
 
                             {/* Category Grid */}
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
                                 {CATEGORIES.map((cat) => (
                                     <Button
                                         key={cat.value}
@@ -440,7 +638,7 @@ export default function Transactions() {
                                         size="sm"
                                         onClick={() => updateCategory(selectedTxn.id, cat.value)}
                                         disabled={saving}
-                                        className="h-auto py-2"
+                                        className="h-auto py-2 text-xs"
                                     >
                                         {saving && selectedTxn.classification === cat.value ? (
                                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -451,9 +649,76 @@ export default function Transactions() {
                                 ))}
                             </div>
 
+                            {/* Smart Reclassification Section */}
+                            <div className="border-t pt-4 mt-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <MessageSquare className="h-4 w-4 text-indigo-600" />
+                                    <span className="text-sm font-medium">Smart Reclassify</span>
+                                </div>
+                                <Textarea
+                                    placeholder="e.g., 'I spent 48500 naira from this on hospital bill, they charged 7.5% VAT'"
+                                    value={userNote}
+                                    onChange={(e) => setUserNote(e.target.value)}
+                                    className="text-sm"
+                                    rows={2}
+                                />
+                                <Button
+                                    onClick={analyzeUserNote}
+                                    disabled={!userNote.trim() || aiAnalyzing}
+                                    className="w-full mt-2"
+                                    variant="secondary"
+                                >
+                                    {aiAnalyzing ? (
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                        <Sparkles className="h-4 w-4 mr-2" />
+                                    )}
+                                    Let PRISM Classify
+                                </Button>
+                            </div>
+
+                            {/* Split Preview */}
+                            {splitPreview && splitPreview.length > 0 && (
+                                <div className="border-t pt-4 mt-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Split className="h-4 w-4 text-emerald-600" />
+                                        <span className="text-sm font-medium">Suggested Splits</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {splitPreview.map((split, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="secondary" className={
+                                                        CATEGORIES.find(c => c.value === split.category)?.color || 'bg-gray-100'
+                                                    }>
+                                                        {CATEGORIES.find(c => c.value === split.category)?.label || split.category}
+                                                    </Badge>
+                                                    <span className="text-xs text-gray-500">{split.note}</span>
+                                                </div>
+                                                <span className="font-medium text-sm">
+                                                    {formatCurrency(split.amount)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button
+                                        onClick={applySplit}
+                                        disabled={saving}
+                                        className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700"
+                                    >
+                                        {saving ? (
+                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        ) : (
+                                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                                        )}
+                                        Apply Split ({splitPreview.length} transactions)
+                                    </Button>
+                                </div>
+                            )}
+
                             {/* Current Status */}
-                            {selectedTxn.classification && (
-                                <div className="flex items-center gap-2 text-sm text-green-600">
+                            {selectedTxn.classification && !splitPreview && (
+                                <div className="flex items-center gap-2 text-sm text-green-600 pt-2">
                                     <CheckCircle2 className="h-4 w-4" />
                                     Currently categorized as: {getCategoryBadge(selectedTxn.classification)}
                                 </div>
