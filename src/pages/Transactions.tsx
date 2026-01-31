@@ -21,6 +21,8 @@ import {
     Square,
     Calendar,
     Repeat,
+    Upload,
+    FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -126,6 +128,8 @@ interface Transaction {
     vat_amount?: number | null;
     is_recurring?: boolean;
     recurring_pattern?: string | null;
+    receipt_markdown?: string | null;
+    receipt_source_hash?: string | null;
 }
 
 export default function Transactions() {
@@ -146,6 +150,8 @@ export default function Transactions() {
     const [bulkCategory, setBulkCategory] = useState<string | null>(null);
     const [dateFrom, setDateFrom] = useState<string>('');
     const [dateTo, setDateTo] = useState<string>('');
+    const [uploadingReceipt, setUploadingReceipt] = useState(false);
+    const [receiptMarkdown, setReceiptMarkdown] = useState<string | null>(null);
     const pageSize = 20;
 
     useEffect(() => {
@@ -282,6 +288,80 @@ export default function Transactions() {
             net: Math.round(net * 100) / 100,
             vat: Math.round(vat * 100) / 100,
         };
+    };
+
+    // Process receipt image and convert to Markdown
+    const processReceipt = async (file: File) => {
+        if (!selectedTxn) return;
+
+        setUploadingReceipt(true);
+        setReceiptMarkdown(null);
+
+        try {
+            // Convert file to base64
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve, reject) => {
+                reader.onload = () => {
+                    const result = reader.result as string;
+                    // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
+                    const base64 = result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+            });
+            reader.readAsDataURL(file);
+            const base64Image = await base64Promise;
+
+            // Call edge function
+            const { data: session } = await supabase.auth.getSession();
+            const response = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-receipt`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session?.session?.access_token}`,
+                    },
+                    body: JSON.stringify({
+                        image: base64Image,
+                        transactionId: selectedTxn.id,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to process receipt');
+            }
+
+            const result = await response.json();
+            setReceiptMarkdown(result.markdown);
+
+            toast({
+                title: 'Receipt Processed',
+                description: `Extracted: ${result.extracted?.vendor || 'Unknown vendor'}`,
+            });
+
+            // Refresh transaction to show updated receipt_markdown
+            if (result.success) {
+                setTransactions(prev =>
+                    prev.map(t =>
+                        t.id === selectedTxn.id
+                            ? { ...t, receipt_markdown: result.markdown }
+                            : t
+                    )
+                );
+            }
+        } catch (error) {
+            console.error('Error processing receipt:', error);
+            toast({
+                title: 'Receipt Processing Failed',
+                description: error instanceof Error ? error.message : 'Could not process receipt',
+                variant: 'destructive',
+            });
+        } finally {
+            setUploadingReceipt(false);
+        }
     };
 
     const updateCategory = async (txnId: string, category: string) => {
@@ -930,6 +1010,63 @@ export default function Transactions() {
                                 );
                             })()}
 
+                            {/* Receipt Upload Section */}
+                            <div className="border-t pt-4 mt-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <span className="text-sm font-medium">Receipt / Invoice</span>
+                                </div>
+
+                                {selectedTxn.receipt_markdown || receiptMarkdown ? (
+                                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
+                                            {receiptMarkdown || selectedTxn.receipt_markdown}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-3 italic">
+                                            ℹ️ Original document was not stored for privacy protection.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <input
+                                            type="file"
+                                            id="receipt-upload"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) processReceipt(file);
+                                            }}
+                                        />
+                                        <label htmlFor="receipt-upload">
+                                            <Button
+                                                variant="outline"
+                                                className="w-full cursor-pointer"
+                                                disabled={uploadingReceipt}
+                                                asChild
+                                            >
+                                                <span>
+                                                    {uploadingReceipt ? (
+                                                        <>
+                                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                            Processing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Upload className="h-4 w-4 mr-2" />
+                                                            Upload Receipt Image
+                                                        </>
+                                                    )}
+                                                </span>
+                                            </Button>
+                                        </label>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            Receipt will be converted to Markdown. Original image not stored.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* AI Suggestion */}
                             {selectedTxn.classification && selectedTxn.confidence_score && (
                                 <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-100">
@@ -1036,7 +1173,8 @@ export default function Transactions() {
                                 </div>
                             )}
                         </div>
-                    )}
+                    )
+                    }
                 </DialogContent>
             </Dialog>
         </div>
