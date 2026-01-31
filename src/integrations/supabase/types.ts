@@ -979,7 +979,9 @@ export type Database = {
           is_mobile_money: boolean | null
           is_nigerian_bank_charge: boolean | null
           is_pos_transaction: boolean | null
+          is_recurring: boolean | null
           is_revenue: boolean | null
+          is_split: boolean | null
           is_stamp_duty: boolean | null
           is_tax_relevant: boolean | null
           is_transfer: boolean | null
@@ -988,17 +990,26 @@ export type Database = {
           linked_invoice_id: string | null
           metadata: Json | null
           mobile_money_provider: string | null
+          parent_transaction_id: string | null
+          receipt_markdown: string | null
+          receipt_source_hash: string | null
+          recurring_pattern: string | null
           reference: string | null
+          split_note: string | null
           statement_id: string | null
           transaction_date: string
           updated_at: string | null
           user_classification: string | null
           user_correction: Json | null
           user_id: string
+          user_note: string | null
           user_reviewed: boolean | null
           value_date: string | null
           vat_amount: number | null
           vat_applicable: boolean | null
+          vat_gross: number | null
+          vat_net: number | null
+          vat_rate: number | null
         }
         Insert: {
           balance?: number | null
@@ -1023,7 +1034,9 @@ export type Database = {
           is_mobile_money?: boolean | null
           is_nigerian_bank_charge?: boolean | null
           is_pos_transaction?: boolean | null
+          is_recurring?: boolean | null
           is_revenue?: boolean | null
+          is_split?: boolean | null
           is_stamp_duty?: boolean | null
           is_tax_relevant?: boolean | null
           is_transfer?: boolean | null
@@ -1032,17 +1045,26 @@ export type Database = {
           linked_invoice_id?: string | null
           metadata?: Json | null
           mobile_money_provider?: string | null
+          parent_transaction_id?: string | null
+          receipt_markdown?: string | null
+          receipt_source_hash?: string | null
+          recurring_pattern?: string | null
           reference?: string | null
+          split_note?: string | null
           statement_id?: string | null
           transaction_date: string
           updated_at?: string | null
           user_classification?: string | null
           user_correction?: Json | null
           user_id: string
+          user_note?: string | null
           user_reviewed?: boolean | null
           value_date?: string | null
           vat_amount?: number | null
           vat_applicable?: boolean | null
+          vat_gross?: number | null
+          vat_net?: number | null
+          vat_rate?: number | null
         }
         Update: {
           balance?: number | null
@@ -1067,7 +1089,9 @@ export type Database = {
           is_mobile_money?: boolean | null
           is_nigerian_bank_charge?: boolean | null
           is_pos_transaction?: boolean | null
+          is_recurring?: boolean | null
           is_revenue?: boolean | null
+          is_split?: boolean | null
           is_stamp_duty?: boolean | null
           is_tax_relevant?: boolean | null
           is_transfer?: boolean | null
@@ -1076,17 +1100,26 @@ export type Database = {
           linked_invoice_id?: string | null
           metadata?: Json | null
           mobile_money_provider?: string | null
+          parent_transaction_id?: string | null
+          receipt_markdown?: string | null
+          receipt_source_hash?: string | null
+          recurring_pattern?: string | null
           reference?: string | null
+          split_note?: string | null
           statement_id?: string | null
           transaction_date?: string
           updated_at?: string | null
           user_classification?: string | null
           user_correction?: Json | null
           user_id?: string
+          user_note?: string | null
           user_reviewed?: boolean | null
           value_date?: string | null
           vat_amount?: number | null
           vat_applicable?: boolean | null
+          vat_gross?: number | null
+          vat_net?: number | null
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -1108,6 +1141,13 @@ export type Database = {
             columns: ["linked_invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_parent_transaction_id_fkey"
+            columns: ["parent_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
             referencedColumns: ["id"]
           },
           {
