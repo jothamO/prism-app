@@ -19,6 +19,7 @@ import {
     Download,
     CheckSquare,
     Square,
+    Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -112,6 +113,8 @@ export default function Transactions() {
     const [splitPreview, setSplitPreview] = useState<{ category: string; amount: number; note: string }[] | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkCategory, setBulkCategory] = useState<string | null>(null);
+    const [dateFrom, setDateFrom] = useState<string>('');
+    const [dateTo, setDateTo] = useState<string>('');
     const pageSize = 20;
 
     useEffect(() => {
@@ -120,7 +123,7 @@ export default function Transactions() {
 
     useEffect(() => {
         applyFilters();
-    }, [transactions, searchQuery, filterType]);
+    }, [transactions, searchQuery, filterType, dateFrom, dateTo]);
 
     const fetchTransactions = async () => {
         setLoading(true);
@@ -184,6 +187,14 @@ export default function Transactions() {
             result = result.filter(t => t.debit && t.debit > 0);
         } else if (filterType === 'review') {
             result = result.filter(t => t.needs_review || !t.classification || t.classification === 'needs_review');
+        }
+
+        // Date range filter
+        if (dateFrom) {
+            result = result.filter(t => t.transaction_date >= dateFrom);
+        }
+        if (dateTo) {
+            result = result.filter(t => t.transaction_date <= dateTo);
         }
 
         setFilteredTransactions(result);
@@ -584,6 +595,34 @@ export default function Transactions() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-10"
                         />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <Input
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            className="w-36"
+                            placeholder="From"
+                        />
+                        <span className="text-gray-400">–</span>
+                        <Input
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            className="w-36"
+                            placeholder="To"
+                        />
+                        {(dateFrom || dateTo) && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                                className="p-1"
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        )}
                     </div>
                     <Select value={filterType} onValueChange={(v: 'all' | 'income' | 'expense' | 'review') => setFilterType(v)}>
                         <SelectTrigger className="w-40">
