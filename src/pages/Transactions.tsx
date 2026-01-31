@@ -91,6 +91,19 @@ const RECURRING_PATTERNS = [
     { pattern: /school.*fees|tuition/i, name: 'School' },
 ];
 
+// Nigeria VAT rate (7.5% as of Finance Act 2019)
+const VAT_RATE = 0.075;
+
+// Categories that typically include VAT (business deductible)
+const VAT_ELIGIBLE_CATEGORIES = [
+    'equipment',
+    'supplies',
+    'utilities',
+    'subscriptions',
+    'professional',
+    'transport',
+];
+
 interface Transaction {
     id: string;
     description: string;
@@ -255,6 +268,20 @@ export default function Transactions() {
             }
         }
         return null;
+    };
+
+    // Calculate VAT breakdown for eligible transactions
+    const calculateVATBreakdown = (amount: number, category: string | null): { gross: number; net: number; vat: number } | null => {
+        if (!category || !VAT_ELIGIBLE_CATEGORIES.includes(category)) {
+            return null;
+        }
+        const net = amount / (1 + VAT_RATE);
+        const vat = amount - net;
+        return {
+            gross: amount,
+            net: Math.round(net * 100) / 100,
+            vat: Math.round(vat * 100) / 100,
+        };
     };
 
     const updateCategory = async (txnId: string, category: string) => {
@@ -871,6 +898,37 @@ export default function Transactions() {
                                     )}
                                 </div>
                             )}
+
+                            {/* VAT Breakdown for Eligible Categories */}
+                            {(() => {
+                                const amount = selectedTxn.debit || selectedTxn.credit || 0;
+                                const vatBreakdown = calculateVATBreakdown(amount, selectedTxn.classification);
+                                if (!vatBreakdown) return null;
+                                return (
+                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-sm font-medium text-emerald-800">VAT Breakdown (7.5%)</span>
+                                            <Badge variant="outline" className="text-emerald-600 border-emerald-300 text-xs">
+                                                Input VAT Claimable
+                                            </Badge>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 text-sm">
+                                            <div>
+                                                <p className="text-gray-500">Gross</p>
+                                                <p className="font-semibold">{formatCurrency(vatBreakdown.gross)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Net</p>
+                                                <p className="font-semibold">{formatCurrency(vatBreakdown.net)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">VAT</p>
+                                                <p className="font-semibold text-emerald-600">{formatCurrency(vatBreakdown.vat)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             {/* AI Suggestion */}
                             {selectedTxn.classification && selectedTxn.confidence_score && (
