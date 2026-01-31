@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Receipt,
@@ -20,6 +20,7 @@ import {
     CheckSquare,
     Square,
     Calendar,
+    Repeat,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,6 +72,23 @@ const CATEGORIES = [
     { value: 'transport', label: 'Transport', color: 'bg-cyan-100 text-cyan-700' },
     { value: 'tax', label: 'Tax Payment', color: 'bg-gray-100 text-gray-700' },
     { value: 'bank_charges', label: 'Bank Charges', color: 'bg-slate-100 text-slate-700' },
+];
+
+// Common recurring transaction patterns in Nigeria
+const RECURRING_PATTERNS = [
+    { pattern: /netflix/i, name: 'Netflix' },
+    { pattern: /spotify/i, name: 'Spotify' },
+    { pattern: /dstv|multichoice/i, name: 'DStv' },
+    { pattern: /gotv/i, name: 'GOtv' },
+    { pattern: /starlink/i, name: 'Starlink' },
+    { pattern: /airtel.*data|mtn.*data|glo.*data|9mobile.*data/i, name: 'Data Plan' },
+    { pattern: /rent|landlord/i, name: 'Rent' },
+    { pattern: /salary.*to|sal.*to/i, name: 'Salary' },
+    { pattern: /pension|nhf|itf/i, name: 'Statutory' },
+    { pattern: /insurance.*premium/i, name: 'Insurance' },
+    { pattern: /loan.*repayment|emi|instalment/i, name: 'Loan' },
+    { pattern: /gym|fitness/i, name: 'Gym' },
+    { pattern: /school.*fees|tuition/i, name: 'School' },
 ];
 
 interface Transaction {
@@ -227,6 +245,16 @@ export default function Transactions() {
                 {cat.label}
             </Badge>
         );
+    };
+
+    // Detect if a transaction matches a recurring pattern
+    const detectRecurringPattern = (description: string): string | null => {
+        for (const { pattern, name } of RECURRING_PATTERNS) {
+            if (pattern.test(description)) {
+                return name;
+            }
+        }
+        return null;
     };
 
     const updateCategory = async (txnId: string, category: string) => {
@@ -592,7 +620,7 @@ export default function Transactions() {
                         <Input
                             placeholder="Search transactions..."
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                             className="pl-10"
                         />
                     </div>
@@ -601,7 +629,7 @@ export default function Transactions() {
                         <Input
                             type="date"
                             value={dateFrom}
-                            onChange={(e) => setDateFrom(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateFrom(e.target.value)}
                             className="w-36"
                             placeholder="From"
                         />
@@ -609,7 +637,7 @@ export default function Transactions() {
                         <Input
                             type="date"
                             value={dateTo}
-                            onChange={(e) => setDateTo(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateTo(e.target.value)}
                             className="w-36"
                             placeholder="To"
                         />
@@ -750,7 +778,13 @@ export default function Transactions() {
                                                 <p className={`font-semibold ${txn.credit ? 'text-green-600' : 'text-red-600'}`}>
                                                     {txn.credit ? '+' : ''}{formatCurrency(txn.credit || txn.debit)}
                                                 </p>
-                                                <div className="mt-1">
+                                                <div className="mt-1 flex items-center gap-1 justify-end flex-wrap">
+                                                    {detectRecurringPattern(txn.description) && (
+                                                        <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">
+                                                            <Repeat className="h-3 w-3 mr-1" />
+                                                            {detectRecurringPattern(txn.description)}
+                                                        </Badge>
+                                                    )}
                                                     {txn.needs_review || !txn.classification ? (
                                                         <Badge variant="outline" className="text-amber-600 border-amber-300">
                                                             <AlertTriangle className="h-3 w-3 mr-1" />
@@ -878,7 +912,7 @@ export default function Transactions() {
                                 <Textarea
                                     placeholder="e.g., 'I spent 48500 naira from this on hospital bill, they charged 7.5% VAT'"
                                     value={userNote}
-                                    onChange={(e) => setUserNote(e.target.value)}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setUserNote(e.target.value)}
                                     className="text-sm"
                                     rows={2}
                                 />
