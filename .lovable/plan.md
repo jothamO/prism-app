@@ -1,25 +1,44 @@
 
-## CBN Cron Jobs - Completed ✅
 
-### Cron Jobs Created
+# Fix: Get `get-supabase-access-token` Working
 
-| Job | Schedule (UTC) | Schedule (WAT) | Status |
-|-----|---------------|----------------|--------|
-| `cbn-rate-fetch-primary` | 08:30 daily | 09:30 AM | ✅ Active |
-| `cbn-rate-fetch-secondary` | 09:00 daily | 10:00 AM | ✅ Active |
+## Current Status
 
-### All Scheduled Jobs
+The edge function code is correct, but it's returning a 404 because the required secret `SUPABASE_ACCESS_TOKEN` is not configured in your project.
 
-| Job ID | Name | Schedule | Active |
-|--------|------|----------|--------|
-| 5 | cbn-rate-fetch-primary | 30 8 * * * | ✅ |
-| 6 | cbn-rate-fetch-secondary | 0 9 * * * | ✅ |
-| 2 | morning-compliance-briefing | 0 7 * * * | ✅ |
-| 4 | quarterly-tax-review | 0 8 1 1,4,7,10 * | ✅ |
-| 1 | weekly-savings-email-monday-9am | 0 9 * * 1 | ✅ |
-| 3 | weekly-tax-summary | 0 8 * * 1 | ✅ |
+## What's Needed
 
-### Notes
+The `SUPABASE_ACCESS_TOKEN` is a **personal access token** you generate from your Supabase account. It's used for CLI authentication to deploy functions and push migrations.
 
-- The old migration file `supabase/migrations/20260130_v27_analytics_cbn_cron.sql` is read-only and cannot be deleted, but the cron jobs were created successfully using the insert tool.
-- CBN rates will now be fetched automatically at 9:30 AM and 10:00 AM WAT daily.
+## Implementation Steps
+
+### Step 1: Generate a Personal Access Token
+
+You need to create one at: https://supabase.com/dashboard/account/tokens
+
+1. Log in to your Supabase dashboard
+2. Go to Account → Access Tokens
+3. Click "Generate new token"
+4. Give it a name (e.g., "Lovable CLI Deployment")
+5. Copy the token (starts with `sbp_...`)
+
+### Step 2: Add the Secret to Lovable Cloud
+
+I will use the secret management tool to prompt you to add the `SUPABASE_ACCESS_TOKEN` secret. You'll paste the token you generated in Step 1.
+
+### Step 3: Test the Function
+
+After the secret is added, calling the function should return:
+```json
+{
+  "configured": true,
+  "keyPreview": "sbp_xxxx...xxxx",
+  "keyLength": 64,
+  "fullKey": "sbp_your_full_token_here"
+}
+```
+
+## Security Note
+
+Once you've retrieved the token for your local CLI setup, consider removing the `fullKey` field from the response to prevent exposing the full token publicly. The function currently returns the full key to enable CLI deployment scripts.
+
