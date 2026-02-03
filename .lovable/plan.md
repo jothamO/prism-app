@@ -1,109 +1,44 @@
 
 
-# Local Development → Lovable Cloud Push Guide
+# Fix: Get `get-supabase-access-token` Working
 
-## The Challenge
+## Current Status
 
-Lovable Cloud manages the Supabase project internally, which means:
-- **Database password is not exposed** (required for `supabase db push`)
-- **Project is already linked** to Lovable's deployment pipeline
-- Edge functions and migrations are **auto-deployed** when you push code through Lovable
+The edge function code is correct, but it's returning a 404 because the required secret `SUPABASE_ACCESS_TOKEN` is not configured in your project.
 
-## Your Options
+## What's Needed
 
-### Option 1: Push Through Lovable (Recommended)
+The `SUPABASE_ACCESS_TOKEN` is a **personal access token** you generate from your Supabase account. It's used for CLI authentication to deploy functions and push migrations.
 
-The standard workflow for Lovable Cloud projects:
+## Implementation Steps
 
-1. Make changes locally to `supabase/migrations/` and `supabase/functions/`
-2. Commit and push to your GitHub repository
-3. Lovable automatically detects changes and:
-   - Applies new migrations to the database
-   - Deploys updated edge functions
+### Step 1: Generate a Personal Access Token
 
-**Pros**: Automatic, secure, no credentials needed  
-**Cons**: Must go through git/Lovable pipeline
+You need to create one at: https://supabase.com/dashboard/account/tokens
 
-### Option 2: Export Credentials via Edge Function
+1. Log in to your Supabase dashboard
+2. Go to Account → Access Tokens
+3. Click "Generate new token"
+4. Give it a name (e.g., "Lovable CLI Deployment")
+5. Copy the token (starts with `sbp_...`)
 
-Create an edge function to retrieve the service role key for local CLI use:
+### Step 2: Add the Secret to Lovable Cloud
 
-```text
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Local Machine  │────▶│  get-service-key │────▶│  CLI Operations │
-│  (Supabase CLI) │     │  Edge Function   │     │  db push, etc.  │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
+I will use the secret management tool to prompt you to add the `SUPABASE_ACCESS_TOKEN` secret. You'll paste the token you generated in Step 1.
+
+### Step 3: Test the Function
+
+After the secret is added, calling the function should return:
+```json
+{
+  "configured": true,
+  "keyPreview": "sbp_xxxx...xxxx",
+  "keyLength": 64,
+  "fullKey": "sbp_your_full_token_here"
+}
 ```
 
-**Already exists**: `supabase/functions/get-service-key/`
+## Security Note
 
-**Steps**:
-1. Call the edge function to get credentials
-2. Use credentials with Supabase CLI locally
-3. Run `supabase db push` or `supabase functions deploy`
-
-### Option 3: Migrate to Your Own Supabase
-
-If you need full CLI access:
-1. Create a new Supabase project at supabase.com
-2. Apply all migrations from `supabase/migrations/`
-3. Deploy all edge functions from `supabase/functions/`
-4. Update frontend environment variables
-
----
-
-## Recommended Steps for Option 2
-
-### Step 1: Get Project Credentials
-
-You already have:
-- **Project ID**: `rjajxabpndmpcgssymxw`
-- **URL**: `https://rjajxabpndmpcgssymxw.supabase.co`
-
-### Step 2: Retrieve Service Key
-
-Call the existing edge function:
-```bash
-curl https://rjajxabpndmpcgssymxw.supabase.co/functions/v1/get-service-key
-```
-
-### Step 3: Configure Local CLI
-
-```bash
-# Link your local project
-supabase link --project-ref rjajxabpndmpcgssymxw
-
-# When prompted for database password, you'll need the service key
-# or use the --db-url flag with the connection string
-```
-
-### Step 4: Push Changes
-
-```bash
-# Apply migrations
-supabase db push
-
-# Deploy all edge functions
-supabase functions deploy
-
-# Or deploy specific function
-supabase functions deploy process-receipt
-```
-
----
-
-## Important Notes
-
-| Concern | Details |
-|---------|---------|
-| **Migration conflicts** | Lovable may have already applied migrations - check `supabase_migrations` table |
-| **Edge function secrets** | Secrets set in Lovable Cloud need to be re-added via CLI |
-| **Database password** | Not directly available - use service role key or connection pooler |
-
-## What I Can Help With
-
-1. **Test the `get-service-key` function** to retrieve your credentials
-2. **Create an export script** to backup your current database state
-3. **Generate CLI commands** for deploying specific functions
-4. **Check migration status** to see what's already applied
+Once you've retrieved the token for your local CLI setup, consider removing the `fullKey` field from the response to prevent exposing the full token publicly. The function currently returns the full key to enable CLI deployment scripts.
 
