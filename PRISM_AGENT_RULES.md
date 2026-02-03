@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # PRISM Agent Rules (Condensed)
 **Version:** 2.4 | **Status:** Azure Production | **Max Len:** 12k Characters
 
@@ -80,6 +76,12 @@ trigger: always_on
 **Decisions:** Explicitly use `Bun.serve()` instead of `export default`.
 **Challenges:** PM2 ignores `export default` patterns; port 3000 wouldn't bind.
 **Takeaway:** Explicit server binding is mandatory for process managers.
+
+### Lesson 2026-02-03-B: Agentic Database Schema
+**What was built:** Migrations for security logs, action history, and PARA atomic facts.
+**Decisions:** Used a `para_layer` enum and supersession chains (`is_superseded`) for facts to ensure an audit trail without deleting history. Combined RBAC and security logging to support the 3-Strike Rule.
+**Metrics:** 3 new tables, 1 new enum, 1 new view.
+**Takeaway:** Never delete tax history; use supersession to maintain a queryable state of truth.
 
 ## 12. Success Criteria (V35)
 - Orchestrator Uptime: >99.5% | Proactive Approval: >80%
