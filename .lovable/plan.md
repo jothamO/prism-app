@@ -1,57 +1,109 @@
 
-# Transaction Enhancements Implementation
 
-## Overview
-Apply database migration to add transaction splitting, receipt processing, recurring detection, and VAT breakdown capabilities to the `bank_transactions` table, then deploy the receipt processing edge function.
+# Local Development → Lovable Cloud Push Guide
 
-## Database Changes
+## The Challenge
 
-### New Columns on `bank_transactions`
+Lovable Cloud manages the Supabase project internally, which means:
+- **Database password is not exposed** (required for `supabase db push`)
+- **Project is already linked** to Lovable's deployment pipeline
+- Edge functions and migrations are **auto-deployed** when you push code through Lovable
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| `parent_transaction_id` | UUID | Links split children to original transaction |
-| `is_split` | BOOLEAN | Marks child transactions from splits |
-| `split_note` | TEXT | Explains split reasoning |
-| `receipt_markdown` | TEXT | Stores OCR-extracted receipt content |
-| `receipt_source_hash` | TEXT | SHA-256 hash for verification (original not stored) |
-| `is_recurring` | BOOLEAN | Flags recurring transactions |
-| `recurring_pattern` | TEXT | Pattern name (e.g., "Netflix", "monthly") |
-| `vat_gross` | NUMERIC(15,2) | VAT-inclusive amount |
-| `vat_net` | NUMERIC(15,2) | Net amount excluding VAT |
-| `vat_amount` | NUMERIC(15,2) | VAT portion |
-| `vat_rate` | NUMERIC(5,2) | Rate applied (default 7.5%) |
-| `user_note` | TEXT | User context for AI reclassification |
+## Your Options
 
-### New Indexes
-- `idx_bank_transactions_parent` - Efficient split queries
-- `idx_bank_transactions_has_receipt` - Find transactions with receipts
-- `idx_bank_transactions_recurring` - Query recurring transactions
+### Option 1: Push Through Lovable (Recommended)
 
-## Edge Function Deployment
+The standard workflow for Lovable Cloud projects:
 
-The `process-receipt` function will be deployed. It:
-- Accepts base64 image uploads
-- Generates SHA-256 hash for verification
-- Uses Claude Vision to extract receipt content to Markdown
-- Stores in `receipt_markdown` column
-- Does NOT store original images (privacy by design)
+1. Make changes locally to `supabase/migrations/` and `supabase/functions/`
+2. Commit and push to your GitHub repository
+3. Lovable automatically detects changes and:
+   - Applies new migrations to the database
+   - Deploys updated edge functions
 
-## Technical Details
+**Pros**: Automatic, secure, no credentials needed  
+**Cons**: Must go through git/Lovable pipeline
 
-### Dependencies
-- `ANTHROPIC_API_KEY` secret (already configured)
-- Authenticated user context for RLS
+### Option 2: Export Credentials via Edge Function
 
-### Implementation Steps
+Create an edge function to retrieve the service role key for local CLI use:
 
-1. **Apply migration** using Supabase migration tool
-2. **Deploy edge function** - `process-receipt` will be deployed automatically
+```text
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Local Machine  │────▶│  get-service-key │────▶│  CLI Operations │
+│  (Supabase CLI) │     │  Edge Function   │     │  db push, etc.  │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+```
 
-### Type Updates
-After migration, the Supabase types will automatically update to include the new columns.
+**Already exists**: `supabase/functions/get-service-key/`
 
-## Security Notes
-- Receipt storage is privacy-first: only extracted text is stored, never original images
-- RLS policies on `bank_transactions` already protect per-user access
-- Edge function validates user authentication before processing
+**Steps**:
+1. Call the edge function to get credentials
+2. Use credentials with Supabase CLI locally
+3. Run `supabase db push` or `supabase functions deploy`
+
+### Option 3: Migrate to Your Own Supabase
+
+If you need full CLI access:
+1. Create a new Supabase project at supabase.com
+2. Apply all migrations from `supabase/migrations/`
+3. Deploy all edge functions from `supabase/functions/`
+4. Update frontend environment variables
+
+---
+
+## Recommended Steps for Option 2
+
+### Step 1: Get Project Credentials
+
+You already have:
+- **Project ID**: `rjajxabpndmpcgssymxw`
+- **URL**: `https://rjajxabpndmpcgssymxw.supabase.co`
+
+### Step 2: Retrieve Service Key
+
+Call the existing edge function:
+```bash
+curl https://rjajxabpndmpcgssymxw.supabase.co/functions/v1/get-service-key
+```
+
+### Step 3: Configure Local CLI
+
+```bash
+# Link your local project
+supabase link --project-ref rjajxabpndmpcgssymxw
+
+# When prompted for database password, you'll need the service key
+# or use the --db-url flag with the connection string
+```
+
+### Step 4: Push Changes
+
+```bash
+# Apply migrations
+supabase db push
+
+# Deploy all edge functions
+supabase functions deploy
+
+# Or deploy specific function
+supabase functions deploy process-receipt
+```
+
+---
+
+## Important Notes
+
+| Concern | Details |
+|---------|---------|
+| **Migration conflicts** | Lovable may have already applied migrations - check `supabase_migrations` table |
+| **Edge function secrets** | Secrets set in Lovable Cloud need to be re-added via CLI |
+| **Database password** | Not directly available - use service role key or connection pooler |
+
+## What I Can Help With
+
+1. **Test the `get-service-key` function** to retrieve your credentials
+2. **Create an export script** to backup your current database state
+3. **Generate CLI commands** for deploying specific functions
+4. **Check migration status** to see what's already applied
+
