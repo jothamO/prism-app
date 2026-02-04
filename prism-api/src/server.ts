@@ -9,6 +9,7 @@ import { createServer } from 'http';
 import apiRoutes from './routes/api.routes';
 import { scheduleMonthlyFilings } from './workers/auto-filing.worker';
 import { scheduleNotifications } from './workers/notifications.worker';
+import { scheduleHeartbeat } from './workers/heartbeat.worker';
 import { websocketService } from './services/websocket.service';
 import { startTelegramBot } from './bot';
 
@@ -45,4 +46,5 @@ httpServer.listen(port, async () => {
     // Initialize BullMQ schedulers
     await scheduleMonthlyFilings();
     await scheduleNotifications();
+    await scheduleHeartbeat();
 });

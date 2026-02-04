@@ -3,12 +3,13 @@ trigger: always_on
 ---
 
 # PRISM Agent Rules (Condensed)
-**Version:** 2.4 | **Status:** Azure Production | **Max Len:** 12k Characters
+**Version:** 2.5 | **Status:** Azure Production | **Max Len:** 12k Characters
 
 ## 0. Meta-Principles
 1. **Fact-Grounded**: Tax logic must cite Nigerian law (Constitution > Acts > Finance Acts > Circulars).
 2. **Centralized**: One source of truth. Zero duplication. Grep before building.
 3. **Agentic**: Autonomous for <High Confidence + Non-Destructive>. Human-in-loop for <Low Confidence OR Critical>.
+4. **Visibility**: Always ensure UI elements required for new system functions/roles are created to allow manual overrides and management.
 
 ## 1. System Vision (Azure VPS)
 - **Namespaces**: `/var/www/prism-ecosystem`, `school-ranker`, `open-claw`
@@ -60,6 +61,7 @@ trigger: always_on
 - **Strict Types**: `strict: true` always. Handle nulls explicitly. No `any` without double-cast.
 - **Errors**: Try-catch every async call. Log structured data: `console.log('[Module] msg', { data })`.
 - **Naming**: kebab-case (files), PascalCase (Classes/Interfaces), camelCase (functions).
+- **UI Gaps**: Never implement a backend change (like a new role or status) without corresponding UI controls.
 
 ## 8. Security: The 3-Strike Rule
 - **Monitoring**: Log unauthorized access probes in `security_breach_logs`.
@@ -80,6 +82,11 @@ trigger: always_on
 **Decisions:** Explicitly use `Bun.serve()` instead of `export default`.
 **Challenges:** PM2 ignores `export default` patterns; port 3000 wouldn't bind.
 **Takeaway:** Explicit server binding is mandatory for process managers.
+
+### Lesson 2026-02-03-B: Agentic Database Schema
+**What was built:** Migrations for security logs, action history, and PARA atomic facts.
+**Decisions:** Used a `para_layer` enum and supersession chains (`is_superseded`) for facts to ensure an audit trail without deleting history. Combined RBAC and security logging to support the 3-Strike Rule.
+**Takeaway:** Never delete tax history; use supersession to maintain a queryable state of truth.
 
 ## 12. Success Criteria (V35)
 - Orchestrator Uptime: >99.5% | Proactive Approval: >80%
