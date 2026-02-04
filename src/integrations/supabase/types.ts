@@ -122,6 +122,107 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_action_logs: {
+        Row: {
+          action_payload: Json
+          action_type: string
+          confidence: number
+          created_at: string | null
+          cycle_id: string
+          error_log: string | null
+          id: string
+          perception_data: Json
+          reasoning_path: string
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action_payload: Json
+          action_type: string
+          confidence: number
+          created_at?: string | null
+          cycle_id: string
+          error_log?: string | null
+          id?: string
+          perception_data: Json
+          reasoning_path: string
+          status: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action_payload?: Json
+          action_type?: string
+          confidence?: number
+          created_at?: string | null
+          cycle_id?: string
+          error_log?: string | null
+          id?: string
+          perception_data?: Json
+          reasoning_path?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_action_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_review_queue: {
+        Row: {
+          action_log_id: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          reviewed_at: string | null
+          status: string
+          user_feedback: string | null
+          user_id: string
+        }
+        Insert: {
+          action_log_id: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          reviewed_at?: string | null
+          status?: string
+          user_feedback?: string | null
+          user_id: string
+        }
+        Update: {
+          action_log_id?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          reviewed_at?: string | null
+          status?: string
+          user_feedback?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_review_queue_action_log_id_fkey"
+            columns: ["action_log_id"]
+            isOneToOne: false
+            referencedRelation: "agent_action_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_review_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_feedback: {
         Row: {
           ai_model_version: string | null
@@ -762,6 +863,63 @@ export type Database = {
           version?: string
         }
         Relationships: []
+      }
+      atomic_facts: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          entity_name: string
+          fact_content: Json
+          id: string
+          is_superseded: boolean | null
+          layer: Database["public"]["Enums"]["para_layer"]
+          source_metadata: Json | null
+          superseded_by_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          entity_name: string
+          fact_content: Json
+          id?: string
+          is_superseded?: boolean | null
+          layer?: Database["public"]["Enums"]["para_layer"]
+          source_metadata?: Json | null
+          superseded_by_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          entity_name?: string
+          fact_content?: Json
+          id?: string
+          is_superseded?: boolean | null
+          layer?: Database["public"]["Enums"]["para_layer"]
+          source_metadata?: Json | null
+          superseded_by_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atomic_facts_superseded_by_id_fkey"
+            columns: ["superseded_by_id"]
+            isOneToOne: false
+            referencedRelation: "atomic_facts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "atomic_facts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_log: {
         Row: {
@@ -4246,6 +4404,47 @@ export type Database = {
           },
         ]
       }
+      security_breach_logs: {
+        Row: {
+          breach_type: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          mitigation_action: string | null
+          prompt_snippet: string | null
+          severity: string | null
+          user_id: string
+        }
+        Insert: {
+          breach_type: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          mitigation_action?: string | null
+          prompt_snippet?: string | null
+          severity?: string | null
+          user_id: string
+        }
+        Update: {
+          breach_type?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          mitigation_action?: string | null
+          prompt_snippet?: string | null
+          severity?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_breach_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_addons: {
         Row: {
           addon_type: string
@@ -5073,6 +5272,7 @@ export type Database = {
           bank_setup: string | null
           blocked_at: string | null
           blocked_reason: string | null
+          breach_count: number | null
           business_name: string | null
           business_sector: string | null
           business_type: string | null
@@ -5102,6 +5302,7 @@ export type Database = {
           insight_frequency: string | null
           is_active: boolean | null
           is_blocked: boolean | null
+          is_flagged: boolean | null
           kyc_level: number | null
           last_name: string | null
           location: string | null
@@ -5144,6 +5345,7 @@ export type Database = {
           bank_setup?: string | null
           blocked_at?: string | null
           blocked_reason?: string | null
+          breach_count?: number | null
           business_name?: string | null
           business_sector?: string | null
           business_type?: string | null
@@ -5173,6 +5375,7 @@ export type Database = {
           insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
+          is_flagged?: boolean | null
           kyc_level?: number | null
           last_name?: string | null
           location?: string | null
@@ -5215,6 +5418,7 @@ export type Database = {
           bank_setup?: string | null
           blocked_at?: string | null
           blocked_reason?: string | null
+          breach_count?: number | null
           business_name?: string | null
           business_sector?: string | null
           business_type?: string | null
@@ -5244,6 +5448,7 @@ export type Database = {
           insight_frequency?: string | null
           is_active?: boolean | null
           is_blocked?: boolean | null
+          is_flagged?: boolean | null
           kyc_level?: number | null
           last_name?: string | null
           location?: string | null
@@ -5466,6 +5671,41 @@ export type Database = {
           rule_type: string | null
         }
         Relationships: []
+      }
+      active_user_knowledge: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          entity_name: string | null
+          fact_content: Json | null
+          layer: Database["public"]["Enums"]["para_layer"] | null
+          user_id: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          entity_name?: string | null
+          fact_content?: Json | null
+          layer?: Database["public"]["Enums"]["para_layer"] | null
+          user_id?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          entity_name?: string | null
+          fact_content?: Json | null
+          layer?: Database["public"]["Enums"]["para_layer"] | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "atomic_facts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transaction_analytics: {
         Row: {
@@ -5845,7 +6085,8 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "owner"
+      para_layer: "project" | "area" | "resource" | "archive"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5973,7 +6214,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "owner"],
+      para_layer: ["project", "area", "resource", "archive"],
     },
   },
 } as const
