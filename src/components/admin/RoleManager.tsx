@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Shield, ShieldCheck, User as UserIcon, Loader2 } from "lucide-react";
+import { Shield, ShieldCheck, ShieldAlert, User as UserIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-type AppRole = "admin" | "moderator" | "user";
+type AppRole = "owner" | "admin" | "moderator" | "user";
 
 interface RoleManagerProps {
   userId: string;
@@ -12,6 +12,7 @@ interface RoleManagerProps {
 }
 
 const ROLE_CONFIG: { role: AppRole; label: string; icon: typeof Shield; color: string }[] = [
+  { role: "owner", label: "Owner", icon: ShieldAlert, color: "text-amber-400 border-amber-500/30 bg-amber-500/10" },
   { role: "admin", label: "Admin", icon: ShieldCheck, color: "text-purple-400 border-purple-500/30 bg-purple-500/10" },
   { role: "moderator", label: "Moderator", icon: Shield, color: "text-blue-400 border-blue-500/30 bg-blue-500/10" },
   { role: "user", label: "User", icon: UserIcon, color: "text-muted-foreground border-border bg-accent" },
