@@ -1,44 +1,53 @@
 
 
-# Fix: Get `get-supabase-access-token` Working
+# Apply 3 Pending Migrations
 
-## Current Status
+## Overview
 
-The edge function code is correct, but it's returning a 404 because the required secret `SUPABASE_ACCESS_TOKEN` is not configured in your project.
+I'll apply the 3 pending migrations to your Lovable Cloud database. These migrations add agent security, action tracking, and structured memory capabilities.
 
-## What's Needed
+## Migrations to Apply
 
-The `SUPABASE_ACCESS_TOKEN` is a **personal access token** you generate from your Supabase account. It's used for CLI authentication to deploy functions and push migrations.
+### Migration 1: Agent Security & RBAC
+**File**: `20260203000000_agent_security_rbac.sql`
 
-## Implementation Steps
+| Component | Description |
+|-----------|-------------|
+| `app_role` enum | Adds 'owner' role |
+| `users` table | Adds `is_flagged`, `breach_count` columns |
+| `security_breach_logs` table | Tracks security breaches for 3-Strike Rule |
+| RLS policies | Admins/owners can view all logs, users see their own |
 
-### Step 1: Generate a Personal Access Token
+### Migration 2: Agent Action History
+**File**: `20260203000001_agent_action_history.sql`
 
-You need to create one at: https://supabase.com/dashboard/account/tokens
+| Component | Description |
+|-----------|-------------|
+| `agent_action_logs` table | Perception-Reasoning-Action audit trail |
+| `agent_review_queue` table | Tier 3/4 proposals requiring user approval |
+| Indexes | User-based and cycle-based lookups |
+| Triggers | Auto-update `updated_at` column |
 
-1. Log in to your Supabase dashboard
-2. Go to Account → Access Tokens
-3. Click "Generate new token"
-4. Give it a name (e.g., "Lovable CLI Deployment")
-5. Copy the token (starts with `sbp_...`)
+### Migration 3: Structured Memory (PARA)
+**File**: `20260203000002_agent_structured_memory.sql`
 
-### Step 2: Add the Secret to Lovable Cloud
+| Component | Description |
+|-----------|-------------|
+| `para_layer` enum | project, area, resource, archive |
+| `atomic_facts` table | Durable agent knowledge base |
+| `active_user_knowledge` view | Non-superseded facts for context building |
+| RLS policies | Users see their own, service role manages all |
 
-I will use the secret management tool to prompt you to add the `SUPABASE_ACCESS_TOKEN` secret. You'll paste the token you generated in Step 1.
+## Execution Plan
 
-### Step 3: Test the Function
+1. **Apply Migration 1** - Add owner role, security breach tracking
+2. **Apply Migration 2** - Add agent action logs and review queue
+3. **Apply Migration 3** - Add atomic facts and PARA memory structure
 
-After the secret is added, calling the function should return:
-```json
-{
-  "configured": true,
-  "keyPreview": "sbp_xxxx...xxxx",
-  "keyLength": 64,
-  "fullKey": "sbp_your_full_token_here"
-}
-```
+## Technical Notes
 
-## Security Note
-
-Once you've retrieved the token for your local CLI setup, consider removing the `fullKey` field from the response to prevent exposing the full token publicly. The function currently returns the full key to enable CLI deployment scripts.
+- All tables include RLS enabled with appropriate policies
+- Foreign keys reference `public.users(id)` with CASCADE delete
+- Indexes optimized for user-based queries
+- Existing `has_role()` function will automatically support 'owner' role
 
