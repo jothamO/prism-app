@@ -1,53 +1,90 @@
 
 
-# Apply 3 Pending Migrations
+# Migrate Lovable Cloud to Self-Hosted Supabase
 
-## Overview
+## Current State Assessment
 
-I'll apply the 3 pending migrations to your Lovable Cloud database. These migrations add agent security, action tracking, and structured memory capabilities.
+Your Lovable Cloud project contains:
 
-## Migrations to Apply
+| Component | Count | Details |
+|-----------|-------|---------|
+| Migration files | 153 | Schema definitions, RLS policies, triggers |
+| Edge Functions | 70+ | Tax calculators, bots, webhooks, AI services |
+| Database tables | 50+ | Users, transactions, compliance rules, etc. |
+| RLS policies | 100+ | Row-level security across all tables |
 
-### Migration 1: Agent Security & RBAC
-**File**: `20260203000000_agent_security_rbac.sql`
+## Migration Strategy
 
-| Component | Description |
-|-----------|-------------|
-| `app_role` enum | Adds 'owner' role |
-| `users` table | Adds `is_flagged`, `breach_count` columns |
-| `security_breach_logs` table | Tracks security breaches for 3-Strike Rule |
-| RLS policies | Admins/owners can view all logs, users see their own |
+### Phase 1: Schema Export
 
-### Migration 2: Agent Action History
-**File**: `20260203000001_agent_action_history.sql`
+You'll need to export the complete database schema from Lovable Cloud and apply it to your self-hosted instance.
 
-| Component | Description |
-|-----------|-------------|
-| `agent_action_logs` table | Perception-Reasoning-Action audit trail |
-| `agent_review_queue` table | Tier 3/4 proposals requiring user approval |
-| Indexes | User-based and cycle-based lookups |
-| Triggers | Auto-update `updated_at` column |
+**Option A: Use Supabase CLI (Recommended)**
+```bash
+# Link to your self-hosted Supabase
+supabase link --project-ref YOUR_SELF_HOSTED_PROJECT_ID
 
-### Migration 3: Structured Memory (PARA)
-**File**: `20260203000002_agent_structured_memory.sql`
+# Apply all migrations in order
+supabase db push
+```
 
-| Component | Description |
-|-----------|-------------|
-| `para_layer` enum | project, area, resource, archive |
-| `atomic_facts` table | Durable agent knowledge base |
-| `active_user_knowledge` view | Non-superseded facts for context building |
-| RLS policies | Users see their own, service role manages all |
+**Option B: Manual SQL Export**
+I can generate a consolidated SQL file containing all 153 migrations that you can run against your self-hosted instance.
 
-## Execution Plan
+### Phase 2: Data Migration
 
-1. **Apply Migration 1** - Add owner role, security breach tracking
-2. **Apply Migration 2** - Add agent action logs and review queue
-3. **Apply Migration 3** - Add atomic facts and PARA memory structure
+Export data from Lovable Cloud and import to self-hosted:
+```bash
+# Export from Lovable Cloud
+pg_dump postgresql://postgres:[SERVICE_KEY]@db.rjajxabpndmpcgssymxw.supabase.co:5432/postgres > prism_data.sql
 
-## Technical Notes
+# Import to self-hosted
+psql YOUR_SELF_HOSTED_CONNECTION_STRING < prism_data.sql
+```
 
-- All tables include RLS enabled with appropriate policies
-- Foreign keys reference `public.users(id)` with CASCADE delete
-- Indexes optimized for user-based queries
-- Existing `has_role()` function will automatically support 'owner' role
+### Phase 3: Edge Functions Deployment
+
+Deploy all 70+ edge functions to your self-hosted instance:
+```bash
+cd supabase
+supabase functions deploy --project-ref YOUR_SELF_HOSTED_PROJECT_ID
+```
+
+### Phase 4: Environment Configuration
+
+Update your self-hosted Supabase with required secrets:
+- `OPENAI_API_KEY`
+- `MONO_SECRET_KEY`
+- `TELEGRAM_BOT_TOKEN`
+- `PAYSTACK_SECRET_KEY`
+- And others as needed
+
+### Phase 5: Frontend Configuration
+
+Update `.env` to point to your self-hosted Supabase:
+```env
+VITE_SUPABASE_URL=https://your-self-hosted-supabase.com
+VITE_SUPABASE_PUBLISHABLE_KEY=your_anon_key
+```
+
+## What I Can Generate For You
+
+1. **Consolidated migration file** - All 153 migrations merged into one SQL file
+2. **Edge functions deployment script** - Automated deployment commands
+3. **Secrets checklist** - All required environment variables
+4. **Connection test script** - Verify self-hosted setup is working
+
+## Requirements From You
+
+To proceed, I'll need:
+1. Your self-hosted Supabase project URL
+2. Your self-hosted Supabase anon key
+3. Your self-hosted Supabase service role key (for data migration)
+
+## Important Notes
+
+- **Data stays in Lovable Cloud** until you explicitly export it
+- **Edge functions** need to be redeployed to your self-hosted instance
+- **Secrets** are not automatically transferred - you must reconfigure them
+- After migration, update your frontend to use the new credentials
 
