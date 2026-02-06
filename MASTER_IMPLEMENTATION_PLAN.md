@@ -65,29 +65,31 @@ This document serves as the production-ready roadmap for transforming PRISM from
 | **P0.7: DB Connection** | 🔴 High | Establish secure SSL peering between Azure VPS and Supabase Prod DB. |
 | **P0.8: Smoke Test** | 🔴 High | E2E connectivity test: **Lovable (Frontend) -> Azure (Agent) -> Supabase (Data)**. |
 
-### Phase 6: The Nervous System (Agentic Core & Memory)
-*Source: C:\Users\Evelyn\Downloads\agentic upgrade*
+### Phase 6: The Nervous System (REVISED) - Monty-Powered Agentic Core
+*Goal: Shift from custom TS orchestration to sandboxed Python execution for superior security and durability.*
 
 | Task | Priority | Description |
 |:---|:---|:---|
-| **P6.1: Orchestrator** | 🔴 High | Implement `orchestrator.ts` to run every 15 mins via pg_cron or Edge Trigger. |
-| **P6.2: Perception Engine** | 🔴 High | Deploy `perception-engine.ts` with YTD revenue and threshold proximity logic. |
-| **P6.3: Reasoning Engine** | 🔴 High | Integrate Claude Haiku for fast, low-cost reasoning on detected situations. |
-| **P6.4: Action Executor** | 🔴 High | Implement `action-executor.ts` with Human-in-the-Loop confirmations. |
-| **P6.5: QMD Knowledge Base**| 🔴 High | Setup Ollama + QMD on Azure. Index all Nigerian Finance Acts & FIRS Circulars. |
-| **P6.6: Conversation Index**| 🟡 Medium | Implement per-user semantic indexing of chat history for instant recall. |
-| **P6.7: Augmented RAG** | 🔴 High | Wire Reasoning Engine to query QMD before calling Claude (reduces API costs). |
-| **P6.8: Memory Architecture**| 🔴 High | Deploy **PARA** structure (Projects/Areas/Resources/Archives) for tax facts. |
-| **P6.9: Memory Decay** | 🟡 Medium | Implement **Hot/Warm/Cold** tiers to keep context windows lean & costs low. |
-| **P6.10: Heartbeat Extract**| 🟡 Medium | Background task to autonomously extract durable tax facts from chat logs. |
-| **P6.11: Agent Safety Rails** | 🔴 High | Prevent runaway loops or infinite reasoning cycles with max iteration limits. |
-| ✅ P6.12: Database Schema | 🔴 High | Implemented `agent_action_logs`, `agent_review_queue`, and `atomic_facts` (PARA structured). |
-| **P6.13: QMD Backup Strategy** | 🟡 Medium | Nightly automated backups of SQLite knowledge base to S3-compatible storage. |
-| ✅ P6.14: AI Security & RBAC | 🔴 High | Implemented 3-tier roles (`owner` added) and the 3-strike breach policy with `security_breach_logs`. |
-| **P6.15: Soul Porting** | 🔴 High | Inject the `PRISM_PERSONALITY.md` guidelines into the Reasoning Engine prompts. |
-| **P6.16: Gateway Porting** | 🔴 High | Port OCR Mode Switcher and PDF processing from `gateway/src/services` to Azure Skills. |
-| **P6.17: Statement Hydration** | 🔴 High | Implement Bank Statement parser to ingest transactions from PDFs into YTD state. |
-| **P6.18: Metadata Ghosting** | 🟡 Medium | Implement SHA-256 ghosting: Archive file metadata then purge binaries for privacy. |
+| **P6.1: OpenRouter Setup** | 🔴 High | [DONE] Centralized AI routing via `@openrouter/sdk` with Tiered fallback. |
+| **P6.2: Ollama Embeddings** | 🔴 High | One-time index generation for QMD manager. |
+| **P6.3: Model Strategy** | 🔴 High | [DONE] glm-4.7-flash (fast) → Claude 3.5 Sonnet (reasoning) transition. |
+| **P6.4: Monty Installation** | 🔴 High | [DONE] Install `pydantic-monty` on Azure VPS. Verify <1ms startup. |
+| **P6.5: External Functions** | 🔴 High | Define type-safe Registry for agent-callable functions with Tier-based gates. |
+| **P6.6: Type Stub Definitions**| 🔴 High | Create Python stubs for tax laws and skills to validate code pre-execution. |
+| **P6.7: Snapshot Persistence**| 🔴 High | Save/Resume bytecode snapshots in `agent_snapshots` for durable Tier 3/4 workflows. |
+| **P6.8: Claude Code Gen** | 🔴 High | Prompt Claude to generate Python logic instead of simple tool calls. |
+| **P6.9: QMD Integration** | 🔴 High | Wire QMD queries as external functions for tax law retrieval (Augmented RAG). |
+| **P6.10: Memory Structure** | 🔴 High | [DONE] Deploy **PARA** structure (Projects/Areas/Resources/Archives) for atomic facts. |
+| **P6.11: Memory Decay** | 🟡 Medium | Implement **Hot/Warm/Cold** tiers for context optimization. |
+| **P6.12: Heartbeat Extract** | 🟡 Medium | [DONE] Background task to autonomously extract durable tax facts from chat logs. |
+| ✅ P6.13: Database Schema | 🔴 High | Implemented `agent_action_logs`, `agent_review_queue`, and `atomic_facts`. |
+| ✅ P6.14: AI Security/RBAC | 🔴 High | Implemented 3-tier roles and 3-strike breach policy. |
+| **P6.15: Soul Porting** | 🔴 High | Inject `PRISM_PERSONALITY.md` guidelines into the reasoning core. |
+| ✅ P6.16: Gateway Porting | 🔴 High | [DONE] Refactor OCR/PDF Skills to use the consolidated AI wrapper. |
+| **P6.17: Statement Hydration**| 🔴 High | [DONE] Bank Statement parser → YTD state mapping. |
+| **P6.18: Metadata Ghosting** | 🟡 Medium | SHA-256 ghosting for privacy compliance (purge-on-verify). |
+| **P6.19: Performance Tests** | 🟡 Medium | Benchmark: 1000 users/cycle < 3s total. |
+
 
 ### Phase 7: UI Revamp (Proactive & Premium)
 *Goal: Moving from Reactive clicks to Proactive Guidance*
@@ -173,6 +175,20 @@ This document serves as the production-ready roadmap for transforming PRISM from
 | **P13.4: SSL & Networking**| 🔴 High | Setup Let's Encrypt (Certbot) and hardware firewall rules on Azure. |
 | **P13.5: DB Tunneling** | 🟡 Medium | Establish secure connection between Azure Production and Supabase Prod DB. |
 | **P13.6: Migration Script** | 🔴 High | Develop `migrate-to-self-hosted.sh` to automate schema, RLS, and Function transfer to private Supabase. |
+
+### Phase 14: Automation Infrastructure (Self-Hosted n8n)
+*Goal: Composable automation and agentic glue with full data sovereignty.*
+
+| Task | Priority | Description |
+|:---|:---|:---|
+| **P14.1: Deploy n8n** | 🔴 High | Deploy self-hosted n8n via Docker Compose on Azure VPS (Port 5678). |
+| **P14.2: Redis Queue Setup** | 🔴 High | Configure Redis for n8n queue mode (BullMQ) to handle concurrent workloads. |
+| **P14.3: Secure Proxy** | 🔴 High | Setup Nginx reverse proxy + SSL (`n8n.prism.sh`) with HMAC webhook auth. |
+| **P14.4: Deadline Workflow** | 🔴 High | Port filing deadline alerts from TypeScript to visual n8n workflow. |
+| **P14.5: Integration Port** | 🔴 High | Migrate WhatsApp/Telegram notification logic into n8n shared nodes. |
+| **P14.6: GDrive Backup** | 🟡 Medium | Implement auto-sync to user Google Drive for processed tax documents. |
+| **P14.7: Agentic n8n** | 🔴 High | Port core agentic loops (P6.x) to n8n AI Agent nodes for visual orchestration. |
+
 
 ---
 

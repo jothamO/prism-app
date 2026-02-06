@@ -83,6 +83,11 @@
 **Metrics:** 3 new tables, 1 new enum, 1 new view.
 **Takeaway:** Never delete tax history; use supersession to maintain a queryable state of truth.
 
+### Lesson 2026-02-07: Statement Hydration
+**What was built:** `StatementHydrator` service and `ytd_state` table.
+**Decisions:** Used upsert with a unique constraint on `(user_id, business_id, fiscal_year)` to handle per-statement hydration without duplicating annual totals.
+**Takeaway:** Decoupling raw `bank_transactions` from the agent's `ytd_state` via a summary table significantly reduces query complexity and latency during the perception phase.
+
 ## 12. Success Criteria (V35)
 - Orchestrator Uptime: >99.5% | Proactive Approval: >80%
 - Zero Halucinations on Tax Citations.

@@ -3,7 +3,6 @@
  * Orchestrates extraction, classification, and analysis of bank statements
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../utils/logger';
 import { supabase } from '../../config';
 import { BankStatementExtractor } from './extractors/bank-statement';
@@ -13,15 +12,13 @@ import { AIClassifier } from './classifiers/ai-classifier';
 import { NigerianDetectors } from './nigerian-detectors/index';
 import { ComplianceChecker } from './compliance/index';
 import { FeedbackHandler } from './feedback/correction-handler';
-import { processTransactionForLearning } from '../../services/transaction-learning-hook';
-
-const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || '' });
+import { StatementHydrator } from '../../agent-core/statement-hydrator';
 
 export class DocumentProcessor {
-    private extractor = new BankStatementExtractor(claude);
+    private extractor = new BankStatementExtractor();
     private businessPatternClassifier = new BusinessPatternClassifier();
     private ruleBasedClassifier = new RuleBasedClassifier();
-    private aiClassifier = new AIClassifier(claude);
+    private aiClassifier = new AIClassifier();
     private nigerianDetectors = new NigerianDetectors();
     private complianceChecker = new ComplianceChecker();
     private feedbackHandler = new FeedbackHandler();
@@ -65,6 +62,13 @@ export class DocumentProcessor {
 
             // Step 4: Generate summary
             const summary = await this.generateSummary(statement.id);
+
+            // Step 4.5: Hydrate YTD state
+            try {
+                await StatementHydrator.hydrate(job.user_id, job.business_id);
+            } catch (hydrateError) {
+                logger.warn('[Processor] YTD hydration failed (non-critical)', hydrateError);
+            }
 
             // Step 5: Update job as completed
             await this.updateJobStatus(jobId, 'completed', {
@@ -142,7 +146,7 @@ export class DocumentProcessor {
         }
 
         const needsReview = classification.confidence < 0.75 || complianceFlags.length > 0;
-        
+
         const { data: insertedTxn, error: insertError } = await supabase.from('bank_transactions').insert({
             statement_id: statementId,
             user_id: job.user_id,
@@ -191,27 +195,28 @@ export class DocumentProcessor {
             });
             throw insertError;
         }
-        
-        logger.info('[Processor] Transaction saved', { 
+
+        logger.info('[Processor] Transaction saved', {
             description: txn.description?.substring(0, 30),
-            classification: classification.classification 
+            classification: classification.classification
         });
 
         // Step 7: Learn from transaction for profile enhancement
-        if (insertedTxn?.id) {
-            try {
-                await processTransactionForLearning(job.user_id, {
-                    id: insertedTxn.id,
-                    narration: txn.description,
-                    amount: txn.credit || txn.debit || 0,
-                    type: txn.credit ? 'credit' : 'debit',
-                    classification: classification.classification,
-                    date: txn.date
-                });
-            } catch (learningError) {
-                logger.warn('[Processor] Profile learning failed (non-critical)', learningError);
-            }
-        }
+        // TODO: Implement processTransactionForLearning in P6.17 (Statement Hydration)
+        // if (insertedTxn?.id) {
+        //     try {
+        //         await processTransactionForLearning(job.user_id, {
+        //             id: insertedTxn.id,
+        //             narration: txn.description,
+        //             amount: txn.credit || txn.debit || 0,
+        //             type: txn.credit ? 'credit' : 'debit',
+        //             classification: classification.classification,
+        //             date: txn.date
+        //         });
+        //     } catch (learningError) {
+        //         logger.warn('[Processor] Profile learning failed (non-critical)', learningError);
+        //     }
+        // }
     }
 
     /**
