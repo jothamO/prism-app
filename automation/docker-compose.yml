@@ -53,12 +53,14 @@ services:
       - DB_POSTGRESDB_DATABASE=${POSTGRES_DB:-n8n}
       - DB_POSTGRESDB_USER=${POSTGRES_USER:-n8n}
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-n8n_password}
-      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
-      - N8N_HOST=n8n.prism.sh
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-your-encryption-key-here}
+      - N8N_HOST=prismtax.duckdns.org
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
+      - N8N_PATH=/n8n/
+      - N8N_EDITOR_BASE_URL=https://prismtax.duckdns.org/n8n/
+      - WEBHOOK_URL=https://prismtax.duckdns.org/n8n/
       - NODE_ENV=production
-      - WEBHOOK_URL=https://n8n.prism.sh/
       - GENERIC_TIMEZONE=Africa/Lagos
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
