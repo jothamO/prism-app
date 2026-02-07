@@ -12,6 +12,7 @@ import type { NLUIntent } from '../../services/nlu.service';
 import { getReliefs, getDeadlines, formatNaira, buildTaxRulesSummary } from '../../services/rules-fetcher';
 import { getFactExtractor } from '../../services/conversation-fact-extractor';
 import config from '../../config';
+import { aiClient } from '../../utils/ai-client';
 
 export interface IntentHandlerResult {
     message: string;
@@ -293,15 +294,6 @@ export async function handleGeneralQueryWithAI(
     context: SessionContext,
     timeOfDay: 'morning' | 'afternoon' | 'evening'
 ): Promise<IntentHandlerResult> {
-    const userName = context.metadata?.userName as string;
-    const ANTHROPIC_API_KEY = config.anthropic.apiKey;
-
-    // If no AI key or empty message, fall back to static menu
-    if (!ANTHROPIC_API_KEY || !message.trim()) {
-        logger.info('[IntentHandlers] No ANTHROPIC_API_KEY or empty message, using static response');
-        return handleGeneralQuery(intent, context, timeOfDay);
-    }
-
     try {
         // Extract and store facts from user message (async, non-blocking)
         // Uses internal users.id from context.userId
@@ -314,38 +306,18 @@ export async function handleGeneralQueryWithAI(
         // Build Nigerian tax-aware system prompt with dynamic rules from database
         const systemPrompt = await buildConversationalPromptAsync(context, timeOfDay);
 
-        logger.info('[IntentHandlers] Calling Anthropic Claude for conversation', {
+        logger.info('[IntentHandlers] Calling OpenRouter for conversation', {
             messageLength: message.length,
-            userName: userName || 'anonymous',
-            model: config.anthropic.model
+            userName: context.metadata?.userName || 'anonymous'
         });
 
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: config.anthropic.model,
-                max_tokens: config.anthropic.maxTokens,
-                system: systemPrompt,
-                messages: [{ role: 'user', content: message }]
-            })
+        const aiResponse = await aiClient.chat({
+            tier: 'fast',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: message }
+            ]
         });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            logger.error('[IntentHandlers] Anthropic Claude error', {
-                status: response.status,
-                error: errorText
-            });
-            throw new Error(`Anthropic Claude error: ${response.status}`);
-        }
-
-        const aiData = await response.json() as { content?: Array<{ text?: string }> };
-        const aiResponse = aiData.content?.[0]?.text;
 
         if (!aiResponse) {
             throw new Error('Empty AI response');
@@ -353,7 +325,7 @@ export async function handleGeneralQueryWithAI(
 
         logger.info('[IntentHandlers] AI response received', {
             responseLength: aiResponse.length,
-            source: 'anthropic_claude'
+            source: 'ai_client'
         });
 
         return {

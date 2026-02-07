@@ -4,6 +4,7 @@
  * Uses Lovable AI (google/gemini-2.5-flash) with fallback to rule-based detection
  */
 
+import { aiClient } from '../utils/ai-client';
 import { logger } from '../utils/logger';
 
 // Intent types supported by PRISM
@@ -98,36 +99,30 @@ const PERSONAL_ITEM_PATTERNS = [
 ];
 
 export class NLUService {
-    private anthropicApiKey?: string;
-
-    constructor() {
-        this.anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-    }
+    constructor() { }
 
     /**
      * Classify user intent using AI or fallback
      */
     async classifyIntent(message: string, context?: ConversationContext): Promise<NLUResult> {
         // Try AI classification first
-        if (this.anthropicApiKey) {
-            try {
-                const aiResult = await this.classifyWithAI(message, context);
-                if (aiResult) {
-                    // Check for artificial transaction if relevant
-                    const artificialCheck = this.checkArtificialTransaction(
-                        message,
-                        aiResult.entities
-                    );
+        try {
+            const aiResult = await this.classifyWithAI(message, context);
+            if (aiResult) {
+                // Check for artificial transaction if relevant
+                const artificialCheck = this.checkArtificialTransaction(
+                    message,
+                    aiResult.entities
+                );
 
-                    return {
-                        intent: aiResult,
-                        source: 'ai',
-                        artificialTransactionCheck: artificialCheck
-                    };
-                }
-            } catch (error) {
-                logger.error('[NLU] AI classification failed, using fallback:', error);
+                return {
+                    intent: aiResult,
+                    source: 'ai',
+                    artificialTransactionCheck: artificialCheck
+                };
             }
+        } catch (error) {
+            logger.error('[NLU] AI classification failed, using fallback:', error);
         }
 
         // Fallback to rule-based
@@ -145,11 +140,9 @@ export class NLUService {
     }
 
     /**
-     * AI-powered intent classification using Anthropic Claude Haiku
+     * AI-powered intent classification using centralized AIClient (fast tier)
      */
     private async classifyWithAI(message: string, context?: ConversationContext): Promise<NLUIntent | null> {
-        if (!this.anthropicApiKey) return null;
-
         try {
             // Build context string
             const contextString = context?.recentMessages?.length
@@ -183,39 +176,18 @@ Consider the conversation context when available.
 
 Return ONLY valid JSON, no markdown or explanation.`;
 
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': this.anthropicApiKey,
-                    'anthropic-version': '2023-06-01',
-                },
-                body: JSON.stringify({
-                    model: 'claude-haiku-4-5-20251001',
-                    max_tokens: 8000,
-                    system: systemPrompt,
-                    messages: [
-                        { role: 'user', content: `${contextString}Current message: "${message}"` }
-                    ]
-                })
+            const responseText = await aiClient.chat({
+                tier: 'fast',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: `${contextString}Current message: "${message}"` }
+                ]
             });
 
-            if (!response.ok) {
-                logger.warn('[NLU] Anthropic Claude error:', response.status);
-                return null;
-            }
+            if (!responseText) return null;
 
-            const aiData = await response.json() as { content?: Array<{ type?: string; text?: string }> };
-            const content = aiData.content?.[0]?.text;
+            const parsed = JSON.parse(responseText.match(/\{[\s\S]*\}/)?.[0] || '{}');
 
-            if (!content) return null;
-
-            // Parse JSON response
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) return null;
-
-            const parsed = JSON.parse(jsonMatch[0]);
-            
             return {
                 name: this.validateIntentName(parsed.name),
                 confidence: Math.min(1, Math.max(0, parsed.confidence || 0.8)),
@@ -240,87 +212,87 @@ Return ONLY valid JSON, no markdown or explanation.`;
             patterns: RegExp[];
             confidence: number;
         }> = [
-            {
-                intent: 'onboarding',
-                patterns: [
-                    /^\/?(start|onboard|setup|get started|begin)$/i,
-                    /^(hi|hello|hey)\s*$/i
-                ],
-                confidence: 0.9
-            },
-            {
-                intent: 'get_tax_calculation',
-                patterns: [
-                    /^(vat|tax|salary|pension|freelance)\s+[₦n]?\d/i,
-                    /calculate\s+(vat|tax|income)/i,
-                    /how\s+much\s+(vat|tax)/i,
-                    /\btax\s+on\s+\d+/i
-                ],
-                confidence: 0.85
-            },
-            {
-                intent: 'get_transaction_summary',
-                patterns: [
-                    /\b(transactions?|spending|spent|summary|history|statement)\b/i,
-                    /\b(show|view|see)\s+(my\s+)?(money|account|bank)/i,
-                    /what\s+did\s+i\s+spend/i
-                ],
-                confidence: 0.8
-            },
-            {
-                intent: 'get_tax_relief_info',
-                patterns: [
-                    /\b(relief|deduct|exempt|allowance)\b/i,
-                    /\b(can\s+i\s+claim|what\s+deductions?)\b/i,
-                    /\bsection\s+\d+\b/i,
-                    /\b(nhf|nhis|pension)\s+contribution/i
-                ],
-                confidence: 0.8
-            },
-            {
-                intent: 'upload_receipt',
-                patterns: [
-                    /\b(upload|send|submit)\s+(receipt|invoice|document)/i,
-                    /\breceipt\b.*\b(upload|send|here)/i,
-                    /\binvoice\b.*\b(upload|send|here)/i
-                ],
-                confidence: 0.8
-            },
-            {
-                intent: 'categorize_expense',
-                patterns: [
-                    /\b(categorize|classify|category)\b/i,
-                    /\bis\s+this\s+(business|personal|deductible)\b/i,
-                    /\bwhat\s+type\s+of\s+expense\b/i
-                ],
-                confidence: 0.75
-            },
-            {
-                intent: 'set_reminder',
-                patterns: [
-                    /\b(remind|reminder|deadline|due\s+date)\b/i,
-                    /\bwhen\s+(is|should)\s+(my|the)\s+(tax|vat|filing)/i
-                ],
-                confidence: 0.75
-            },
-            {
-                intent: 'connect_bank',
-                patterns: [
-                    /\b(connect|link|add)\s+(my\s+)?(bank|account)/i,
-                    /\b(gtbank|zenith|access|uba|first\s+bank|sterling|fcmb)\b/i
-                ],
-                confidence: 0.75
-            },
-            {
-                intent: 'verify_identity',
-                patterns: [
-                    /\b(verify|validate|check)\s+(my\s+)?(nin|tin|cac|bvn)/i,
-                    /\bmy\s+(nin|tin|cac)\s+is\b/i,
-                    /\b(nin|tin|cac)\s*[:\s]+\d+/i
-                ],
-                confidence: 0.8
-            }
-        ];
+                {
+                    intent: 'onboarding',
+                    patterns: [
+                        /^\/?(start|onboard|setup|get started|begin)$/i,
+                        /^(hi|hello|hey)\s*$/i
+                    ],
+                    confidence: 0.9
+                },
+                {
+                    intent: 'get_tax_calculation',
+                    patterns: [
+                        /^(vat|tax|salary|pension|freelance)\s+[₦n]?\d/i,
+                        /calculate\s+(vat|tax|income)/i,
+                        /how\s+much\s+(vat|tax)/i,
+                        /\btax\s+on\s+\d+/i
+                    ],
+                    confidence: 0.85
+                },
+                {
+                    intent: 'get_transaction_summary',
+                    patterns: [
+                        /\b(transactions?|spending|spent|summary|history|statement)\b/i,
+                        /\b(show|view|see)\s+(my\s+)?(money|account|bank)/i,
+                        /what\s+did\s+i\s+spend/i
+                    ],
+                    confidence: 0.8
+                },
+                {
+                    intent: 'get_tax_relief_info',
+                    patterns: [
+                        /\b(relief|deduct|exempt|allowance)\b/i,
+                        /\b(can\s+i\s+claim|what\s+deductions?)\b/i,
+                        /\bsection\s+\d+\b/i,
+                        /\b(nhf|nhis|pension)\s+contribution/i
+                    ],
+                    confidence: 0.8
+                },
+                {
+                    intent: 'upload_receipt',
+                    patterns: [
+                        /\b(upload|send|submit)\s+(receipt|invoice|document)/i,
+                        /\breceipt\b.*\b(upload|send|here)/i,
+                        /\binvoice\b.*\b(upload|send|here)/i
+                    ],
+                    confidence: 0.8
+                },
+                {
+                    intent: 'categorize_expense',
+                    patterns: [
+                        /\b(categorize|classify|category)\b/i,
+                        /\bis\s+this\s+(business|personal|deductible)\b/i,
+                        /\bwhat\s+type\s+of\s+expense\b/i
+                    ],
+                    confidence: 0.75
+                },
+                {
+                    intent: 'set_reminder',
+                    patterns: [
+                        /\b(remind|reminder|deadline|due\s+date)\b/i,
+                        /\bwhen\s+(is|should)\s+(my|the)\s+(tax|vat|filing)/i
+                    ],
+                    confidence: 0.75
+                },
+                {
+                    intent: 'connect_bank',
+                    patterns: [
+                        /\b(connect|link|add)\s+(my\s+)?(bank|account)/i,
+                        /\b(gtbank|zenith|access|uba|first\s+bank|sterling|fcmb)\b/i
+                    ],
+                    confidence: 0.75
+                },
+                {
+                    intent: 'verify_identity',
+                    patterns: [
+                        /\b(verify|validate|check)\s+(my\s+)?(nin|tin|cac|bvn)/i,
+                        /\bmy\s+(nin|tin|cac)\s+is\b/i,
+                        /\b(nin|tin|cac)\s*[:\s]+\d+/i
+                    ],
+                    confidence: 0.8
+                }
+            ];
 
         // Check each pattern
         for (const { intent, patterns: regexes, confidence } of patterns) {
@@ -369,7 +341,7 @@ Return ONLY valid JSON, no markdown or explanation.`;
         else if (/last\s+week/i.test(lower)) entities.period = 'last_week';
         else if (/this\s+year/i.test(lower)) entities.period = 'current_year';
         else if (/last\s+year/i.test(lower)) entities.period = 'last_year';
-        
+
         // Extract specific months
         const monthMatch = lower.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/);
         if (monthMatch) {

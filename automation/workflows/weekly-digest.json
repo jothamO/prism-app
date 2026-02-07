@@ -1,0 +1,69 @@
+{
+    "name": "Weekly VAT Digest",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 9 * * 1"
+                        }
+                    ]
+                }
+            },
+            "id": "a1b2c3d4-5678-90ab-cdef-111111111111",
+            "name": "Schedule (Monday 9AM)",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://api.prism.ng/api/notifications/weekly-digest-batch",
+                "options": {
+                    "timeout": 60000
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "x-prism-agent-key",
+                            "value": "={{$env.PRISM_AGENT_KEY}}"
+                        }
+                    ]
+                }
+            },
+            "id": "b2c3d4e5-6789-01bc-def0-222222222222",
+            "name": "Trigger Digest Batch",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                470,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule (Monday 9AM)": {
+            "main": [
+                [
+                    {
+                        "node": "Trigger Digest Batch",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {},
+    "tags": [
+        "notifications",
+        "proactive"
+    ]
+}

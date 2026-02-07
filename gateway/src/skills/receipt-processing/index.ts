@@ -3,9 +3,9 @@
  * Handles receipt OCR and categorization with feedback collection
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { aiClient } from '../../utils/ai-client';
 import { logger } from '../../utils/logger';
-import { config, supabase } from '../../config';
+import config, { supabase } from '../../config';
 import { Session as SessionContext } from '../../protocol';
 import type { Static } from '@sinclair/typebox';
 import type { MessageResponseSchema } from '../../protocol';
@@ -40,13 +40,7 @@ const EXPENSE_CATEGORIES = {
 };
 
 export class ReceiptProcessingSkill {
-    private anthropic: Anthropic;
-
-    constructor() {
-        this.anthropic = new Anthropic({
-            apiKey: config.anthropic.apiKey
-        });
-    }
+    constructor() { }
 
     /**
      * Format currency
@@ -67,7 +61,7 @@ export class ReceiptProcessingSkill {
 
             // Check if we have a receipt image URL
             const receiptUrl = context.metadata?.receiptUrl || context.metadata?.documentUrl;
-            
+
             if (!receiptUrl) {
                 return {
                     message: `📸 Receipt Processing\n\n` +
@@ -98,7 +92,7 @@ export class ReceiptProcessingSkill {
             // Store receipt data for feedback loop
             await this.storeReceiptForFeedback(context.userId, extracted, receiptUrl);
 
-            const categoryInfo = EXPENSE_CATEGORIES[extracted.category as keyof typeof EXPENSE_CATEGORIES] 
+            const categoryInfo = EXPENSE_CATEGORIES[extracted.category as keyof typeof EXPENSE_CATEGORIES]
                 || EXPENSE_CATEGORIES.other;
 
             return {
@@ -192,34 +186,31 @@ If Nigerian receipt, look for:
 
 Return ONLY the JSON, no other text.`;
 
-            const aiResponse = await this.anthropic.messages.create({
-                model: config.anthropic.model,
-                max_tokens: 1024,
+            const responseText = await aiClient.chat({
+                tier: 'reasoning',
+                maxTokens: 1024,
                 messages: [{
                     role: 'user',
                     content: extractedText
-                        ? [{ type: 'text' as const, text: promptText }]
+                        ? `${promptText}`
                         : [
+                            { type: 'text', text: promptText },
                             {
-                                type: 'image' as const,
-                                source: {
-                                    type: 'base64' as const,
-                                    media_type: (mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                                    data: base64
+                                type: 'image_url',
+                                image_url: {
+                                    url: `data:${mediaType || 'image/jpeg'};base64,${base64}`
                                 }
-                            },
-                            { type: 'text' as const, text: promptText }
+                            }
                         ]
                 }]
             });
 
-            const textContent = aiResponse.content.find(c => c.type === 'text');
-            if (!textContent || textContent.type !== 'text') {
+            if (!responseText) {
                 return null;
             }
 
             // Parse JSON from response
-            const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
                 return null;
             }

@@ -1,4 +1,4 @@
-project_id = "rjajxabpndmpcgssymxw"
+project_id = "mgozsryewbirhxjpcuvy"
 
 [functions.vat-calculator]
 verify_jwt = false

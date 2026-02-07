@@ -80,12 +80,10 @@ export class BusinessClassificationService {
         }
 
         // Check 2: Turnover and fixed assets thresholds
-        const meetsT
-
-        urnoverThreshold = turnover <= this.SMALL_COMPANY_TURNOVER_LIMIT;
+        const meetsTurnoverThreshold = turnover <= this.SMALL_COMPANY_TURNOVER_LIMIT;
         const meetsAssetsThreshold = fixedAssets <= this.SMALL_COMPANY_ASSETS_LIMIT;
 
-        if (meetsT urnoverThreshold && meetsAssetsThreshold) {
+        if (meetsTurnoverThreshold && meetsAssetsThreshold) {
             // Qualifies as SMALL COMPANY - 0% tax! 🎉
             const result = {
                 classification: 'small' as const,

@@ -6,7 +6,7 @@
  * Enhanced with Nigerian transaction context
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { aiClient } from '../../../utils/ai-client';
 import { logger } from '../../../utils/logger';
 import type { ClassificationResult } from './business-pattern';
 import { supabase } from '../../../config';
@@ -15,7 +15,7 @@ import { NigerianDetectors } from '../nigerian-detectors';
 export class AIClassifier {
     private nigerianDetectors: NigerianDetectors;
 
-    constructor(private claude: Anthropic) {
+    constructor() {
         this.nigerianDetectors = new NigerianDetectors();
     }
 
@@ -38,9 +38,8 @@ export class AIClassifier {
 
             const prompt = this.buildClassificationPrompt(txn, businessContext, nigerianFlags);
 
-            const response = await this.claude.messages.create({
-                model: 'claude-sonnet-4-5-20250929',
-                max_tokens: 8000,
+            const responseText = await aiClient.chat({
+                tier: 'reasoning',
                 messages: [
                     {
                         role: 'user',
@@ -49,12 +48,7 @@ export class AIClassifier {
                 ]
             });
 
-            const content = response.content[0];
-            if (content.type !== 'text') {
-                throw new Error('Unexpected response type');
-            }
-
-            const result = this.parseClassification(content.text);
+            const result = this.parseClassification(responseText);
 
             logger.info('[AIClassifier] Classification complete', {
                 txn: txn.description,
@@ -95,9 +89,9 @@ export class AIClassifier {
         // Determine transaction type description
         const txnType = nigerianFlags.isUSSD ? 'USSD Transfer' :
             nigerianFlags.isMobileMoney ? `Mobile Money (${nigerianFlags.mobileMoneyProvider || 'unknown'})` :
-            nigerianFlags.isPOS ? 'POS Terminal' :
-            nigerianFlags.isForeignCurrency ? `Foreign Currency (${nigerianFlags.foreignCurrency})` :
-            'Standard';
+                nigerianFlags.isPOS ? 'POS Terminal' :
+                    nigerianFlags.isForeignCurrency ? `Foreign Currency (${nigerianFlags.foreignCurrency})` :
+                        'Standard';
 
         return `
 Classify this Nigerian bank transaction for VAT/tax purposes.

@@ -1,0 +1,143 @@
+{
+    "name": "Heartbeat Fact Extraction",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "*/30 * * * *"
+                        }
+                    ]
+                }
+            },
+            "id": "e5f6g7h8-9012-34ef-0123-555555555555",
+            "name": "Schedule (Every 30 min)",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://gateway.prism.ng/heartbeat/run",
+                "method": "POST",
+                "options": {
+                    "timeout": 120000
+                },
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "x-prism-agent-key",
+                            "value": "={{$env.PRISM_AGENT_KEY}}"
+                        }
+                    ]
+                }
+            },
+            "id": "f6g7h8i9-0123-45f0-1234-666666666666",
+            "name": "Trigger Heartbeat Extraction",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                470,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{$node[\"Trigger Heartbeat Extraction\"].json[\"factsExtracted\"]}}",
+                            "value2": 0,
+                            "operation": "notEqual"
+                        }
+                    ]
+                }
+            },
+            "id": "g7h8i9j0-1234-56g1-2345-777777777777",
+            "name": "Facts Extracted?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                690,
+                300
+            ]
+        },
+        {
+            "parameters": {},
+            "id": "h8i9j0k1-2345-67h2-3456-888888888888",
+            "name": "Log Success",
+            "type": "n8n-nodes-base.noOp",
+            "typeVersion": 1,
+            "position": [
+                910,
+                200
+            ]
+        },
+        {
+            "parameters": {},
+            "id": "i9j0k1l2-3456-78i3-4567-999999999999",
+            "name": "No Action Needed",
+            "type": "n8n-nodes-base.noOp",
+            "typeVersion": 1,
+            "position": [
+                910,
+                400
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule (Every 30 min)": {
+            "main": [
+                [
+                    {
+                        "node": "Trigger Heartbeat Extraction",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Trigger Heartbeat Extraction": {
+            "main": [
+                [
+                    {
+                        "node": "Facts Extracted?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Facts Extracted?": {
+            "main": [
+                [
+                    {
+                        "node": "Log Success",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "No Action Needed",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {},
+    "tags": [
+        "agentic",
+        "heartbeat",
+        "memory"
+    ]
+}

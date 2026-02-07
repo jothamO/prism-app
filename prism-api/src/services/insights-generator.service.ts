@@ -124,7 +124,7 @@ export class InsightsGeneratorService {
 
             // Calculate totals
             const totalATMFees = charges.reduce((sum, c) => sum + (c.amount || 0), 0);
-            
+
             // Check for overcharges in metadata
             const overcharges = charges.filter(c => {
                 try {
@@ -257,7 +257,7 @@ export class InsightsGeneratorService {
             return {
                 type: 'threshold_warning',
                 priority: 'medium',
-                title: 'You've exceeded the small company threshold',
+                title: 'You\'ve exceeded the small company threshold',
                 description: `Your turnover is ₦${this.formatCurrency(metrics.turnover)}. You now pay 30% company tax instead of 0%.`,
                 action: 'Consider tax planning strategies',
                 potentialCost: (metrics.turnover - 50_000_000) * 0.30,

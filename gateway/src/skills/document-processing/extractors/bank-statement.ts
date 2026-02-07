@@ -4,11 +4,12 @@
  * Supports both text-based and scanned PDFs without native dependencies
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { aiClient, AIMessage, MessageContent } from '../../../utils/ai-client';
 import { logger } from '../../../utils/logger';
 import { ocrService } from '../../../services/ocr-service';
 import { config } from '../../../config';
 import { isPDF, extractTextFromPDF } from '../../../services/pdf-converter';
+import { GhostService } from '../../../services/ghost-service';
 
 export interface ExtractedTransaction {
     date: string;
@@ -25,61 +26,58 @@ export interface ExtractionResult {
     accountNumber?: string;
     period?: string;
     ocrConfidence?: number;
+    fileHash?: string;
 }
 
 export class BankStatementExtractor {
-    constructor(private claude: Anthropic) { }
+    constructor() { }
 
     /**
      * Extract transactions from bank statement document
      * Uses hybrid approach: Vision API for OCR, Claude for interpretation
      * Now supports multi-page PDFs
      */
-    async extract(documentUrl: string): Promise<ExtractedTransaction[]> {
+    async extract(documentUrl: string): Promise<ExtractionResult> {
         try {
             logger.info('[Extractor] Processing document', { documentUrl });
 
             // Get document content - prefer OCR if available
             const documentContent = await this.getDocumentContent(documentUrl);
+            const fileHash = documentContent.fileHash;
 
             // Handle multi-page PDF with Claude vision (when OCR failed)
             if (documentContent.pageImages && documentContent.pageImages.length > 0 && !documentContent.data) {
-                return await this.extractFromMultiplePages(documentContent.pageImages);
+                const transactions = await this.extractFromMultiplePages(documentContent.pageImages);
+                return { transactions, fileHash };
             }
 
             // Use Claude to extract structured transaction data
             const prompt = this.buildExtractionPrompt(documentContent.ocrConfidence);
 
-            const response = await this.claude.messages.create({
-                model: 'claude-sonnet-4-5-20250929',
-                max_tokens: 64000,
-                messages: [
-                    {
-                        role: 'user',
-                        content: documentContent.type === 'text'
-                            ? [{ type: 'text' as const, text: `${prompt}\n\nDocument Content:\n${documentContent.data}` }]
-                            : [
-                                { type: 'text' as const, text: prompt },
-                                {
-                                    type: 'image' as const,
-                                    source: {
-                                        type: 'base64' as const,
-                                        media_type: (documentContent.mediaType || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                                        data: documentContent.data
-                                    }
+            const messages: AIMessage[] = [
+                {
+                    role: 'user',
+                    content: documentContent.type === 'text'
+                        ? `${prompt}\n\nDocument Content:\n${documentContent.data}`
+                        : [
+                            { type: 'text', text: prompt },
+                            {
+                                type: 'image_url',
+                                image_url: {
+                                    url: `data:${documentContent.mediaType || 'image/jpeg'};base64,${documentContent.data}`
                                 }
-                            ]
-                    }
-                ]
+                            }
+                        ]
+                }
+            ];
+
+            const responseText = await aiClient.chat({
+                tier: 'reasoning',
+                maxTokens: 16000,
+                messages
             });
 
-            // Parse response
-            const content = response.content[0];
-            if (content.type !== 'text') {
-                throw new Error('Unexpected response type from Claude');
-            }
-
-            const transactions = this.parseExtractedData(content.text);
+            const transactions = this.parseExtractedData(responseText);
 
             // Verify extraction quality
             const debits = transactions.filter(t => t.debit && t.debit > 0);
@@ -97,7 +95,7 @@ export class BankStatementExtractor {
                 logger.warn('[Extractor] WARNING: No debit transactions found - may indicate extraction issue');
             }
 
-            return transactions;
+            return { transactions, fileHash };
         } catch (error) {
             logger.error('[Extractor] Extraction failed:', error);
             throw error;
@@ -117,43 +115,40 @@ export class BankStatementExtractor {
 
         // Process pages in batches (Claude can handle multiple images per request)
         const batchSize = 5; // Process 5 pages at a time to stay within limits
-        
+
         for (let i = 0; i < pageImages.length; i += batchSize) {
             const batch = pageImages.slice(i, i + batchSize);
-            
+
             logger.info('[Extractor] Processing page batch', {
                 startPage: i + 1,
                 endPage: i + batch.length
             });
 
             try {
-                // Build content array with all images in batch
-                const content: any[] = [
-                    { type: 'text' as const, text: `${prompt}\n\nThese are pages ${i + 1} to ${i + batch.length} of a bank statement. Extract all transactions from all pages.` }
+                // Build multimodal message for AIClient
+                const messageContent: MessageContent[] = [
+                    { type: 'text', text: `${prompt}\n\nThese are pages ${i + 1} to ${i + batch.length} of a bank statement. Extract all transactions from all pages.` }
                 ];
-                
+
                 for (const pageImage of batch) {
-                    content.push({
-                        type: 'image' as const,
-                        source: {
-                            type: 'base64' as const,
-                            media_type: 'image/png' as const,
-                            data: pageImage
+                    messageContent.push({
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:image/png;base64,${pageImage}`
                         }
                     });
                 }
 
-                const response = await this.claude.messages.create({
-                    model: 'claude-sonnet-4-5-20250929',
-                    max_tokens: 64000,
-                    messages: [{ role: 'user', content }]
+                const responseText = await aiClient.chat({
+                    tier: 'reasoning',
+                    maxTokens: 64000,
+                    messages: [{ role: 'user', content: messageContent }]
                 });
 
-                const responseContent = response.content[0];
-                if (responseContent.type === 'text') {
-                    const batchTransactions = this.parseExtractedData(responseContent.text);
+                if (responseText) {
+                    const batchTransactions = this.parseExtractedData(responseText);
                     allTransactions.push(...batchTransactions);
-                    
+
                     logger.info('[Extractor] Batch processed', {
                         pagesProcessed: batch.length,
                         transactionsFound: batchTransactions.length
@@ -184,14 +179,14 @@ export class BankStatementExtractor {
      */
     private deduplicateTransactions(transactions: ExtractedTransaction[]): ExtractedTransaction[] {
         const seen = new Map<string, ExtractedTransaction>();
-        
+
         for (const txn of transactions) {
             const key = `${txn.date}|${txn.description}|${txn.debit || ''}|${txn.credit || ''}`;
             if (!seen.has(key)) {
                 seen.set(key, txn);
             }
         }
-        
+
         return Array.from(seen.values());
     }
 
@@ -291,19 +286,23 @@ Extract ALL transactions now - ensure you capture every debit AND credit row.
         ocrUsed?: boolean;
         ocrConfidence?: number;
         pageImages?: string[]; // For multi-page PDFs
+        fileHash?: string;
     }> {
         try {
             // Download the document first
             const { buffer, mediaType } = await ocrService.downloadImage(url);
+            const fileHash = GhostService.calculateHash(buffer);
 
             // Check if it's a PDF - if so, convert to images
             if (isPDF(buffer, mediaType)) {
                 logger.info('[Extractor] PDF detected, converting to images');
-                return await this.processPDFDocument(buffer);
+                const result = await this.processPDFDocument(buffer);
+                return { ...result, fileHash };
             }
 
             // For regular images, use existing OCR flow
-            return await this.processImageDocument(buffer, mediaType);
+            const result = await this.processImageDocument(buffer, mediaType);
+            return { ...result, fileHash };
         } catch (error) {
             logger.error('[Extractor] Failed to get document content:', error);
             throw error;
@@ -328,16 +327,16 @@ Extract ALL transactions now - ensure you capture every debit AND credit row.
         try {
             // Step 1: Try direct text extraction (works for text-based PDFs)
             logger.info('[Extractor] Attempting PDF text extraction');
-            
+
             try {
                 const textResult = await extractTextFromPDF(pdfBuffer, { maxPages: 50 });
-                
+
                 if (textResult.isTextBased && textResult.text.length > 100) {
                     logger.info('[Extractor] PDF is text-based, extracted directly', {
                         pageCount: textResult.pageCount,
                         textLength: textResult.text.length
                     });
-                    
+
                     return {
                         type: 'text',
                         data: textResult.text,
@@ -345,7 +344,7 @@ Extract ALL transactions now - ensure you capture every debit AND credit row.
                         ocrConfidence: 0.95 // High confidence for native text extraction
                     };
                 }
-                
+
                 logger.info('[Extractor] PDF appears to be scanned/image-based', {
                     extractedChars: textResult.text.length,
                     isTextBased: textResult.isTextBased
@@ -359,13 +358,13 @@ Extract ALL transactions now - ensure you capture every debit AND credit row.
                 try {
                     logger.info('[Extractor] Using Google Vision PDF OCR');
                     const ocrResult = await ocrService.processPDF(pdfBuffer, 5);
-                    
+
                     if (ocrResult.text && ocrResult.text.length > 50) {
                         logger.info('[Extractor] Google Vision PDF OCR successful', {
                             textLength: ocrResult.text.length,
                             confidence: ocrResult.confidence
                         });
-                        
+
                         return {
                             type: 'text',
                             data: ocrResult.text,
@@ -373,7 +372,7 @@ Extract ALL transactions now - ensure you capture every debit AND credit row.
                             ocrConfidence: ocrResult.confidence
                         };
                     }
-                    
+
                     logger.warn('[Extractor] Vision API returned insufficient text');
                 } catch (visionError) {
                     logger.error('[Extractor] Google Vision PDF OCR failed:', visionError);
@@ -384,7 +383,7 @@ Extract ALL transactions now - ensure you capture every debit AND credit row.
 
             // Step 3: No canvas fallback - report the issue
             throw new Error('Unable to process PDF: text extraction failed and Google Vision OCR unavailable or insufficient');
-            
+
         } catch (error) {
             logger.error('[Extractor] PDF processing failed:', error);
             throw error;

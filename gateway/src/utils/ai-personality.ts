@@ -5,11 +5,8 @@
  */
 
 import config from '../config';
+import { aiClient } from './ai-client';
 import { logger } from './logger';
-
-// Model settings - consistent with claude-client.ts
-const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
-const MAX_TOKENS = 8000;
 
 interface PersonalityContext {
     userName?: string;
@@ -29,58 +26,30 @@ export function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' {
 }
 
 /**
- * Add AI-powered personality to a message using Claude Haiku
+ * Add AI-powered personality to a message using AIClient (fast tier)
  * Fast and cheap (~200ms) for quick personality polish
  */
 export async function addAIPersonality(
     message: string,
     context: PersonalityContext
 ): Promise<string> {
-    // Skip if no API key - return original message
-    if (!config.anthropic.apiKey) {
-        logger.debug('[AIPersonality] No API key, returning original message');
-        return message;
-    }
-
-    // Skip if personality mode is disabled
-    if (config.personalityMode === 'template') {
-        logger.debug('[AIPersonality] Template mode, returning original message');
-        return message;
-    }
-
     try {
         const systemPrompt = buildPersonalitySystemPrompt(context);
 
-        logger.info('[AIPersonality] Polishing message with Claude Haiku', {
+        logger.info('[AIPersonality] Polishing message', {
             messageType: context.messageType,
             userName: context.userName || 'anonymous',
             originalLength: message.length
         });
 
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': config.anthropic.apiKey,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: HAIKU_MODEL,
-                max_tokens: MAX_TOKENS,
-                temperature: 0.7, // More creative for personality
-                system: systemPrompt,
-                messages: [{ role: 'user', content: message }]
-            })
+        const polishedMessage = await aiClient.chat({
+            tier: 'fast',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: message }
+            ],
+            temperature: 0.7
         });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            logger.error('[AIPersonality] Claude error', { status: response.status, error: errorText });
-            return message; // Return original on error
-        }
-
-        const data = await response.json() as { content?: Array<{ text?: string }> };
-        const polishedMessage = data.content?.[0]?.text;
 
         if (!polishedMessage) {
             logger.warn('[AIPersonality] Empty response, returning original');
@@ -122,32 +91,14 @@ export async function generateWelcomeMessage(context: PersonalityContext): Promi
             timeOfDay: context.timeOfDay
         });
 
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': config.anthropic.apiKey,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: HAIKU_MODEL,
-                max_tokens: MAX_TOKENS,
-                temperature: 0.8, // More creative for greetings
-                system: systemPrompt,
-                messages: [{ role: 'user', content: userPrompt }]
-            })
+        const greeting = await aiClient.chat({
+            tier: 'fast',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.8
         });
-
-        if (!response.ok) {
-            throw new Error(`Claude error: ${response.status}`);
-        }
-
-        const data = await response.json() as { content?: Array<{ text?: string }> };
-        const greeting = data.content?.[0]?.text;
-
-        if (!greeting) {
-            throw new Error('Empty response');
-        }
 
         logger.info('[AIPersonality] AI welcome generated', { length: greeting.length });
         return greeting;
@@ -181,32 +132,14 @@ export async function generateOnboardingWelcome(context: PersonalityContext): Pr
             timeOfDay
         });
 
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': config.anthropic.apiKey,
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: HAIKU_MODEL,
-                max_tokens: MAX_TOKENS,
-                temperature: 0.8,
-                system: systemPrompt,
-                messages: [{ role: 'user', content: userPrompt }]
-            })
+        const welcome = await aiClient.chat({
+            tier: 'fast',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.8
         });
-
-        if (!response.ok) {
-            throw new Error(`Claude error: ${response.status}`);
-        }
-
-        const data = await response.json() as { content?: Array<{ text?: string }> };
-        const welcome = data.content?.[0]?.text;
-
-        if (!welcome) {
-            throw new Error('Empty response');
-        }
 
         logger.info('[AIPersonality] AI onboarding welcome generated', { length: welcome.length });
         return welcome;

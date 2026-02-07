@@ -1,0 +1,81 @@
+{
+    "name": "Tax Deadline Alert (VAT)",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 9 10 * *"
+                        }
+                    ]
+                }
+            },
+            "id": "e6f47700-1111-4111-8111-1e1111111111",
+            "name": "Schedule (10th of Month)",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://api.prism.ng/api/filings/pending-reminders",
+                "options": {}
+            },
+            "id": "f7g58811-2222-4222-9222-2f2222222222",
+            "name": "Fetch Pending Users",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                470,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "resource": "chat",
+                "operation": "sendMessage",
+                "userId": "={{$node[\"Fetch Pending Users\"].json[\"userId\"]}}",
+                "message": "=📢 PRISM REMINDER: Your VAT filing for last month is due in 4 days (Tax Act 2025 Sec 155). \n\nNet Payable: ₦{{$node[\"Fetch Pending Users\"].json[\"amount\"].toLocaleString()}}\n\nReply 'FILE' to proceed automatically."
+            },
+            "id": "g8h69922-3333-4333-a333-3g3333333333",
+            "name": "Notify User",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                690,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule (10th of Month)": {
+            "main": [
+                [
+                    {
+                        "node": "Fetch Pending Users",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Fetch Pending Users": {
+            "main": [
+                [
+                    {
+                        "node": "Notify User",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {}
+}

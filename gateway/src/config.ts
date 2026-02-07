@@ -12,38 +12,57 @@ dotenv.config();
 // Required environment variables
 const requiredEnvVars = [
     'SUPABASE_URL',
-    'SUPABASE_SERVICE_KEY',
-    'ANTHROPIC_API_KEY'
+    'SUPABASE_SERVICE_KEY'
 ];
 
 // Validate required environment variables
 for (const varName of requiredEnvVars) {
     if (!process.env[varName]) {
-        throw new Error(`Missing required environment variable: ${varName}`);
+        console.warn(`[Config] Missing required env: ${varName}`);
     }
 }
 
-// Export configuration
-export const config = {
+const config = {
     // Server
-    port: parseInt(process.env.PORT || '18789', 10),
-    nodeEnv: process.env.NODE_ENV || 'development',
+    port: parseInt(process.env.PORT || '3000', 10),
 
     // Supabase
     supabase: {
-        url: process.env.SUPABASE_URL!,
-        serviceKey: process.env.SUPABASE_SERVICE_KEY!
+        url: process.env.SUPABASE_URL || '',
+        serviceKey: process.env.SUPABASE_SERVICE_KEY || ''
     },
 
-    // Anthropic/Claude
+    // AI Intelligence (OpenRouter & Tiering)
+    ai: {
+        openRouter: {
+            apiKey: process.env.OPENROUTER_API_KEY || '',
+            baseUrl: 'https://openrouter.ai/api/v1',
+            siteUrl: process.env.SITE_URL || 'https://prism-app.lovable.app',
+            siteName: 'PRISM Agentic Core',
+            timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '30000', 10),
+            maxRetries: parseInt(process.env.AI_MAX_RETRIES || '3', 10)
+        },
+        tiers: {
+            // Intent classification, fast routing, easy conversation
+            fast: process.env.MODEL_FAST || 'claude-haiku-4-5-20251001',
+            // Fallback for fast tier if primary fails
+            fastFallback: process.env.MODEL_FAST_FALLBACK || 'openai/gpt-4o-mini',
+            // Complex reasoning, tax logic, audit-ready code gen
+            reasoning: process.env.MODEL_REASONING || 'z-ai/glm-4.7-flash',
+            // Fallback for reasoning tier if GLM fails
+            reasoningFallback: process.env.MODEL_REASONING_FALLBACK || 'claude-sonnet-4-5-20250929'
+        },
+        // Agent orchestrator tokens (default 400 to save credits, can be overridden)
+        maxTokens: parseInt(process.env.AI_MAX_TOKENS || '400', 10)
+    },
+
     anthropic: {
-        apiKey: process.env.ANTHROPIC_API_KEY!,
+        apiKey: process.env.ANTHROPIC_API_KEY || '',
         model: 'claude-sonnet-4-5-20250929',
         maxTokens: 8000
     },
 
     // Personality Mode: 'ai' for Claude-powered, 'template' for static templates
-    // Set to 'ai' by default for warm, conversational messages matching Web Chat
     personalityMode: (process.env.PERSONALITY_MODE || 'ai') as 'ai' | 'template',
 
     // Google Cloud Vision (OCR)
@@ -98,6 +117,9 @@ export const config = {
         processingTimeoutSeconds: 120
     }
 };
+
+// Named export for destructuring
+export { config };
 
 // Initialize Supabase client
 export const supabase = createClient(

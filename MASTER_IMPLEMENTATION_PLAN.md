@@ -76,7 +76,7 @@ This document serves as the production-ready roadmap for transforming PRISM from
 | **P6.4: Monty Installation** | 🔴 High | [DONE] Install `pydantic-monty` on Azure VPS. Verify <1ms startup. |
 | **P6.5: External Functions** | 🔴 High | Define type-safe Registry for agent-callable functions with Tier-based gates. |
 | **P6.6: Type Stub Definitions**| 🔴 High | Create Python stubs for tax laws and skills to validate code pre-execution. |
-| **P6.7: Snapshot Persistence**| 🔴 High | Save/Resume bytecode snapshots in `agent_snapshots` for durable Tier 3/4 workflows. |
+| ✅ P6.7: Snapshot Persistence| 🔴 High | [DONE] Save/Resume bytecode snapshots in `agent_snapshots` for durable Tier 3/4 workflows. |
 | **P6.8: Claude Code Gen** | 🔴 High | Prompt Claude to generate Python logic instead of simple tool calls. |
 | **P6.9: QMD Integration** | 🔴 High | Wire QMD queries as external functions for tax law retrieval (Augmented RAG). |
 | **P6.10: Memory Structure** | 🔴 High | [DONE] Deploy **PARA** structure (Projects/Areas/Resources/Archives) for atomic facts. |
@@ -87,9 +87,9 @@ This document serves as the production-ready roadmap for transforming PRISM from
 | **P6.15: Soul Porting** | 🔴 High | Inject `PRISM_PERSONALITY.md` guidelines into the reasoning core. |
 | ✅ P6.16: Gateway Porting | 🔴 High | [DONE] Refactor OCR/PDF Skills to use the consolidated AI wrapper. |
 | **P6.17: Statement Hydration**| 🔴 High | [DONE] Bank Statement parser → YTD state mapping. |
-| **P6.18: Metadata Ghosting** | 🟡 Medium | SHA-256 ghosting for privacy compliance (purge-on-verify). |
+| ✅ P6.18: Metadata Ghosting | 🟡 Medium | [DONE] SHA-256 ghosting for privacy compliance (purge-on-verify). |
 | **P6.19: Performance Tests** | 🟡 Medium | Benchmark: 1000 users/cycle < 3s total. |
-
+| ✅ P6.20: Full Deployment to Azure VPS | 🔴 High | [DONE] PM2/Nginx setup for agentic core. |
 
 ### Phase 7: UI Revamp (Proactive & Premium)
 *Goal: Moving from Reactive clicks to Proactive Guidance*
@@ -181,9 +181,9 @@ This document serves as the production-ready roadmap for transforming PRISM from
 
 | Task | Priority | Description |
 |:---|:---|:---|
-| **P14.1: Deploy n8n** | 🔴 High | Deploy self-hosted n8n via Docker Compose on Azure VPS (Port 5678). |
-| **P14.2: Redis Queue Setup** | 🔴 High | Configure Redis for n8n queue mode (BullMQ) to handle concurrent workloads. |
-| **P14.3: Secure Proxy** | 🔴 High | Setup Nginx reverse proxy + SSL (`n8n.prism.sh`) with HMAC webhook auth. |
+| ✅ P14.1: Deploy n8n | 🔴 High | [DONE] Docker Compose setup with Port 5678. |
+| ✅ P14.2: Redis Queue Setup | 🔴 High | [DONE] BullMQ shared state via Docker-provided Redis. |
+| ✅ P14.3: Secure Proxy | 🔴 High | [DONE] Nginx `n8n.prism.sh` + SSL configuration. |
 | **P14.4: Deadline Workflow** | 🔴 High | Port filing deadline alerts from TypeScript to visual n8n workflow. |
 | **P14.5: Integration Port** | 🔴 High | Migrate WhatsApp/Telegram notification logic into n8n shared nodes. |
 | **P14.6: GDrive Backup** | 🟡 Medium | Implement auto-sync to user Google Drive for processed tax documents. |

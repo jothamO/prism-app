@@ -88,6 +88,17 @@
 **Decisions:** Used upsert with a unique constraint on `(user_id, business_id, fiscal_year)` to handle per-statement hydration without duplicating annual totals.
 **Takeaway:** Decoupling raw `bank_transactions` from the agent's `ytd_state` via a summary table significantly reduces query complexity and latency during the perception phase.
 
+### Lesson 2026-02-07-B: Metadata Ghosting (Purge-on-Verify)
+**What was built:** `GhostService` and purge logic in `DocumentProcessor`.
+**Decisions:** Implemented a "Ghosting" pattern where sensitive binaries are permanently deleted immediately after extraction. The file's integrity remains audit-ready via a SHA-256 hash stored in the DB.
+**Takeaway:** Absolute privacy is achieved by never keeping original binaries longer than strictly necessary for extraction. The hash acts as a "ghost" of the original file for future verification.
+
+
+### Lesson 2026-02-07-C: Build Stabilization & Linting
+**What was built:** Production-ready `prism-api` builds after fixing legacy syntax errors.
+**Decisions:** Directly patched unescaped single quotes and broken variable declarations in `insights-generator.service.ts` and `business-classification.service.ts`.
+**Takeaway:** Even if local tests pass, strict `tsc` builds are mandatory before deployment orchestration to prevent PM2 restart loops.
+
 ## 12. Success Criteria (V35)
 - Orchestrator Uptime: >99.5% | Proactive Approval: >80%
 - Zero Halucinations on Tax Citations.

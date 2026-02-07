@@ -33,10 +33,12 @@ graph TD
 | **PARA Memory** | ✅ Finalized | Projects/Areas/Resources/Archives structure. |
 | **Heartbeat Mine**| ✅ Active | Autonomous fact extraction from logs. |
 | **YTD Hydrator** | ✅ Active | Syncs bank transactions to YTD summaries. |
+| **Metadata Ghost** | ✅ Active | Privacy compliance (Purge-on-Verify). |
 
-## Data Flow: Statement Hydration
+## Data Flow: Statement Hydration & Ghosting
 1. **Intake**: User uploads bank statement.
-2. **Extraction**: `BankStatementExtractor` (Claude OCR) pulls transactions.
+2. **Extraction**: `BankStatementExtractor` pulls transactions + calculates SHA-256 ghost.
 3. **Classification**: 3-tier pipeline (Patterns -> Rules -> AI).
 4. **Hydration**: `StatementHydrator` aggregates verified transactions into `ytd_state`.
-5. **Perception**: Agent reads `ytd_state` to provide proactive advice.
+5. **Ghosting**: `GhostService` permanently deletes original binary; stores hash.
+6. **Perception**: Agent reads `ytd_state` to provide proactive advice.

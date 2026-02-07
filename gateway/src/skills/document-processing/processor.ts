@@ -13,6 +13,7 @@ import { NigerianDetectors } from './nigerian-detectors/index';
 import { ComplianceChecker } from './compliance/index';
 import { FeedbackHandler } from './feedback/correction-handler';
 import { StatementHydrator } from '../../agent-core/statement-hydrator';
+import { GhostService } from '../../services/ghost-service';
 
 export class DocumentProcessor {
     private extractor = new BankStatementExtractor();
@@ -48,12 +49,12 @@ export class DocumentProcessor {
             await this.updateJobStatus(jobId, 'processing', { started_at: new Date().toISOString() });
 
             // Step 1: Extract transactions from document
-            const transactions = await this.extractor.extract(job.document_url);
+            const { transactions, fileHash } = await this.extractor.extract(job.document_url);
 
-            logger.info(`[Processor] Extracted ${transactions.length} transactions`);
+            logger.info(`[Processor] Extracted ${transactions.length} transactions`, { fileHash });
 
             // Step 2: Create bank statement record
-            const statement = await this.createStatement(job, transactions);
+            const statement = await this.createStatement(job, transactions, fileHash);
 
             // Step 3: Classify and save each transaction
             for (const txn of transactions) {
@@ -79,6 +80,21 @@ export class DocumentProcessor {
 
             // Step 6: Notify user
             await this.notifyUser(job.user_id, summary);
+
+            // Step 7: Metadata Ghosting (Purge original binary)
+            try {
+                logger.info(`[Processor] Ghosting original binary for job ${jobId}`);
+                await GhostService.purgeFile(job.document_url);
+
+                // Update statement with ghosting timestamp
+                await supabase
+                    .from('bank_statements')
+                    .update({ ghosted_at: new Date().toISOString() })
+                    .eq('id', statement.id);
+            } catch (ghostError) {
+                logger.error(`[Processor] Metadata ghosting failed for job ${jobId}:`, ghostError);
+                // We don't fail the job if ghosting fails, but we should log it
+            }
 
             logger.info(`[Processor] Job ${jobId} completed`, summary);
         } catch (error) {
@@ -255,13 +271,14 @@ export class DocumentProcessor {
     /**
      * Create bank statement record
      */
-    private async createStatement(job: any, transactions: any[]): Promise<any> {
+    private async createStatement(job: any, transactions: any[], fileHash?: string): Promise<any> {
         const { data, error } = await supabase
             .from('bank_statements')
             .insert({
                 user_id: job.user_id,
                 business_id: job.business_id,
                 file_url: job.document_url,
+                file_hash: fileHash,
                 processing_status: 'processing',
                 statement_start_date: transactions[0]?.date,
                 statement_end_date: transactions[transactions.length - 1]?.date,
