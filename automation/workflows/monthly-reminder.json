@@ -23,7 +23,7 @@
         },
         {
             "parameters": {
-                "url": "https://api.prism.ng/api/notifications/monthly-reminder-batch",
+                "url": "https://prismtax.duckdns.org/api/notifications/monthly-reminder-batch",
                 "options": {
                     "timeout": 60000
                 },

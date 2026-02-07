@@ -23,7 +23,7 @@
         },
         {
             "parameters": {
-                "url": "https://gateway.prism.ng/heartbeat/run",
+                "url": "https://prismtax.duckdns.org/gateway/heartbeat/run",
                 "method": "POST",
                 "options": {
                     "timeout": 120000

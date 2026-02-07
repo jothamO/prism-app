@@ -23,7 +23,7 @@
         },
         {
             "parameters": {
-                "url": "https://api.prism.ng/api/filings/pending-reminders",
+                "url": "https://prismtax.duckdns.org/api/filings/pending-reminders",
                 "options": {}
             },
             "id": "f7g58811-2222-4222-9222-2f2222222222",

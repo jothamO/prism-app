@@ -23,7 +23,7 @@
         },
         {
             "parameters": {
-                "url": "https://api.prism.ng/api/notifications/weekly-digest-batch",
+                "url": "https://prismtax.duckdns.org/api/notifications/weekly-digest-batch",
                 "options": {
                     "timeout": 60000
                 },
