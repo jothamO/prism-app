@@ -9,7 +9,7 @@ const api = axios.create({
 // Request interceptor to add Authorization header
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('admin_token');
-    if (token) {
+    if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -28,7 +28,7 @@ api.interceptors.response.use(
             originalRequest._retry = true;
 
             const refreshToken = localStorage.getItem('admin_refresh_token');
-            
+
             if (refreshToken) {
                 try {
                     const response = await axios.post(
@@ -36,8 +36,8 @@ api.interceptors.response.use(
                         { refreshToken }
                     );
 
-                    const { token, refreshToken: newRefreshToken } = response.data;
-                    
+                    const { token, refreshToken: newRefreshToken } = response.data as { token: string; refreshToken?: string };
+
                     // Store new tokens
                     localStorage.setItem('admin_token', token);
                     if (newRefreshToken) {
