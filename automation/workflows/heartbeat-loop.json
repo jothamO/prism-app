@@ -134,10 +134,5 @@
         }
     },
     "active": false,
-    "settings": {},
-    "tags": [
-        "agentic",
-        "heartbeat",
-        "memory"
-    ]
+    "settings": {}
 }

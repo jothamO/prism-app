@@ -61,9 +61,5 @@
         }
     },
     "active": false,
-    "settings": {},
-    "tags": [
-        "notifications",
-        "proactive"
-    ]
+    "settings": {}
 }
