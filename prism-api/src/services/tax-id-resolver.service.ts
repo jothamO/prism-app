@@ -112,12 +112,12 @@ export class TaxIDResolverService {
                 };
             } catch (error: any) {
                 console.error('[TaxIDResolver] Mono NIN lookup failed:', error);
-                
+
                 // If not found, don't fall back to mock
                 if (error.statusCode === 404) {
                     throw new Error('NIN not found in national database');
                 }
-                
+
                 // For other errors, fall back to mock in non-production
                 if (process.env.NODE_ENV === 'production') {
                     throw new Error('NIN verification service unavailable');
@@ -137,7 +137,7 @@ export class TaxIDResolverService {
         if (monoLookupService.isConfigured()) {
             try {
                 const results = await monoLookupService.searchCAC(cac);
-                
+
                 if (results.length === 0) {
                     throw new Error('CAC number not found in registry');
                 }
@@ -158,11 +158,11 @@ export class TaxIDResolverService {
                 };
             } catch (error: any) {
                 console.error('[TaxIDResolver] Mono CAC lookup failed:', error);
-                
+
                 if (error.statusCode === 404 || error.message?.includes('not found')) {
                     throw new Error('CAC number not found in registry');
                 }
-                
+
                 if (process.env.NODE_ENV === 'production') {
                     throw new Error('CAC verification service unavailable');
                 }
@@ -181,12 +181,12 @@ export class TaxIDResolverService {
         if (monoLookupService.isConfigured()) {
             try {
                 const result = await monoLookupService.lookupTIN(tin, channel);
-                
+
                 return {
                     tin,
                     taxpayer_name: result.taxpayer_name,
                     entity_type: result.tin_type === 'INDIVIDUAL' ? 'individual' : 'company',
-                    tax_office: result.tax_office,
+                    tax_office: result.tax_office ?? undefined,
                     phone: result.phone_number,
                     email: result.email,
                     cac_number: result.cac_reg_number,
@@ -195,11 +195,11 @@ export class TaxIDResolverService {
                 };
             } catch (error: any) {
                 console.error('[TaxIDResolver] Mono TIN lookup failed:', error);
-                
+
                 if (error.statusCode === 404) {
                     throw new Error('TIN not found in tax database');
                 }
-                
+
                 if (process.env.NODE_ENV === 'production') {
                     throw new Error('TIN verification service unavailable');
                 }

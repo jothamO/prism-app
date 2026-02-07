@@ -62,7 +62,7 @@ export class PersonalizedClassifierService {
                     confidence: businessPattern.confidence,
                     source: 'business_pattern',
                     reasoning: `Matches your ${businessPattern.occurrences}x pattern: "${businessPattern.item_pattern}"`,
-                    needsConfirmation: data.amount && data.amount > 500_000,
+                    needsConfirmation: (data.amount && data.amount > 500_000) ? true : undefined,
                     nigerianFlags: nigerianContext.nigerianFlags,
                     taxImplications: nigerianContext.taxImplications,
                     transactionType: nigerianContext.transactionTypeDescription
@@ -128,11 +128,11 @@ export class PersonalizedClassifierService {
         nigerianFlags?: NigerianFlags
     ): Promise<any | null> {
         const normalized = description.toLowerCase().trim();
-        
+
         // Build pattern key with Nigerian context for better matching
         const txnTypePrefix = nigerianFlags?.is_pos_transaction ? 'pos:' :
             nigerianFlags?.is_mobile_money ? `mm_${nigerianFlags.mobile_money_provider}:` :
-            nigerianFlags?.is_ussd_transaction ? 'ussd:' : '';
+                nigerianFlags?.is_ussd_transaction ? 'ussd:' : '';
 
         // Try exact match first with transaction type prefix
         if (txnTypePrefix) {

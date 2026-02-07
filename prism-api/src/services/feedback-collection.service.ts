@@ -158,12 +158,20 @@ export class FeedbackCollectionService {
 
         if (error) throw error;
 
-        const stats = {
+        const stats: {
+            total: number;
+            confirmations: number;
+            overrides: number;
+            partialEdits: number;
+            byEntity: Record<string, number>;
+            accuracy: number;
+        } = {
             total: data.length,
             confirmations: data.filter(f => f.correction_type === 'confirmation').length,
             overrides: data.filter(f => f.correction_type === 'full_override').length,
             partialEdits: data.filter(f => f.correction_type === 'partial_edit').length,
-            byEntity: {} as any
+            byEntity: {},
+            accuracy: 0
         };
 
         // Count by entity type

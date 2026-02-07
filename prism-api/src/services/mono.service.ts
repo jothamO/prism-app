@@ -28,6 +28,13 @@ export class MonoService {
     return data.url;
   }
 
+  /**
+   * Alias for getAuthUrl - used by intent-router and message-handler
+   */
+  async generateConnectUrl(userId: string): Promise<string> {
+    return this.getAuthUrl(userId);
+  }
+
   async exchangeToken(code: string) {
     return this.client.auth.exchangeToken({ code });
   }

@@ -22,7 +22,7 @@ export interface VATClassification {
  */
 export function getCategoryVATTreatment(category: string): VATClassification {
     const normalized = category.toLowerCase().trim();
-    
+
     // Zero-rated categories (0% VAT, can claim input)
     const zeroRated = ['food', 'medical', 'education', 'agriculture', 'export'];
     if (zeroRated.includes(normalized)) {
@@ -34,7 +34,7 @@ export function getCategoryVATTreatment(category: string): VATClassification {
             reason: `${normalized} is zero-rated under Tax Act 2025`
         };
     }
-    
+
     // Exempt categories (0% VAT, cannot claim input)
     const exempt = ['rent', 'financial', 'insurance', 'transport'];
     if (exempt.includes(normalized)) {
@@ -46,7 +46,7 @@ export function getCategoryVATTreatment(category: string): VATClassification {
             reason: `${normalized} is exempt under Tax Act 2025`
         };
     }
-    
+
     // Standard rate for everything else (7.5% VAT)
     return {
         category: 'standard',
@@ -215,7 +215,12 @@ export class SupplyClassificationService {
      * Get detailed classification breakdown
      */
     getDetailedClassification(items: Array<{ description: string, amount: number, category?: string }>) {
-        const breakdown = {
+        type BreakdownEntry = { description: string; amount: number; vat: number; classification: 'standard' | 'zero-rated' | 'exempt' };
+        const breakdown: {
+            standard: { items: BreakdownEntry[]; subtotal: number; vat: number };
+            zeroRated: { items: BreakdownEntry[]; subtotal: number; vat: number };
+            exempt: { items: BreakdownEntry[]; subtotal: number; vat: number };
+        } = {
             standard: { items: [], subtotal: 0, vat: 0 },
             zeroRated: { items: [], subtotal: 0, vat: 0 },
             exempt: { items: [], subtotal: 0, vat: 0 }

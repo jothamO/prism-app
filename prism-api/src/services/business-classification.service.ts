@@ -103,9 +103,9 @@ export class BusinessClassificationService {
         }
 
         // Does not qualify - Medium or Large company
-        const classification = turnover > 100_000_000 ? 'large' : 'medium';
+        const classification: 'small' | 'medium' | 'large' = turnover > 100_000_000 ? 'large' : 'medium';
 
-        const reasons = [];
+        const reasons: string[] = [];
         if (!meetsTurnoverThreshold) {
             reasons.push(`Turnover ₦${turnover.toLocaleString()} exceeds ₦50M limit`);
         }

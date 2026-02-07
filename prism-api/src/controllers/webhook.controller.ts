@@ -95,7 +95,10 @@ export class WebhookController {
 
       // Get recent transactions from Mono
       const { monoService } = await import("../services/mono.service");
-      const transactions = await monoService.getTransactions(accountId);
+      const now = new Date();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(now.getDate() - 30);
+      const transactions = await monoService.getTransactions(accountId, { start: thirtyDaysAgo, end: now });
 
       if (!transactions || transactions.length === 0) {
         console.log('[Webhook] No transactions to analyze');

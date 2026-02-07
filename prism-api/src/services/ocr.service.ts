@@ -94,6 +94,19 @@ Format:
       .trim();
     return JSON.parse(jsonText);
   }
+
+  /**
+   * Alias for extractExpense - used by message-handler.service
+   */
+  async extractReceipt(photoUrl: string | Buffer) {
+    // If URL string passed, fetch it as buffer first
+    if (typeof photoUrl === 'string') {
+      const response = await fetch(photoUrl);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return this.extractExpense(buffer);
+    }
+    return this.extractExpense(photoUrl);
+  }
 }
 
 export const ocrService = new OCRService();

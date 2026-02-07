@@ -48,27 +48,27 @@ export class AntiAvoidanceService {
         // Check 1: Connected Person Transactions (Section 191 & 192)
         if (transaction.isConnectedPerson) {
             const connectedPersonCheck = this.checkConnectedPerson(transaction);
-            warnings.push(...connectedPersonCheck.warnings);
-            actReferences.push(...connectedPersonCheck.actReferences);
-            riskLevel = this.maxRiskLevel(riskLevel, connectedPersonCheck.riskLevel);
+            warnings.push(...(connectedPersonCheck.warnings || []));
+            actReferences.push(...(connectedPersonCheck.actReferences || []));
+            riskLevel = this.maxRiskLevel(riskLevel, connectedPersonCheck.riskLevel || 'low');
         }
 
         // Check 2: Gift vs Income Classification (Section 4(1)(h))
         const giftCheck = this.checkGiftVsIncome(transaction);
-        warnings.push(...giftCheck.warnings);
-        actReferences.push(...giftCheck.actReferences);
-        riskLevel = this.maxRiskLevel(riskLevel, giftCheck.riskLevel);
+        warnings.push(...(giftCheck.warnings || []));
+        actReferences.push(...(giftCheck.actReferences || []));
+        riskLevel = this.maxRiskLevel(riskLevel, giftCheck.riskLevel || 'low');
 
         // Check 3: Capital vs Revenue Classification (Section 4(1) & 21)
         const capitalCheck = this.checkCapitalVsRevenue(transaction);
-        warnings.push(...capitalCheck.warnings);
-        actReferences.push(...capitalCheck.actReferences);
-        riskLevel = this.maxRiskLevel(riskLevel, capitalCheck.riskLevel);
+        warnings.push(...(capitalCheck.warnings || []));
+        actReferences.push(...(capitalCheck.actReferences || []));
+        riskLevel = this.maxRiskLevel(riskLevel, capitalCheck.riskLevel || 'low');
 
         // Check 4: Round Number Transactions (indicator of artificial pricing)
         const roundNumberCheck = this.checkRoundNumbers(transaction);
-        warnings.push(...roundNumberCheck.warnings);
-        riskLevel = this.maxRiskLevel(riskLevel, roundNumberCheck.riskLevel);
+        warnings.push(...(roundNumberCheck.warnings || []));
+        riskLevel = this.maxRiskLevel(riskLevel, roundNumberCheck.riskLevel || 'low');
 
         return {
             isArtificial: riskLevel === 'high',
@@ -353,7 +353,7 @@ export class AntiAvoidanceService {
 
         } catch (error: any) {
             console.error('[AntiAvoidance] TIN verification failed:', error);
-            
+
             if (error.statusCode === 404) {
                 result.warnings.push(`🚨 TIN ${partyTIN} not found in tax database - potentially fake`);
             } else {
@@ -400,7 +400,7 @@ export class AntiAvoidanceService {
                 // Verify TIN if available and not recently verified
                 if (party.party_tin && !party.tin_verified) {
                     verification = await this.verifyRelatedParty(party.party_name, party.party_tin);
-                    
+
                     // Update verification status in database
                     if (verification.verified) {
                         await supabase
