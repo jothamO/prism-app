@@ -208,7 +208,8 @@ describe('Project Funds Integration Tests', () => {
         .single();
 
       expect(error).toBeNull();
-      expect(project.spent).toBe(150000);
+      expect(project).not.toBeNull();
+      expect(project!.spent).toBe(150000);
     });
 
     test('should record multiple expenses and accumulate spent', async () => {
@@ -252,7 +253,8 @@ describe('Project Funds Integration Tests', () => {
         .single();
 
       // 150000 + 200000 + 500000 + 300000 = 1,150,000
-      expect(project.spent).toBe(1150000);
+      expect(project).not.toBeNull();
+      expect(project!.spent).toBe(1150000);
     });
 
     test('should calculate remaining balance correctly', async () => {
@@ -264,7 +266,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', testProjectId)
         .single();
 
-      const remaining = project.budget - project.spent;
+      expect(project).not.toBeNull();
+      const remaining = project!.budget - project!.spent;
       expect(remaining).toBe(5000000 - 1150000); // 3,850,000
     });
   });
@@ -339,8 +342,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('project_id', testProjectId);
 
       expect(error).toBeNull();
-      expect(receipts).toBeDefined();
-      expect(receipts.length).toBeGreaterThanOrEqual(2);
+      expect(receipts).not.toBeNull();
+      expect(receipts!.length).toBeGreaterThanOrEqual(2);
     });
   });
 
@@ -372,7 +375,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', testProjectId)
         .single();
 
-      const excess = project.budget - project.spent;
+      expect(project).not.toBeNull();
+      const excess = project!.budget - project!.spent;
       expect(excess).toBe(3850000);
       expect(excess).toBeGreaterThan(0);
 
@@ -392,7 +396,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', testProjectId)
         .single();
 
-      const excess = project.budget - project.spent; // 3,850,000
+      expect(project).not.toBeNull();
+      const excess = project!.budget - project!.spent; // 3,850,000
 
       // Apply Section 58 PIT bands
       const taxBands = [
@@ -520,7 +525,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', lifecycleProjectId)
         .single();
 
-      expect(project.spent).toBe(4200000);
+      expect(project).not.toBeNull();
+      expect(project!.spent).toBe(4200000);
     });
 
     test('Step 3: Attach receipts for compliance (Section 32)', async () => {
@@ -565,7 +571,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', lifecycleProjectId)
         .single();
 
-      const balance = project.budget - project.spent;
+      expect(project).not.toBeNull();
+      const balance = project!.budget - project!.spent;
       expect(balance).toBe(800000); // ₦800,000 excess
     });
 
@@ -578,7 +585,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', lifecycleProjectId)
         .single();
 
-      const excess = project.budget - project.spent;
+      expect(project).not.toBeNull();
+      const excess = project!.budget - project!.spent;
       expect(excess).toBe(800000);
 
       // Complete the project
@@ -607,7 +615,8 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', lifecycleProjectId)
         .single();
 
-      const excess = project.budget - project.spent;
+      expect(project).not.toBeNull();
+      const excess = project!.budget - project!.spent;
       expect(excess).toBe(800000);
 
       // ₦800,000 falls entirely within the first tax band (0% rate)
@@ -679,8 +688,9 @@ describe('Project Funds Integration Tests', () => {
         .eq('id', project.id)
         .single();
 
-      expect(updatedProject.spent).toBe(150000);
-      expect(updatedProject.spent).toBeGreaterThan(updatedProject.budget);
+      expect(updatedProject).not.toBeNull();
+      expect(updatedProject!.spent).toBe(150000);
+      expect(updatedProject!.spent).toBeGreaterThan(updatedProject!.budget);
 
       // Cleanup
       await supabase.from('expenses').delete().eq('id', expense.id);
