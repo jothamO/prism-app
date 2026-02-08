@@ -1,5 +1,5 @@
 {
-    "name": "Tax Deadline Alert (VAT)",
+    "name": "Tax Deadline Alert",
     "nodes": [
         {
             "parameters": {
@@ -13,7 +13,7 @@
                 }
             },
             "id": "e6f47700-1111-4111-8111-1e1111111111",
-            "name": "Schedule (10th of Month)",
+            "name": "Schedule (10th at 9AM)",
             "type": "n8n-nodes-base.scheduleTrigger",
             "typeVersion": 1,
             "position": [
@@ -23,52 +23,37 @@
         },
         {
             "parameters": {
-                "url": "https://prismtax.duckdns.org/api/filings/pending-reminders",
-                "options": {}
+                "method": "POST",
+                "url": "https://prismtax.duckdns.org/api/notifications/deadline-alert",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "x-prism-agent-key",
+                            "value": "={{ $env.PRISM_AGENT_KEY }}"
+                        }
+                    ]
+                },
+                "options": {
+                    "timeout": 30000
+                }
             },
             "id": "f7g58811-2222-4222-9222-2f2222222222",
-            "name": "Fetch Pending Users",
+            "name": "Trigger Deadline Alert",
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 4.1,
             "position": [
                 470,
                 300
             ]
-        },
-        {
-            "parameters": {
-                "resource": "chat",
-                "operation": "sendMessage",
-                "userId": "={{$node[\"Fetch Pending Users\"].json[\"userId\"]}}",
-                "message": "=📢 PRISM REMINDER: Your VAT filing for last month is due in 4 days (Tax Act 2025 Sec 155). \n\nNet Payable: ₦{{$node[\"Fetch Pending Users\"].json[\"amount\"].toLocaleString()}}\n\nReply 'FILE' to proceed automatically."
-            },
-            "id": "g8h69922-3333-4333-a333-3g3333333333",
-            "name": "Notify User",
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.1,
-            "position": [
-                690,
-                300
-            ]
         }
     ],
     "connections": {
-        "Schedule (10th of Month)": {
+        "Schedule (10th at 9AM)": {
             "main": [
                 [
                     {
-                        "node": "Fetch Pending Users",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "Fetch Pending Users": {
-            "main": [
-                [
-                    {
-                        "node": "Notify User",
+                        "node": "Trigger Deadline Alert",
                         "type": "main",
                         "index": 0
                     }

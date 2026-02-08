@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { webhookController } from '../controllers/webhook.controller';
 import { authController } from '../controllers/auth.controller';
 import reviewQueueRoutes from './review-queue.routes';
+import notificationRoutes from './notification.routes';
 import { antiAvoidanceService } from '../services/anti-avoidance.service';
 import { authMiddleware, adminMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 
@@ -20,6 +21,9 @@ router.post('/auth/login', (req, res) => authController.login(req, res));
 router.post('/auth/logout', (req, res) => authController.logout(req, res));
 router.post('/auth/refresh', (req, res) => authController.refresh(req, res));
 router.get('/auth/verify', (req, res) => authController.verify(req, res));
+
+// Notification routes (uses agent key authentication)
+router.use('/notifications', notificationRoutes);
 
 // ==========================================
 // Protected routes (require authentication)
