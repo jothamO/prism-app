@@ -184,10 +184,22 @@ This document serves as the production-ready roadmap for transforming PRISM from
 | ✅ P14.1: Deploy n8n | 🔴 High | [DONE] Docker Compose setup with Port 5678. |
 | ✅ P14.2: Redis Queue Setup | 🔴 High | [DONE] BullMQ shared state via Docker-provided Redis. |
 | ✅ P14.3: Secure Proxy | 🔴 High | [DONE] Nginx `n8n.prism.sh` + SSL configuration. |
-| **P14.4: Deadline Workflow** | 🔴 High | Port filing deadline alerts from TypeScript to visual n8n workflow. |
-| **P14.5: Integration Port** | 🔴 High | Migrate WhatsApp/Telegram notification logic into n8n shared nodes. |
+| ✅ P14.4: Deadline Workflow | 🔴 High | [DONE] Ported filing deadline alerts to n8n workflows & API. |
+| ✅ P14.5: Integration Port | 🔴 High | [DONE] Migrated Telegram notification logic into n8n via `/api/notifications`. |
 | **P14.6: GDrive Backup** | 🟡 Medium | Implement auto-sync to user Google Drive for processed tax documents. |
 | **P14.7: Agentic n8n** | 🔴 High | Port core agentic loops (P6.x) to n8n AI Agent nodes for visual orchestration. |
+
+### Phase 15: Data Hydration & UX Polish (The Bridge)
+*Goal: Replacing Mock data with real-time streams from Azure/Supabase.*
+
+| Task | Priority | Description |
+|:---|:---|:---|
+| **P15.1: Dashboard Hydration**| 🔴 High | Connect `Dashboard.tsx` to `/api/stats` (Revenue, VAT, Next Filing). |
+| **P15.2: Admin Table Sync** | 🔴 High | Connect `AdminUsers.tsx` and `AdminFilings.tsx` to real Supabase tables. |
+| **P15.3: Real-time Comms** | 🔴 High | Wire `AdminMessaging.tsx` to the new Telegram `/api/notifications` routes. |
+| **P15.4: Loading States** | 🟡 Medium | Implement skeleton loaders and optimistic UI updates. |
+| **P15.5: Auth Persistence** | 🔴 High | Ensure `localStorage` tokens properly handle auto-refresh on Lovable. |
+
 
 
 ---

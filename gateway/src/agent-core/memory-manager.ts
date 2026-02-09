@@ -8,6 +8,7 @@ import { supabase } from '../config';
 import { logger } from '../utils/logger';
 
 export type PARALayer = 'project' | 'area' | 'resource' | 'archive';
+export type DecayTier = 'hot' | 'warm' | 'cold';
 
 export interface AtomicFact {
     id?: string;
@@ -46,6 +47,53 @@ export class MemoryManager {
             throw new Error(`MemoryManager: ${error.message}`);
         }
 
+        return data as AtomicFact[];
+    }
+
+    /**
+     * Fetch 'Hot' facts (created within last 7 days) for prompt injection.
+     */
+    static async getHotFacts(user_id: string): Promise<AtomicFact[]> {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        const { data, error } = await supabase
+            .from('atomic_facts')
+            .select('*')
+            .eq('user_id', user_id)
+            .eq('is_superseded', false)
+            .gte('created_at', sevenDaysAgo)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data as AtomicFact[];
+    }
+
+    /**
+     * Get facts by decay tier.
+     */
+    static async getFactsByTier(user_id: string, tier: DecayTier): Promise<AtomicFact[]> {
+        const now = Date.now();
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+
+        let query = supabase
+            .from('atomic_facts')
+            .select('*')
+            .eq('user_id', user_id)
+            .eq('is_superseded', false);
+
+        if (tier === 'hot') {
+            query = query.gte('created_at', new Date(now - sevenDays).toISOString());
+        } else if (tier === 'warm') {
+            query = query
+                .lt('created_at', new Date(now - sevenDays).toISOString())
+                .gte('created_at', new Date(now - thirtyDays).toISOString());
+        } else {
+            query = query.lt('created_at', new Date(now - thirtyDays).toISOString());
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
         return data as AtomicFact[];
     }
 

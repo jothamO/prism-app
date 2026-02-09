@@ -8,6 +8,7 @@ import { supabase } from '../config';
 import { PendingApproval } from './errors';
 import { logger } from '../utils/logger';
 import { MemoryManager, PARALayer } from './memory-manager';
+import { KnowledgeBaseService } from '../services/knowledge-base.service';
 
 // Type definitions for agent code
 export interface YTDState {
@@ -77,8 +78,7 @@ export const externalFunctions = {
      */
     async query_tax_law(question: string): Promise<string> {
         logger.info('[ExternalFunctions] query_tax_law', { question });
-        // Placeholder for QMD integration (P6.9)
-        return "Based on the Finance Act 2023, the VAT threshold remains ₦25M annual turnover.";
+        return await KnowledgeBaseService.searchTaxLaw(question);
     },
 
     /**
